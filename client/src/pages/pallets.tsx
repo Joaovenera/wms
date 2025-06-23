@@ -252,6 +252,9 @@ export default function Pallets() {
     
     const matchesStatus = statusFilter === "all" || pallet.status === statusFilter;
     
+    // Debug logging
+    console.log(`Pallet ${pallet.code}: status=${pallet.status}, filter=${statusFilter}, matches=${matchesStatus}`);
+    
     return matchesSearch && matchesStatus;
   }) || [];
 
@@ -648,7 +651,7 @@ export default function Pallets() {
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue />
+            <SelectValue placeholder="Todos os Status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os Status</SelectItem>
