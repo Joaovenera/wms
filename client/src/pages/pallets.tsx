@@ -154,6 +154,21 @@ export default function Pallets() {
     },
   });
 
+  // Busca o próximo código automático quando abre o diálogo de criação
+  const generateNextCode = async () => {
+    if (!editingPallet) {
+      try {
+        const response = await fetch('/api/pallets/next-code');
+        if (response.ok) {
+          const data = await response.json();
+          form.setValue('code', data.code);
+        }
+      } catch (error) {
+        console.error('Erro ao gerar próximo código:', error);
+      }
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: InsertPallet) => {
       await apiRequest('POST', '/api/pallets', data);
@@ -320,10 +335,12 @@ export default function Pallets() {
                 onClick={() => {
                   setEditingPallet(null);
                   form.reset();
+                  setPhotoPreview(null);
+                  generateNextCode();
                 }}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Nova Layers
+                Novo Pallet
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
@@ -342,7 +359,18 @@ export default function Pallets() {
                       <FormItem>
                         <FormLabel>Código</FormLabel>
                         <FormControl>
-                          <Input placeholder="PLT0001" {...field} />
+                          <div className="flex space-x-2">
+                            <Input placeholder="PLT0001" {...field} className="flex-1" />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={generateNextCode}
+                              title="Gerar código automático"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>

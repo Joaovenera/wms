@@ -167,6 +167,21 @@ export default function MobilePallets() {
     },
   });
 
+  // Busca o próximo código automático quando abre o diálogo de criação
+  const generateNextCode = async () => {
+    if (!editingPallet) {
+      try {
+        const response = await fetch('/api/pallets/next-code');
+        if (response.ok) {
+          const data = await response.json();
+          form.setValue('code', data.code);
+        }
+      } catch (error) {
+        console.error('Erro ao gerar próximo código:', error);
+      }
+    }
+  };
+
   const {
     data: pallets,
     isLoading,
@@ -338,6 +353,7 @@ export default function MobilePallets() {
                   setEditingPallet(null);
                   form.reset();
                   setPhotoPreview(null);
+                  generateNextCode();
                 }}
               >
                 <Plus className="h-4 w-4" />
@@ -366,7 +382,18 @@ export default function MobilePallets() {
                       <FormItem>
                         <FormLabel>Código</FormLabel>
                         <FormControl>
-                          <Input placeholder="PLT0001" {...field} />
+                          <div className="flex space-x-2">
+                            <Input placeholder="PLT0001" {...field} className="flex-1" />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={generateNextCode}
+                              title="Gerar código automático"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
