@@ -183,7 +183,7 @@ export default function Positions() {
       rackType: position.rackType || "convencional",
       status: position.status,
       maxPallets: position.maxPallets,
-      hasDivision: position.hasDivision,
+      hasDivision: Boolean(position.hasDivision),
       restrictions: position.restrictions || "",
       observations: position.observations || ""
     });
@@ -244,7 +244,7 @@ export default function Positions() {
     return matchesSearch && matchesStatus && matchesStreet;
   });
 
-  const uniqueStreets = [...new Set(positions.map(p => p.street))].sort();
+  const uniqueStreets = Array.from(new Set(positions.map(p => p.street))).sort();
 
   return (
     <div className="container mx-auto p-6 space-y-6">
