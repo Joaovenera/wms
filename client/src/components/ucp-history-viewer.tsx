@@ -173,9 +173,12 @@ export default function UcpHistoryViewer({ ucpId, isOpen, onClose }: UcpHistoryV
                               {entry.action ? entry.action.replace('_', ' ').toUpperCase() : 'AÇÃO DESCONHECIDA'}
                             </Badge>
                             <span className="text-sm text-muted-foreground">
-                              {format(new Date(entry.timestamp), "dd/MM/yyyy 'às' HH:mm", { 
-                                locale: ptBR 
-                              })}
+                              {(() => {
+                                if (!entry.timestamp) return 'Data não disponível';
+                                const date = new Date(entry.timestamp);
+                                if (isNaN(date.getTime())) return 'Data inválida';
+                                return format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+                              })()}
                             </span>
                           </div>
                           
