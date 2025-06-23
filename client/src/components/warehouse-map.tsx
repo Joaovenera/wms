@@ -199,117 +199,71 @@ export default function WarehouseMap() {
                           </div>
                         </div>
                         
-                        {/* Container dos dois lados compacto */}
-                        <div className="grid grid-cols-2 gap-6 relative z-10">
-                          {['E', 'D'].map(side => {
-                            const sidePositions = streetPositions.filter(p => p.side === side);
-                            if (sidePositions.length === 0) return <div key={side}></div>;
-
-                            return (
-                              <div key={side} className={`space-y-1 ${side === 'D' ? 'order-2' : 'order-1'}`}>
-                                <div className="flex items-center justify-center space-x-1 mb-1">
-                                  <div className={`w-2 h-2 rounded-full ${side === 'E' ? 'bg-blue-500' : 'bg-green-500'}`}></div>
-                                  <span className="text-xs font-semibold text-gray-600">
-                                    {side === 'E' ? 'ESQ' : 'DIR'}
-                                  </span>
-                                  <Badge variant="secondary" className="text-xs h-4 px-1">
-                                    {sidePositions.length}
-                                  </Badge>
-                                </div>
+                        {/* Layout vertical do armazém - vista de cima */}
+                        <div className="space-y-2">
+                          {/* Lado Esquerdo */}
+                          {(() => {
+                            const leftPositions = streetPositions.filter(p => p.side === 'E');
+                            if (leftPositions.length === 0) return null;
                             
-                                <div className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1">
-                                  {/* Agrupar posições por posição física para criar estruturas */}
+                            return (
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  <span className="text-xs font-semibold text-gray-600">LADO ESQUERDO</span>
+                                  <Badge variant="secondary" className="text-xs h-4 px-1">{leftPositions.length}</Badge>
+                                </div>
+                                
+                                {/* Porta-pallets em linha horizontal */}
+                                <div className="flex flex-wrap gap-2">
                                   {Object.entries(
-                                    sidePositions
-                                      .sort((a, b) => a.position - b.position || Number(a.level) - Number(b.level))
+                                    leftPositions
+                                      .sort((a, b) => a.position - b.position)
                                       .reduce((acc, position) => {
                                         const key = `${position.position}`;
                                         if (!acc[key]) acc[key] = [];
                                         acc[key].push(position);
                                         return acc;
-                                      }, {} as Record<string, typeof sidePositions>)
-                                  ).map(([positionNum, positions], index) => {
-                                    // Organizar por nível (0 = térreo, 1+ = prateleiras superiores)
-                                    const levelGroups = positions.reduce((acc, pos) => {
-                                      const level = Number(pos.level);
-                                      if (!acc[level]) acc[level] = [];
-                                      acc[level].push(pos);
-                                      return acc;
-                                    }, {} as Record<number, typeof positions>);
-
-                                    const maxLevels = Math.max(...Object.keys(levelGroups).map(Number)) + 1;
+                                      }, {} as Record<string, typeof leftPositions>)
+                                  ).map(([positionNum, positions]) => {
+                                    const sortedPositions = positions.sort((a, b) => Number(a.level) - Number(b.level));
                                     
                                     return (
-                                      <div
-                                        key={`${side}-${positionNum}`}
-                                        className="relative mb-3"
-                                        style={{ 
-                                          animationDelay: `${index * 20}ms`,
-                                          animation: 'bounceIn 0.3s ease-out forwards'
-                                        }}
-                                      >
-                                        {/* Estrutura do Porta-Pallet (vista de cima) */}
-                                        <div className="border border-slate-500 bg-slate-100 p-1 min-h-[60px] relative shadow-sm">
-                                          {/* Estrutura metálica - pilares compactos */}
-                                          <div className="absolute left-0.5 top-0.5 bottom-0.5 w-0.5 bg-slate-600"></div>
-                                          <div className="absolute right-0.5 top-0.5 bottom-0.5 w-0.5 bg-slate-600"></div>
-                                          <div className="absolute left-0.5 top-0.5 right-0.5 h-0.5 bg-slate-600"></div>
-                                          <div className="absolute left-0.5 bottom-0.5 right-0.5 h-0.5 bg-slate-600"></div>
+                                      <div key={`left-${positionNum}`} className="relative">
+                                        {/* Estrutura do porta-pallet vista de cima */}
+                                        <div className="bg-gray-200 border border-gray-400 rounded-sm p-1 w-16 shadow-sm">
+                                          {/* Pilares estruturais */}
+                                          <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gray-600"></div>
+                                          <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-gray-600"></div>
                                           
-                                          {/* Níveis do porta-pallet compactos */}
-                                          <div className="space-y-0.5 h-full p-0.5">
-                                            {Array.from({ length: maxLevels }).map((_, levelIndex) => {
-                                              const levelPositions = levelGroups[maxLevels - 1 - levelIndex] || [];
-                                              const hasPosition = levelPositions.length > 0;
-                                              const position = levelPositions[0];
-                                              const statusInfo = hasPosition ? getStatusInfo(position.status) : null;
+                                          {/* Posições empilhadas verticalmente */}
+                                          <div className="space-y-0.5">
+                                            {sortedPositions.map((position, index) => {
+                                              const statusInfo = getStatusInfo(position.status);
                                               
                                               return (
                                                 <div
-                                                  key={levelIndex}
+                                                  key={position.id}
                                                   className={`
-                                                    relative h-3 cursor-pointer transition-all duration-150
-                                                    ${hasPosition ? 'hover:scale-110 hover:z-10' : ''}
-                                                    ${hoveredPosition?.id === position?.id ? 'ring-1 ring-blue-400 z-20' : ''}
+                                                    h-2 w-full cursor-pointer transition-all duration-150 rounded-sm border
+                                                    ${statusInfo.color} hover:scale-105 hover:z-10
+                                                    ${hoveredPosition?.id === position.id ? 'ring-1 ring-blue-400' : ''}
                                                   `}
-                                                  onClick={() => hasPosition && handlePositionClick(position)}
-                                                  onMouseEnter={() => hasPosition && setHoveredPosition(position)}
+                                                  onClick={() => handlePositionClick(position)}
+                                                  onMouseEnter={() => setHoveredPosition(position)}
                                                   onMouseLeave={() => setHoveredPosition(null)}
-                                                  title={hasPosition ? `${position.code} - ${statusInfo?.label}` : 'Vazio'}
+                                                  title={`${position.code} - ${statusInfo.label}`}
                                                 >
-                                                  {/* Prateleira compacta */}
-                                                  <div className={`
-                                                    w-full h-full rounded-sm border flex items-center justify-center text-xs
-                                                    ${hasPosition 
-                                                      ? `${statusInfo?.color} border-slate-400` 
-                                                      : 'bg-gray-50 border-dashed border-gray-300'
-                                                    }
-                                                  `}>
-                                                    {/* Barra estrutural */}
-                                                    <div className="absolute left-0 top-0 w-full h-px bg-slate-500 opacity-40"></div>
-                                                    
-                                                    {hasPosition ? (
-                                                      <div className="flex items-center space-x-0.5">
-                                                        <span className="text-xs">{statusInfo?.icon}</span>
-                                                        <span className="text-xs font-bold text-white">
-                                                          {position.level}
-                                                        </span>
-                                                      </div>
-                                                    ) : (
-                                                      <div className="w-3 h-px bg-gray-400 opacity-50"></div>
-                                                    )}
-                                                  </div>
+                                                  {/* Barra estrutural da prateleira */}
+                                                  <div className="h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
                                                 </div>
                                               );
                                             })}
                                           </div>
                                           
-                                          {/* Base do porta-pallet */}
-                                          <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-slate-700"></div>
-                                          
-                                          {/* Etiqueta da posição compacta */}
-                                          <div className="absolute -bottom-4 left-0 right-0 text-center">
-                                            <span className="text-xs font-medium text-slate-600 bg-white px-1 py-0.5 rounded shadow-sm border">
+                                          {/* Número da posição */}
+                                          <div className="absolute -bottom-3 left-0 right-0 text-center">
+                                            <span className="text-xs font-medium text-gray-600 bg-white px-1 rounded border">
                                               {positionNum}
                                             </span>
                                           </div>
@@ -320,7 +274,87 @@ export default function WarehouseMap() {
                                 </div>
                               </div>
                             );
-                          })}
+                          })()}
+                          
+                          {/* Corredor */}
+                          <div className="h-4 bg-yellow-50 border-t border-b border-dashed border-yellow-400 flex items-center justify-center">
+                            <span className="text-xs text-yellow-600 font-medium">CORREDOR</span>
+                          </div>
+                          
+                          {/* Lado Direito */}
+                          {(() => {
+                            const rightPositions = streetPositions.filter(p => p.side === 'D');
+                            if (rightPositions.length === 0) return null;
+                            
+                            return (
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                  <span className="text-xs font-semibold text-gray-600">LADO DIREITO</span>
+                                  <Badge variant="secondary" className="text-xs h-4 px-1">{rightPositions.length}</Badge>
+                                </div>
+                                
+                                {/* Porta-pallets em linha horizontal */}
+                                <div className="flex flex-wrap gap-2">
+                                  {Object.entries(
+                                    rightPositions
+                                      .sort((a, b) => a.position - b.position)
+                                      .reduce((acc, position) => {
+                                        const key = `${position.position}`;
+                                        if (!acc[key]) acc[key] = [];
+                                        acc[key].push(position);
+                                        return acc;
+                                      }, {} as Record<string, typeof rightPositions>)
+                                  ).map(([positionNum, positions]) => {
+                                    const sortedPositions = positions.sort((a, b) => Number(a.level) - Number(b.level));
+                                    
+                                    return (
+                                      <div key={`right-${positionNum}`} className="relative">
+                                        {/* Estrutura do porta-pallet vista de cima */}
+                                        <div className="bg-gray-200 border border-gray-400 rounded-sm p-1 w-16 shadow-sm">
+                                          {/* Pilares estruturais */}
+                                          <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gray-600"></div>
+                                          <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-gray-600"></div>
+                                          
+                                          {/* Posições empilhadas verticalmente */}
+                                          <div className="space-y-0.5">
+                                            {sortedPositions.map((position, index) => {
+                                              const statusInfo = getStatusInfo(position.status);
+                                              
+                                              return (
+                                                <div
+                                                  key={position.id}
+                                                  className={`
+                                                    h-2 w-full cursor-pointer transition-all duration-150 rounded-sm border
+                                                    ${statusInfo.color} hover:scale-105 hover:z-10
+                                                    ${hoveredPosition?.id === position.id ? 'ring-1 ring-blue-400' : ''}
+                                                  `}
+                                                  onClick={() => handlePositionClick(position)}
+                                                  onMouseEnter={() => setHoveredPosition(position)}
+                                                  onMouseLeave={() => setHoveredPosition(null)}
+                                                  title={`${position.code} - ${statusInfo.label}`}
+                                                >
+                                                  {/* Barra estrutural da prateleira */}
+                                                  <div className="h-full w-full bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                          
+                                          {/* Número da posição */}
+                                          <div className="absolute -bottom-3 left-0 right-0 text-center">
+                                            <span className="text-xs font-medium text-gray-600 bg-white px-1 rounded border">
+                                              {positionNum}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
