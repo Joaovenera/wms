@@ -189,35 +189,35 @@ export default function WarehouseMap() {
                   </div>
 
                   {(!selectedStreet || selectedStreet === street) && (
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                       {/* Layout do corredor com ambos os lados */}
                       <div className="relative">
-                        {/* Corredor central */}
-                        <div className="absolute left-1/2 top-0 bottom-0 w-8 bg-yellow-50 border-l-2 border-r-2 border-dashed border-yellow-400 transform -translate-x-1/2 z-0">
+                        {/* Corredor central compacto */}
+                        <div className="absolute left-1/2 top-0 bottom-0 w-4 bg-yellow-50 border-l border-r border-dashed border-yellow-400 transform -translate-x-1/2 z-0 opacity-60">
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-xs text-yellow-600 font-medium rotate-90 whitespace-nowrap">CORREDOR</span>
+                            <div className="w-px h-4 bg-yellow-500"></div>
                           </div>
                         </div>
                         
-                        {/* Container dos dois lados */}
-                        <div className="grid grid-cols-2 gap-12 relative z-10">
+                        {/* Container dos dois lados compacto */}
+                        <div className="grid grid-cols-2 gap-6 relative z-10">
                           {['E', 'D'].map(side => {
                             const sidePositions = streetPositions.filter(p => p.side === side);
                             if (sidePositions.length === 0) return <div key={side}></div>;
 
                             return (
-                              <div key={side} className={`space-y-2 ${side === 'D' ? 'order-2' : 'order-1'}`}>
-                                <div className="flex items-center justify-center space-x-2 mb-2">
-                                  <div className={`w-3 h-3 rounded-full ${side === 'E' ? 'bg-blue-500' : 'bg-green-500'}`}></div>
-                                  <span className="text-sm font-semibold text-gray-700">
-                                    {side === 'E' ? 'LADO ESQUERDO' : 'LADO DIREITO'}
+                              <div key={side} className={`space-y-1 ${side === 'D' ? 'order-2' : 'order-1'}`}>
+                                <div className="flex items-center justify-center space-x-1 mb-1">
+                                  <div className={`w-2 h-2 rounded-full ${side === 'E' ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+                                  <span className="text-xs font-semibold text-gray-600">
+                                    {side === 'E' ? 'ESQ' : 'DIR'}
                                   </span>
-                                  <Badge variant="secondary" className="text-xs">
+                                  <Badge variant="secondary" className="text-xs h-4 px-1">
                                     {sidePositions.length}
                                   </Badge>
                                 </div>
                             
-                                <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2">
+                                <div className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1">
                                   {/* Agrupar posições por posição física para criar estruturas */}
                                   {Object.entries(
                                     sidePositions
@@ -242,22 +242,22 @@ export default function WarehouseMap() {
                                     return (
                                       <div
                                         key={`${side}-${positionNum}`}
-                                        className="relative mb-6"
+                                        className="relative mb-3"
                                         style={{ 
-                                          animationDelay: `${index * 40}ms`,
-                                          animation: 'bounceIn 0.4s ease-out forwards'
+                                          animationDelay: `${index * 20}ms`,
+                                          animation: 'bounceIn 0.3s ease-out forwards'
                                         }}
                                       >
                                         {/* Estrutura do Porta-Pallet (vista de cima) */}
-                                        <div className="border-2 border-slate-600 bg-slate-200 p-2 min-h-[100px] relative shadow-lg">
-                                          {/* Estrutura metálica - pilares */}
-                                          <div className="absolute left-1 top-1 bottom-1 w-0.5 bg-slate-700"></div>
-                                          <div className="absolute right-1 top-1 bottom-1 w-0.5 bg-slate-700"></div>
-                                          <div className="absolute left-1 top-1 right-1 h-0.5 bg-slate-700"></div>
-                                          <div className="absolute left-1 bottom-1 right-1 h-0.5 bg-slate-700"></div>
+                                        <div className="border border-slate-500 bg-slate-100 p-1 min-h-[60px] relative shadow-sm">
+                                          {/* Estrutura metálica - pilares compactos */}
+                                          <div className="absolute left-0.5 top-0.5 bottom-0.5 w-0.5 bg-slate-600"></div>
+                                          <div className="absolute right-0.5 top-0.5 bottom-0.5 w-0.5 bg-slate-600"></div>
+                                          <div className="absolute left-0.5 top-0.5 right-0.5 h-0.5 bg-slate-600"></div>
+                                          <div className="absolute left-0.5 bottom-0.5 right-0.5 h-0.5 bg-slate-600"></div>
                                           
-                                          {/* Níveis do porta-pallet (de cima para baixo) */}
-                                          <div className="space-y-1 h-full">
+                                          {/* Níveis do porta-pallet compactos */}
+                                          <div className="space-y-0.5 h-full p-0.5">
                                             {Array.from({ length: maxLevels }).map((_, levelIndex) => {
                                               const levelPositions = levelGroups[maxLevels - 1 - levelIndex] || [];
                                               const hasPosition = levelPositions.length > 0;
@@ -268,61 +268,49 @@ export default function WarehouseMap() {
                                                 <div
                                                   key={levelIndex}
                                                   className={`
-                                                    relative h-5 cursor-pointer transition-all duration-200
-                                                    ${hasPosition ? 'hover:scale-105 hover:shadow-md hover:z-10' : ''}
-                                                    ${hoveredPosition?.id === position?.id ? 'ring-2 ring-blue-400 z-20' : ''}
+                                                    relative h-3 cursor-pointer transition-all duration-150
+                                                    ${hasPosition ? 'hover:scale-110 hover:z-10' : ''}
+                                                    ${hoveredPosition?.id === position?.id ? 'ring-1 ring-blue-400 z-20' : ''}
                                                   `}
                                                   onClick={() => hasPosition && handlePositionClick(position)}
                                                   onMouseEnter={() => hasPosition && setHoveredPosition(position)}
                                                   onMouseLeave={() => setHoveredPosition(null)}
-                                                  title={hasPosition ? `${position.code} - ${statusInfo?.label}` : 'Nível não utilizado'}
+                                                  title={hasPosition ? `${position.code} - ${statusInfo?.label}` : 'Vazio'}
                                                 >
-                                                  {/* Representação da prateleira/nível */}
+                                                  {/* Prateleira compacta */}
                                                   <div className={`
-                                                    w-full h-full rounded-sm border-2 flex items-center justify-center
+                                                    w-full h-full rounded-sm border flex items-center justify-center text-xs
                                                     ${hasPosition 
-                                                      ? `${statusInfo?.color} border-slate-400 shadow-sm` 
-                                                      : 'bg-slate-100 border-dashed border-slate-300'
+                                                      ? `${statusInfo?.color} border-slate-400` 
+                                                      : 'bg-gray-50 border-dashed border-gray-300'
                                                     }
                                                   `}>
-                                                    {/* Barras horizontais simulando estrutura */}
-                                                    <div className="absolute left-0 top-0 w-full h-0.5 bg-slate-600 opacity-30"></div>
-                                                    <div className="absolute left-0 bottom-0 w-full h-0.5 bg-slate-600 opacity-30"></div>
+                                                    {/* Barra estrutural */}
+                                                    <div className="absolute left-0 top-0 w-full h-px bg-slate-500 opacity-40"></div>
                                                     
                                                     {hasPosition ? (
-                                                      <div className="flex items-center space-x-1">
-                                                        <span className="text-sm">{statusInfo?.icon}</span>
-                                                        <span className="text-xs font-bold text-white drop-shadow-sm">
-                                                          N{position.level}
+                                                      <div className="flex items-center space-x-0.5">
+                                                        <span className="text-xs">{statusInfo?.icon}</span>
+                                                        <span className="text-xs font-bold text-white">
+                                                          {position.level}
                                                         </span>
                                                       </div>
                                                     ) : (
-                                                      <div className="flex items-center justify-center space-x-1 opacity-40">
-                                                        <div className="w-6 h-0.5 bg-slate-400"></div>
-                                                        <div className="w-6 h-0.5 bg-slate-400"></div>
-                                                      </div>
+                                                      <div className="w-3 h-px bg-gray-400 opacity-50"></div>
                                                     )}
                                                   </div>
-                                                  
-                                                  {/* Conectores verticais entre níveis */}
-                                                  {levelIndex < maxLevels - 1 && (
-                                                    <>
-                                                      <div className="absolute left-1 -bottom-1 w-0.5 h-2 bg-slate-600 opacity-50"></div>
-                                                      <div className="absolute right-1 -bottom-1 w-0.5 h-2 bg-slate-600 opacity-50"></div>
-                                                    </>
-                                                  )}
                                                 </div>
                                               );
                                             })}
                                           </div>
                                           
                                           {/* Base do porta-pallet */}
-                                          <div className="absolute -bottom-1 left-0 right-0 h-1 bg-slate-800 rounded-sm"></div>
+                                          <div className="absolute -bottom-0.5 left-0 right-0 h-0.5 bg-slate-700"></div>
                                           
-                                          {/* Etiqueta da posição */}
-                                          <div className="absolute -bottom-6 left-0 right-0 text-center">
-                                            <span className="text-xs font-semibold text-slate-700 bg-yellow-100 px-2 py-0.5 rounded border border-yellow-300">
-                                              POS {positionNum}
+                                          {/* Etiqueta da posição compacta */}
+                                          <div className="absolute -bottom-4 left-0 right-0 text-center">
+                                            <span className="text-xs font-medium text-slate-600 bg-white px-1 py-0.5 rounded shadow-sm border">
+                                              {positionNum}
                                             </span>
                                           </div>
                                         </div>
