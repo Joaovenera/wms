@@ -135,8 +135,28 @@ export const ucpItems = pgTable("ucp_items", {
   quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
   lot: varchar("lot"),
   expiryDate: date("expiry_date"),
-  addedBy: varchar("added_by").notNull().references(() => users.id),
+  internalCode: varchar("internal_code"), // CI - Código Interno for individual tracking
+  addedBy: integer("added_by").notNull().references(() => users.id),
   addedAt: timestamp("added_at").defaultNow(),
+  removedBy: integer("removed_by").references(() => users.id),
+  removedAt: timestamp("removed_at"),
+  removalReason: text("removal_reason"), // sale, damage, transfer, etc.
+  isActive: boolean("is_active").default(true),
+});
+
+// UCP History/Audit table for complete lifecycle tracking
+export const ucpHistory = pgTable("ucp_history", {
+  id: serial("id").primaryKey(),
+  ucpId: integer("ucp_id").notNull().references(() => ucps.id),
+  action: varchar("action").notNull(), // created, item_added, item_removed, moved, status_changed, dismantled
+  description: text("description").notNull(),
+  oldValue: jsonb("old_value"), // Previous state for tracking changes
+  newValue: jsonb("new_value"), // New state after change
+  itemId: integer("item_id").references(() => ucpItems.id), // If action relates to specific item
+  fromPositionId: integer("from_position_id").references(() => positions.id),
+  toPositionId: integer("to_position_id").references(() => positions.id),
+  performedBy: integer("performed_by").notNull().references(() => users.id),
+  timestamp: timestamp("timestamp").defaultNow(),
 });
 
 // Movement history table
@@ -218,9 +238,10 @@ export const ucpsRelations = relations(ucps, ({ one, many }) => ({
   }),
   items: many(ucpItems),
   movements: many(movements),
+  history: many(ucpHistory),
 }));
 
-export const ucpItemsRelations = relations(ucpItems, ({ one }) => ({
+export const ucpItemsRelations = relations(ucpItems, ({ one, many }) => ({
   ucp: one(ucps, {
     fields: [ucpItems.ucpId],
     references: [ucps.id],
@@ -229,11 +250,41 @@ export const ucpItemsRelations = relations(ucpItems, ({ one }) => ({
     fields: [ucpItems.productId],
     references: [products.id],
   }),
-  addedBy: one(users, {
+  addedByUser: one(users, {
     fields: [ucpItems.addedBy],
     references: [users.id],
   }),
+  removedByUser: one(users, {
+    fields: [ucpItems.removedBy],
+    references: [users.id],
+  }),
+  historyEntries: many(ucpHistory),
 }));
+
+export const ucpHistoryRelations = relations(ucpHistory, ({ one }) => ({
+  ucp: one(ucps, {
+    fields: [ucpHistory.ucpId],
+    references: [ucps.id],
+  }),
+  item: one(ucpItems, {
+    fields: [ucpHistory.itemId],
+    references: [ucpItems.id],
+  }),
+  fromPosition: one(positions, {
+    fields: [ucpHistory.fromPositionId],
+    references: [positions.id],
+  }),
+  toPosition: one(positions, {
+    fields: [ucpHistory.toPositionId],
+    references: [positions.id],
+  }),
+  performedByUser: one(users, {
+    fields: [ucpHistory.performedBy],
+    references: [users.id],
+  }),
+}));
+
+// UCPs relations updated above with history support
 
 export const movementsRelations = relations(movements, ({ one }) => ({
   ucp: one(ucps, {
