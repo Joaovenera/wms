@@ -16,8 +16,8 @@ import { Separator } from "@/components/ui/separator";
 import { Building2, Plus, Edit2, Trash2, MapPin, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { insertPortaPalletSchema, type InsertPalletStructure, type PalletStructure } from "@shared/schema";
-import PalletLayoutConfigurator from "@/components/pallet-layout-configurator";
+import { insertPortaPalletSchema, type InsertPalletStructure, type PalletStructure, type Position } from "@shared/schema";
+import PalletStructureViewer from "@/components/pallet-structure-viewer";
 import { useAuth } from "@/hooks/useAuth";
 
 // Schema específico para porta paletes
@@ -33,30 +33,9 @@ const portaPalletFormSchema = z.object({
 
 type PortaPalletForm = z.infer<typeof portaPalletFormSchema>;
 
-interface LayoutConfig {
-  rows: number;
-  cols: number;
-  slots: Array<{
-    id: string;
-    row: number;
-    col: number;
-    width: number;
-    height: number;
-    occupied: boolean;
-    palletType?: string;
-  }>;
-  totalPallets: number;
-}
-
 export default function PortaPaletes() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingStructure, setEditingStructure] = useState<PalletStructure | null>(null);
-  const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>({
-    rows: 3,
-    cols: 5,
-    slots: [],
-    totalPallets: 15
-  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -64,6 +43,11 @@ export default function PortaPaletes() {
   // Query para buscar estruturas de porta paletes
   const { data: structures = [], isLoading, refetch } = useQuery<PalletStructure[]>({
     queryKey: ['/api/pallet-structures'],
+  });
+
+  // Query para buscar posições
+  const { data: positions = [] } = useQuery<Position[]>({
+    queryKey: ['/api/positions'],
   });
 
   // Mutation para criar estrutura
@@ -144,34 +128,9 @@ export default function PortaPaletes() {
     }
   };
 
-  const renderStructurePreview = (structure: PalletStructure) => {
-    const previewConfig: LayoutConfig = {
-      rows: structure.maxLevels + 1,
-      cols: structure.maxPositions,
-      slots: Array.from({ length: (structure.maxLevels + 1) * structure.maxPositions }, (_, i) => ({
-        id: `slot-${i}`,
-        row: Math.floor(i / structure.maxPositions),
-        col: i % structure.maxPositions,
-        width: 1,
-        height: 1,
-        occupied: Math.random() > 0.7, // Simulação de ocupação
-        palletType: Math.random() > 0.5 ? "PBR" : "Europeu",
-      })),
-      totalPallets: (structure.maxLevels + 1) * structure.maxPositions,
-    };
-
-    return (
-      <div className="mt-4">
-        <div className="text-sm text-gray-600 mb-2">Preview da Estrutura</div>
-        <div className="border rounded-lg p-4 bg-gray-50">
-          <PalletLayoutConfigurator 
-            config={previewConfig}
-            onChange={() => {}} // Read-only
-            readonly={true}
-          />
-        </div>
-      </div>
-    );
+  // Função para obter posições relacionadas a uma estrutura
+  const getStructurePositions = (structureId: number) => {
+    return positions.filter(pos => pos.structureId === structureId);
   };
 
   return (
@@ -426,7 +385,11 @@ export default function PortaPaletes() {
                   </div>
                 )}
 
-                {renderStructurePreview(structure)}
+                <PalletStructureViewer 
+                  structure={structure}
+                  positions={getStructurePositions(structure.id)}
+                  compact={true}
+                />
 
                 <Separator />
                 
