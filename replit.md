@@ -168,6 +168,13 @@ Core entities include:
   * Simplified corridor representation with subtle visual indicators
   * Condensed side labels to "ESQ/DIR" for space efficiency
   * Streamlined position numbering and structural elements for cleaner appearance
+- June 23, 2025. Redesigned warehouse map to match user's reference image layout:
+  * Implemented exact layout from user's attached image with two columns and central corridor
+  * Created vertical stacking of positions within each porta-pallet structure
+  * Removed floor numbers and emojis from individual positions for cleaner appearance
+  * Added black borders around porta-pallet structures for realistic warehouse visualization
+  * Positioned numbers adjacent to structures (left side: structure-number, right side: number-structure)
+  * Simplified corredor central with vertical text orientation for authentic top-view perspective
 
 ## User Preferences
 
