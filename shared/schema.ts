@@ -53,23 +53,34 @@ export const pallets = pgTable("pallets", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Rack positions table
-export const positions = pgTable("positions", {
+// Pallet structures table - defines the rack structure
+export const palletStructures = pgTable("pallet_structures", {
   id: serial("id").primaryKey(),
-  code: varchar("code").notNull().unique(), // PP-01-01-0 (PortaPallet-Rua-Posição-Nível)
+  name: varchar("name").notNull(), // Nome da estrutura (ex: "Porta-Pallet Rua 01 Lado E")
   street: varchar("street").notNull(), // 01, 02, 03...
-  position: integer("position").notNull(), // 01, 02, 03... (pares=direita, ímpares=esquerda)
-  level: integer("level").notNull().default(0), // 0, 1, 2, 3... (altura)
-  rackType: varchar("rack_type"), // Convencional, Drive-in, Push-back
-  maxPallets: integer("max_pallets").notNull().default(1), // 1 ou 2 pallets
-  hasDivision: boolean("has_division").notNull().default(false), // Se tem divisão entre pallets
-  layoutConfig: jsonb("layout_config"), // Configuração visual do layout
-  side: varchar("side").notNull(), // E (Esquerdo), D (Direito) - calculado automaticamente
-  corridor: varchar("corridor"), // Mantido para compatibilidade
-  restrictions: text("restrictions"),
-  status: varchar("status").notNull().default("available"), // available, occupied, reserved, maintenance, blocked
+  side: varchar("side").notNull(), // E (Esquerdo), D (Direito)
+  maxPositions: integer("max_positions").notNull(), // número de posições (1-7)
+  maxLevels: integer("max_levels").notNull(), // número de níveis (0-3)
+  rackType: varchar("rack_type").default("conventional"), // Convencional, Drive-in, Push-back
+  status: varchar("status").notNull().default("active"),
   observations: text("observations"),
   createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Rack positions table - individual storage positions
+export const positions = pgTable("positions", {
+  id: serial("id").primaryKey(),
+  code: varchar("code").notNull().unique(), // [1,0], [1,1], [1,2], [1,3] formato
+  structureId: integer("structure_id").references(() => palletStructures.id),
+  street: varchar("street").notNull(), // 01, 02, 03...
+  side: varchar("side").notNull(), // E (Esquerdo), D (Direito)
+  position: integer("position").notNull(), // 1, 2, 3, 4, 5, 6, 7
+  level: integer("level").notNull(), // 0, 1, 2, 3
+  status: varchar("status").notNull().default("available"), // available, occupied, reserved, maintenance, blocked
+  currentPalletId: integer("current_pallet_id").references(() => pallets.id),
+  observations: text("observations"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -154,10 +165,22 @@ export const palletsRelations = relations(pallets, ({ one, many }) => ({
   ucps: many(ucps),
 }));
 
-export const positionsRelations = relations(positions, ({ one, many }) => ({
+export const palletStructuresRelations = relations(palletStructures, ({ one, many }) => ({
   createdBy: one(users, {
-    fields: [positions.createdBy],
+    fields: [palletStructures.createdBy],
     references: [users.id],
+  }),
+  positions: many(positions),
+}));
+
+export const positionsRelations = relations(positions, ({ one, many }) => ({
+  structure: one(palletStructures, {
+    fields: [positions.structureId],
+    references: [palletStructures.id],
+  }),
+  currentPallet: one(pallets, {
+    fields: [positions.currentPalletId],
+    references: [pallets.id],
   }),
   ucps: many(ucps),
   movementsFrom: many(movements, { relationName: "fromPosition" }),
@@ -237,6 +260,12 @@ export const insertPalletSchema = createInsertSchema(pallets).omit({
   updatedAt: true,
 });
 
+export const insertPalletStructureSchema = createInsertSchema(palletStructures).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertPositionSchema = createInsertSchema(positions).omit({
   id: true,
   createdAt: true,
@@ -302,3 +331,5 @@ export type InsertUcpItem = z.infer<typeof insertUcpItemSchema>;
 export type UcpItem = typeof ucpItems.$inferSelect;
 export type InsertMovement = z.infer<typeof insertMovementSchema>;
 export type Movement = typeof movements.$inferSelect;
+export type InsertPalletStructure = z.infer<typeof insertPalletStructureSchema>;
+export type PalletStructure = typeof palletStructures.$inferSelect;
