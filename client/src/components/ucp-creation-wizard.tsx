@@ -17,6 +17,7 @@ import {
   MapPin, User, Calendar, Hash, Layers
 } from "lucide-react";
 import { type Pallet, type Position, type Product, type InsertUcp } from "@shared/schema";
+import QrScanner from "@/components/qr-scanner";
 
 interface UcpCreationWizardProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
   const [selectedProducts, setSelectedProducts] = useState<ProductSelection[]>([]);
   const [observations, setObservations] = useState("");
   const [ucpCode, setUcpCode] = useState("");
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: availablePallets } = useQuery<Pallet[]>({
@@ -105,6 +107,41 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
     },
   });
 
+  const handleQrCodeScan = async (scannedCode: string) => {
+    try {
+      const position = positions?.find(p => p.code === scannedCode);
+      
+      if (position) {
+        if (position.status === 'available') {
+          setSelectedPositionId(position.id);
+          setIsQrScannerOpen(false);
+          toast({
+            title: "Posição selecionada",
+            description: `Posição ${position.code} selecionada com sucesso`,
+          });
+        } else {
+          toast({
+            title: "Posição não disponível",
+            description: `A posição ${position.code} não está disponível para armazenamento`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Posição não encontrada",
+          description: `Código ${scannedCode} não corresponde a nenhuma posição cadastrada`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Erro ao processar QR Code",
+        description: "Não foi possível processar o código escaneado",
+        variant: "destructive",
+      });
+    }
+  };
+
   const resetWizard = () => {
     setCurrentStep(1);
     setSelectedPalletId(null);
@@ -112,6 +149,7 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
     setSelectedProducts([]);
     setObservations("");
     setUcpCode("");
+    setIsQrScannerOpen(false);
   };
 
   const addProduct = (productId: number) => {
@@ -390,18 +428,39 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
                 <CardTitle>Posição no Armazém (Opcional)</CardTitle>
               </CardHeader>
               <CardContent>
-                <Select onValueChange={(value) => setSelectedPositionId(parseInt(value))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecionar posição..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availablePositions.map((position) => (
-                      <SelectItem key={position.id} value={position.id.toString()}>
-                        {position.code} - {position.street}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Select 
+                      onValueChange={(value) => setSelectedPositionId(parseInt(value))}
+                      value={selectedPositionId?.toString() || ""}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecionar posição..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePositions.map((position) => (
+                          <SelectItem key={position.id} value={position.id.toString()}>
+                            {position.code} - Rua {position.street} - {position.side === 'E' ? 'Esquerdo' : 'Direito'} - Nível {position.level}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setIsQrScannerOpen(true)}
+                    className="shrink-0"
+                  >
+                    <Scan className="h-4 w-4" />
+                  </Button>
+                </div>
+                {selectedPositionId && (
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    Posição selecionada: {positions?.find(p => p.id === selectedPositionId)?.code}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -471,6 +530,14 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
           </div>
         )}
       </DialogContent>
+
+      {/* QR Scanner for Position Selection */}
+      {isQrScannerOpen && (
+        <QrScanner
+          onScan={handleQrCodeScan}
+          onClose={() => setIsQrScannerOpen(false)}
+        />
+      )}
     </Dialog>
   );
 }
