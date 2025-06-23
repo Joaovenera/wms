@@ -13,27 +13,68 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const startCamera = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
+      // Parar stream anterior se existir
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+
+      console.log("Iniciando câmera...");
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facingMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 }
         }
       });
       
+      console.log("Stream obtido:", mediaStream);
       setStream(mediaStream);
+      
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        
+        // Aguardar o vídeo carregar e estar pronto para reprodução
+        const video = videoRef.current;
+        
+        const onCanPlay = () => {
+          console.log("Vídeo pode reproduzir:", video.videoWidth, "x", video.videoHeight);
+          video.play().then(() => {
+            setIsLoading(false);
+            console.log("Vídeo iniciado com sucesso");
+          }).catch(err => {
+            console.error("Erro ao iniciar vídeo:", err);
+            setError("Erro ao iniciar o vídeo");
+            setIsLoading(false);
+          });
+          video.removeEventListener('canplay', onCanPlay);
+        };
+        
+        video.addEventListener('canplay', onCanPlay);
+        
+        // Fallback timeout
+        setTimeout(() => {
+          if (isLoading) {
+            setIsLoading(false);
+            video.removeEventListener('canplay', onCanPlay);
+          }
+        }, 5000);
       }
     } catch (error) {
       console.error("Erro ao acessar a câmera:", error);
+      setError("Não foi possível acessar a câmera. Verifique as permissões.");
+      setIsLoading(false);
     }
-  }, [facingMode]);
+  }, [facingMode, stream]);
 
   const stopCamera = useCallback(() => {
     if (stream) {
@@ -48,13 +89,26 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
       const canvas = canvasRef.current;
       const context = canvas.getContext("2d");
 
+      // Aguardar o vídeo estar pronto
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        console.error("Vídeo não está pronto para captura");
+        return;
+      }
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
       if (context) {
-        context.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL("image/jpeg", 0.8);
-        setCapturedImage(imageData);
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL("image/jpeg", 0.9);
+        
+        // Verificar se a imagem foi capturada corretamente
+        if (imageData && imageData !== 'data:,' && imageData.length > 100) {
+          setCapturedImage(imageData);
+          console.log("Foto capturada com sucesso", imageData.substring(0, 50) + "...");
+        } else {
+          console.error("Falha na captura da foto");
+        }
       }
     }
   }, []);
@@ -121,6 +175,26 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
           {!capturedImage ? (
             <>
               <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
+                {isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                    <div className="text-white text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                      <p>Iniciando câmera...</p>
+                    </div>
+                  </div>
+                )}
+                
+                {error && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-red-900/50 z-10">
+                    <div className="text-white text-center p-4">
+                      <p className="mb-2">{error}</p>
+                      <Button onClick={startCamera} variant="outline" size="sm">
+                        Tentar novamente
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <video
                   ref={videoRef}
                   autoPlay

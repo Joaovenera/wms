@@ -118,8 +118,10 @@ export default function Pallets() {
   ) || [];
 
   const handleCameraCapture = (imageData: string) => {
-    setPhotoPreview(imageData);
-    form.setValue('photoUrl', imageData);
+    if (imageData && imageData !== 'data:,') {
+      setPhotoPreview(imageData);
+      form.setValue('photoUrl', imageData);
+    }
   };
 
   const handleRemovePhoto = () => {
