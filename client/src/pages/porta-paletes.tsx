@@ -21,12 +21,14 @@ import PalletLayoutConfigurator from "@/components/pallet-layout-configurator";
 import { useAuth } from "@/hooks/useAuth";
 
 // Schema específico para porta paletes
-const portaPalletFormSchema = insertPortaPalletSchema.extend({
+const portaPalletFormSchema = z.object({
   street: z.string().min(1, "Rua é obrigatória").regex(/^\d{2}$/, "Rua deve ter 2 dígitos (ex: 01)"),
   side: z.enum(["E", "D"], { required_error: "Lado é obrigatório" }),
   maxPositions: z.number().min(1, "Mínimo 1 posição").max(7, "Máximo 7 posições"),
   maxLevels: z.number().min(0, "Mínimo 0 níveis").max(3, "Máximo 3 níveis"),
   rackType: z.string().default("conventional"),
+  status: z.string().default("active"),
+  observations: z.string().optional(),
 });
 
 type PortaPalletForm = z.infer<typeof portaPalletFormSchema>;
@@ -123,7 +125,7 @@ export default function PortaPaletes() {
     resolver: zodResolver(portaPalletFormSchema),
     defaultValues: {
       street: "",
-      side: "E",
+      side: "E" as const,
       maxPositions: 5,
       maxLevels: 3,
       rackType: "conventional",
@@ -135,7 +137,16 @@ export default function PortaPaletes() {
   const onSubmit = (data: PortaPalletForm) => {
     console.log("Formulário submetido:", data);
     console.log("Usuário:", user);
+    console.log("Erros do formulário:", form.formState.errors);
     createMutation.mutate(data);
+  };
+
+  // Adicionar handler para debugar clique do botão
+  const handleSubmitClick = () => {
+    console.log("Botão clicado!");
+    console.log("Form valid:", form.formState.isValid);
+    console.log("Form errors:", form.formState.errors);
+    console.log("Form values:", form.getValues());
   };
 
   const handleDelete = (structure: PalletStructure) => {
@@ -327,7 +338,7 @@ export default function PortaPaletes() {
                       <FormItem>
                         <FormLabel>Observações</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Observações sobre a estrutura..." {...field} />
+                          <Textarea placeholder="Observações sobre a estrutura..." {...field} value={field.value || ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -344,7 +355,11 @@ export default function PortaPaletes() {
                     >
                       Cancelar
                     </Button>
-                    <Button type="submit" disabled={createMutation.isPending}>
+                    <Button 
+                      type="submit" 
+                      disabled={createMutation.isPending}
+                      onClick={handleSubmitClick}
+                    >
                       {createMutation.isPending ? "Criando..." : "Criar Porta-Pallet"}
                     </Button>
                   </div>
