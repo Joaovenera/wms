@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Building2, Plus, Trash2, Edit, Grid3X3, Eye } from "lucide-react";
+import { Building2, Plus, Trash2, Edit, Grid3X3, Eye, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMobile } from "@/hooks/use-mobile";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { insertPalletStructureSchema, type PalletStructure, type InsertPalletStructure } from "@shared/schema";
+import QRCodeDialog from "@/components/qr-code-dialog";
 
 export default function PalletStructures() {
   const isMobile = useMobile();
@@ -24,6 +25,7 @@ export default function PalletStructures() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingStructure, setEditingStructure] = useState<PalletStructure | null>(null);
   const [previewStructure, setPreviewStructure] = useState<PalletStructure | null>(null);
+  const [qrCodeDialog, setQrCodeDialog] = useState<{ isOpen: boolean; structure?: PalletStructure }>({ isOpen: false });
 
   // Query para buscar estruturas
   const { data: structures = [], isLoading, refetch } = useQuery<PalletStructure[]>({
@@ -98,6 +100,14 @@ export default function PalletStructures() {
     if (confirm(`Deseja remover a estrutura "${structure.name}" e todas as suas vagas?`)) {
       deleteMutation.mutate(structure.id);
     }
+  };
+
+  const handleShowQRCode = (structure: PalletStructure) => {
+    setQrCodeDialog({ isOpen: true, structure });
+  };
+
+  const handleCloseQRCode = () => {
+    setQrCodeDialog({ isOpen: false });
   };
 
   // Renderizar preview da estrutura
@@ -397,6 +407,14 @@ export default function PalletStructures() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => handleShowQRCode(structure)}
+                      title="Gerar QR Code"
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleDelete(structure)}
                       disabled={deleteMutation.isPending}
                     >
@@ -442,6 +460,20 @@ export default function PalletStructures() {
           ))
         )}
       </div>
+
+      {/* QR Code Dialog */}
+      <QRCodeDialog
+        isOpen={qrCodeDialog.isOpen}
+        onClose={handleCloseQRCode}
+        palletCode={qrCodeDialog.structure?.name || ""}
+        palletData={qrCodeDialog.structure ? {
+          code: qrCodeDialog.structure.name,
+          type: "Porta-Pallet",
+          material: `Rua ${qrCodeDialog.structure.street} - Lado ${qrCodeDialog.structure.side === 'E' ? 'Esquerdo' : 'Direito'}`,
+          dimensions: `${qrCodeDialog.structure.maxPositions} posições x ${qrCodeDialog.structure.maxLevels} níveis`,
+          maxWeight: `${qrCodeDialog.structure.maxPositions * qrCodeDialog.structure.maxLevels} vagas totais`
+        } : undefined}
+      />
     </div>
   );
 }
