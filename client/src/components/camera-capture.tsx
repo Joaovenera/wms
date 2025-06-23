@@ -30,32 +30,64 @@ export default function CameraCapture({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const startCamera = useCallback(async () => {
+    // Para completamente todas as tracks antes de iniciar uma nova
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach((track) => {
+        track.stop();
+      });
       setStream(null);
+    }
+
+    // Limpa o vídeo atual
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
 
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log("Iniciando câmera...");
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      // Pequeno delay para garantir que as tracks anteriores foram liberadas
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      console.log("Iniciando câmera com facingMode:", facingMode);
+      
+      const constraints = {
         video: {
-          facingMode: facingMode,
-          width: { ideal: 1920, max: 3840 },
-          height: { ideal: 1080, max: 2160 },
+          facingMode: { exact: facingMode },
+          width: { ideal: 800, max: 1920 },
+          height: { ideal: 600, max: 1080 },
         },
-      });
+      };
+
+      let mediaStream;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (exactError) {
+        // Se falhar com exact, tenta sem exact
+        console.log("Tentando sem exact facingMode");
+        const fallbackConstraints = {
+          video: {
+            facingMode: facingMode,
+            width: { ideal: 800, max: 1920 },
+            height: { ideal: 600, max: 1080 },
+          },
+        };
+        mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+      }
 
       console.log("Stream obtido:", mediaStream);
       setStream(mediaStream);
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        videoRef.current.oncanplay = () => {
-          setIsLoading(false);
-          console.log("Câmera pronta");
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) {
+            videoRef.current.play().then(() => {
+              setIsLoading(false);
+              console.log("Câmera pronta");
+            }).catch(console.error);
+          }
         };
       }
     } catch (error) {
@@ -63,7 +95,7 @@ export default function CameraCapture({
       setError("Não foi possível acessar a câmera. Verifique as permissões.");
       setIsLoading(false);
     }
-  }, [facingMode, stream]);
+  }, [facingMode]);
 
   const stopCamera = useCallback(() => {
     if (stream) {
@@ -87,7 +119,13 @@ export default function CameraCapture({
       canvas.height = video.videoHeight;
 
       if (context) {
-        context.drawImage(video, 0, 0);
+        // Se for câmera frontal, espelhar a imagem na captura
+        if (facingMode === "user") {
+          context.scale(-1, 1);
+          context.drawImage(video, -video.videoWidth, 0);
+        } else {
+          context.drawImage(video, 0, 0);
+        }
 
         // Reduzir qualidade para diminuir o tamanho do arquivo
         const imageData = canvas.toDataURL("image/jpeg", 0.9);
@@ -102,7 +140,7 @@ export default function CameraCapture({
         }
       }
     }
-  }, []);
+  }, [facingMode]);
 
   const retakePhoto = useCallback(() => {
     setCapturedImage(null);
@@ -117,15 +155,75 @@ export default function CameraCapture({
     }
   }, [capturedImage, onCapture, stopCamera, onClose]);
 
-  const switchCamera = useCallback(() => {
-    setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
+  const switchCamera = useCallback(async () => {
+    console.log("Alternando câmera de", facingMode, "para", facingMode === "user" ? "environment" : "user");
+    
+    // Para completamente o stream atual
     if (stream) {
-      stopCamera();
-      setTimeout(() => {
-        startCamera();
-      }, 100);
+      stream.getTracks().forEach((track) => {
+        track.stop();
+      });
+      setStream(null);
     }
-  }, [stream, stopCamera, startCamera]);
+
+    // Limpa o vídeo
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    // Aguarda um pouco para garantir que o stream foi liberado
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Alterna o modo da câmera
+    const newFacingMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(newFacingMode);
+    
+    // Inicia a nova câmera após a mudança do estado
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const constraints = {
+        video: {
+          facingMode: { exact: newFacingMode },
+          width: { ideal: 800, max: 1920 },
+          height: { ideal: 600, max: 1080 },
+        },
+      };
+
+      let mediaStream;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (exactError) {
+        console.log("Tentando sem exact facingMode");
+        const fallbackConstraints = {
+          video: {
+            facingMode: newFacingMode,
+            width: { ideal: 800, max: 1920 },
+            height: { ideal: 600, max: 1080 },
+          },
+        };
+        mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+      }
+
+      setStream(mediaStream);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) {
+            videoRef.current.play().then(() => {
+              setIsLoading(false);
+            }).catch(console.error);
+          }
+        };
+      }
+    } catch (error) {
+      console.error("Erro ao alternar câmera:", error);
+      setError("Não foi possível acessar a câmera. Verifique as permissões.");
+      setIsLoading(false);
+    }
+  }, [facingMode, stream]);
 
   const handleClose = useCallback(() => {
     setCapturedImage(null);
@@ -184,7 +282,9 @@ export default function CameraCapture({
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full object-cover ${
+                    facingMode === "user" ? "scale-x-[-1]" : ""
+                  }`}
                 />
                 <canvas ref={canvasRef} className="hidden" />
               </div>
