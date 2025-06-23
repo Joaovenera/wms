@@ -233,6 +233,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/positions/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const result = insertPositionSchema.partial().safeParse(req.body);
+      
+      if (!result.success) {
+        const validationError = fromZodError(result.error);
+        return res.status(400).json({ message: validationError.message });
+      }
+
+      const position = await storage.updatePosition(id, result.data);
+      if (!position) {
+        return res.status(404).json({ message: "Position not found" });
+      }
+      res.json(position);
+    } catch (error) {
+      console.error("Error updating position:", error);
+      res.status(500).json({ message: "Failed to update position" });
+    }
+  });
+
   app.delete('/api/positions/:id', isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
