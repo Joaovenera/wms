@@ -74,20 +74,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/pallets/:id', isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const pallet = await storage.getPallet(id);
-      if (!pallet) {
-        return res.status(404).json({ message: "Pallet not found" });
-      }
-      res.json(pallet);
-    } catch (error) {
-      console.error("Error fetching pallet:", error);
-      res.status(500).json({ message: "Failed to fetch pallet" });
-    }
-  });
-
   app.get('/api/pallets/available-for-ucp', isAuthenticated, async (req, res) => {
     try {
       console.log('DEBUG: API /api/pallets/available-for-ucp chamada');
@@ -97,6 +83,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching available pallets for UCP:", error);
       res.status(500).json({ message: "Failed to fetch available pallets" });
+    }
+  });
+
+  app.get('/api/pallets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid pallet ID" });
+      }
+      const pallet = await storage.getPallet(id);
+      if (!pallet) {
+        return res.status(404).json({ message: "Pallet not found" });
+      }
+      res.json(pallet);
+    } catch (error) {
+      console.error("Error fetching pallet:", error);
+      res.status(500).json({ message: "Failed to fetch pallet" });
     }
   });
 
