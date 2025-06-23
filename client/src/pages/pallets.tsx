@@ -70,6 +70,7 @@ const getStatusInfo = (status: string) => {
 
 export default function Pallets() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -165,11 +166,15 @@ export default function Pallets() {
     },
   });
 
-  const filteredPallets = pallets?.filter(pallet =>
-    pallet.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pallet.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pallet.material.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredPallets = pallets?.filter(pallet => {
+    const matchesSearch = pallet.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      pallet.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      pallet.material.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || pallet.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  }) || [];
 
   const handleCameraCapture = (imageData: string) => {
     if (imageData && imageData !== 'data:,') {
@@ -522,6 +527,19 @@ export default function Pallets() {
             className="pl-10"
           />
         </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os Status</SelectItem>
+            <SelectItem value="available">Disponível</SelectItem>
+            <SelectItem value="in_use">Em Uso</SelectItem>
+            <SelectItem value="defective">Defeituoso</SelectItem>
+            <SelectItem value="maintenance">Manutenção</SelectItem>
+            <SelectItem value="discard">Descarte</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Pallets Grid */}
