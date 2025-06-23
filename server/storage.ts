@@ -28,7 +28,7 @@ import {
   type InsertPalletStructure,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, like, or } from "drizzle-orm";
+import { eq, desc, sql, and, like, or, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -103,6 +103,9 @@ export interface IStorage {
     dailyMovements: number;
     palletsByStatus: { status: string; count: number }[];
   }>;
+
+  // Pallet availability for UCP
+  getAvailablePalletsForUcp(): Promise<Pallet[]>;
 
   // Pallet code generation
   getNextPalletCode(): Promise<string>;
@@ -730,6 +733,23 @@ export class DatabaseStorage implements IStorage {
         count: item.count,
       })),
     };
+  }
+
+  async getAvailablePalletsForUcp(): Promise<Pallet[]> {
+    // Consulta SQL direta para buscar pallets disponíveis que não estão em UCPs ativas
+    const result = await db.execute(sql`
+      SELECT p.* FROM pallets p
+      WHERE p.status = 'available'
+      AND p.id NOT IN (
+        SELECT DISTINCT u.pallet_id 
+        FROM ucps u 
+        WHERE u.status = 'active' 
+        AND u.pallet_id IS NOT NULL
+      )
+      ORDER BY p.created_at DESC
+    `);
+
+    return result.rows as Pallet[];
   }
 
   async getNextPalletCode(): Promise<string> {

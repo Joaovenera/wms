@@ -42,8 +42,8 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
   const [ucpCode, setUcpCode] = useState("");
   const { toast } = useToast();
 
-  const { data: pallets } = useQuery<Pallet[]>({
-    queryKey: ['/api/pallets'],
+  const { data: availablePallets } = useQuery<Pallet[]>({
+    queryKey: ['/api/pallets/available-for-ucp'],
   });
 
   const { data: positions } = useQuery<Position[]>({
@@ -136,8 +136,7 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
     setSelectedProducts(selectedProducts.filter((_, i) => i !== index));
   };
 
-  const availablePallets = pallets?.filter(p => p.status === "disponivel") || [];
-  const availablePositions = positions?.filter(p => p.status === "disponivel") || [];
+  const availablePositions = positions?.filter(p => p.status === "available") || [];
 
   const canProceedToStep2 = selectedProducts.length > 0;
   const canProceedToStep3 = selectedPalletId !== null;
@@ -431,7 +430,7 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
                 </div>
                 <div className="flex justify-between">
                   <span>Pallet:</span>
-                  <span>{pallets?.find(p => p.id === selectedPalletId)?.code}</span>
+                  <span>{availablePallets?.find(p => p.id === selectedPalletId)?.code}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Posição:</span>

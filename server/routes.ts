@@ -88,6 +88,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/pallets/available-for-ucp', isAuthenticated, async (req, res) => {
+    try {
+      console.log('DEBUG: API /api/pallets/available-for-ucp chamada');
+      const availablePallets = await storage.getAvailablePalletsForUcp();
+      console.log('DEBUG: Pallets disponíveis para UCP:', availablePallets.length);
+      res.json(availablePallets);
+    } catch (error) {
+      console.error("Error fetching available pallets for UCP:", error);
+      res.status(500).json({ message: "Failed to fetch available pallets" });
+    }
+  });
+
   app.get('/api/pallets/code/:code', isAuthenticated, async (req, res) => {
     try {
       const pallet = await storage.getPalletByCode(req.params.code);
