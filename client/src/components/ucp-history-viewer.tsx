@@ -50,7 +50,7 @@ interface HistoryEntry {
 
 export default function UcpHistoryViewer({ ucpId, isOpen, onClose }: UcpHistoryViewerProps) {
   const { data: history, isLoading } = useQuery<HistoryEntry[]>({
-    queryKey: ['/api/ucps', ucpId, 'history'],
+    queryKey: [`/api/ucps/${ucpId}/history`],
     enabled: isOpen && ucpId > 0,
   });
 
