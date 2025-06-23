@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "@/hooks/use-toast";
+import { Plus, Search, RefreshCw, Scan, MapPin, QrCode, CheckCircle, XCircle, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,77 +13,69 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, Plus, Edit, Trash2, Search, RefreshCw, Filter, Package, CheckCircle, QrCode, Scan } from "lucide-react";
-import { useMobile } from "@/hooks/use-mobile";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { insertPositionSchema, type Position, type InsertPosition, type PalletStructure } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { insertPositionSchema, type Position, type InsertPosition } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
 import QRCodeDialog from "@/components/qr-code-dialog";
 import QrScanner from "@/components/qr-scanner";
 
-// Função para gerar código PP-RUA-POSIÇÃO-NÍVEL
-const generatePositionCode = (street: string, position: number, level: number) => {
-  const streetPadded = street.padStart(2, '0');
-  const positionPadded = position.toString().padStart(2, '0');
-  return `PP-${streetPadded}-${positionPadded}-${level}`;
-};
-
-// Função para determinar o lado baseado na posição (pares=direita, ímpares=esquerda)
-const getSideFromPosition = (position: number) => {
-  return position % 2 === 0 ? 'D' : 'E';
-};
-
 export default function Positions() {
-  const isMobile = useMobile();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [streetFilter, setStreetFilter] = useState<string>("all");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
-  const [qrCodeDialog, setQrCodeDialog] = useState<{ isOpen: boolean; position?: Position }>({ isOpen: false });
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [scannedPosition, setScannedPosition] = useState<Position | null>(null);
+  const [qrCodeDialog, setQrCodeDialog] = useState<{ isOpen: boolean; position?: Position }>({ isOpen: false });
 
-  // Query para buscar posições
-  const { data: positions = [], isLoading, refetch } = useQuery<Position[]>({
-    queryKey: ['/api/positions'],
-    refetchInterval: 30000, // Refresh automático a cada 30 segundos
-  });
-
-  // Query para buscar estruturas de porta-paletes
-  const { data: structures = [] } = useQuery<PalletStructure[]>({
-    queryKey: ['/api/pallet-structures'],
-  });
-
-  // Form setup
-  const form = useForm<InsertPosition>({
+  const form = useForm({
     resolver: zodResolver(insertPositionSchema),
     defaultValues: {
-      street: "",
-      side: "E",
+      code: "",
+      street: "1",
       position: 1,
-      level: 0,
-      rackType: "conventional",
-      maxPallets: 1,
+      level: 1,
+      side: "E",
+      rackType: "convencional",
       status: "available",
+      maxPallets: 1,
+      hasDivision: false,
       restrictions: "",
-      observations: "",
+      observations: ""
     },
   });
 
-  // Mutation para criar posição
+  // Automatic refresh with debounce
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchTerm, statusFilter, streetFilter, queryClient]);
+
+  const { data: positions = [], isLoading, refetch } = useQuery<Position[]>({
+    queryKey: ["/api/positions"],
+    refetchInterval: 30000,
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: InsertPosition) => {
-      const response = await apiRequest("POST", "/api/positions", data);
+      const response = await apiRequest('POST', '/api/positions', data);
       return response;
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Posição criada com sucesso!" });
-      queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
       setIsDialogOpen(false);
       form.reset();
+      toast({
+        title: "Sucesso",
+        description: "Posição criada com sucesso!",
+      });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Erro",
         description: error.message || "Erro ao criar posição",
@@ -92,20 +84,23 @@ export default function Positions() {
     },
   });
 
-  // Mutation para atualizar posição
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertPosition> }) => {
-      const response = await apiRequest("PATCH", `/api/positions/${id}`, data);
+    mutationFn: async (data: InsertPosition) => {
+      if (!editingPosition) throw new Error("No position selected for editing");
+      const response = await apiRequest('PATCH', `/api/positions/${editingPosition.id}`, data);
       return response;
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Posição atualizada com sucesso!" });
-      queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
       setIsDialogOpen(false);
       setEditingPosition(null);
       form.reset();
+      toast({
+        title: "Sucesso",
+        description: "Posição atualizada com sucesso!",
+      });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Erro",
         description: error.message || "Erro ao atualizar posição",
@@ -114,113 +109,65 @@ export default function Positions() {
     },
   });
 
-  // Mutation para deletar posição
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/positions/${id}`);
+      await apiRequest('DELETE', `/api/positions/${id}`);
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Posição removida com sucesso!" });
-      queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
+      toast({
+        title: "Sucesso",
+        description: "Posição excluída com sucesso!",
+      });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Erro",
-        description: error.message || "Erro ao remover posição",
+        description: error.message || "Erro ao excluir posição",
         variant: "destructive",
       });
     },
   });
 
-  // Função para processar QR code escaneado
-  const handleQrCodeScan = async (code: string) => {
+  const handleQrCodeScan = async (scannedCode: string) => {
     try {
-      setIsQrScannerOpen(false);
+      const position = positions.find(p => p.code === scannedCode);
       
-      // Buscar posição pelo código escaneado
-      const position = positions.find(p => p.code === code);
-      
-      if (!position) {
+      if (position) {
+        setScannedPosition(position);
+        setIsQrScannerOpen(false);
+        
+        const statusText = position.status === 'available' ? 'Disponível' : 
+                          position.status === 'occupied' ? 'Ocupada' : 
+                          position.status === 'reserved' ? 'Reservada' : 
+                          position.status === 'maintenance' ? 'Em Manutenção' : 'Bloqueada';
+        
+        const statusColor = position.status === 'available' ? 'default' : 'destructive';
+        
+        toast({
+          title: `Posição ${position.code}`,
+          description: `Status: ${statusText} | Rua: ${position.street} | Lado: ${position.side} | Nível: ${position.level}`,
+          variant: statusColor,
+        });
+      } else {
         toast({
           title: "Posição não encontrada",
-          description: `Não foi encontrada nenhuma posição com o código: ${code}`,
+          description: `Código ${scannedCode} não corresponde a nenhuma posição cadastrada.`,
           variant: "destructive",
         });
-        return;
       }
-
-      setScannedPosition(position);
-      
-      // Mostrar informações da posição escaneada
-      const statusText = position.status === 'available' ? 'Disponível' : 
-                        position.status === 'occupied' ? 'Ocupada' : 
-                        position.status === 'reserved' ? 'Reservada' : 
-                        position.status === 'maintenance' ? 'Em Manutenção' : 'Bloqueada';
-      
-      const statusColor = position.status === 'available' ? 'default' : 'destructive';
-      
-      toast({
-        title: `Posição ${position.code}`,
-        description: `Status: ${statusText} | Rua: ${position.street} | Lado: ${position.side} | Nível: ${position.level}`,
-        variant: statusColor,
-      });
-
     } catch (error) {
       toast({
-        title: "Erro",
-        description: "Erro ao processar QR code da posição",
+        title: "Erro ao processar QR Code",
+        description: "Não foi possível processar o código escaneado.",
         variant: "destructive",
       });
     }
   };
 
-  // Gerar código automaticamente quando street, position ou level mudarem (só para novas posições)
-  useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      // Só regenera o código se não estiver editando uma posição existente
-      if (!editingPosition && (name === 'street' || name === 'position' || name === 'level')) {
-        const street = value.street || "";
-        const position = value.position || 1;
-        const level = value.level || 0;
-        
-        if (street && position !== undefined && level !== undefined) {
-          const newCode = generatePositionCode(street, position, level);
-          const newSide = getSideFromPosition(position);
-          
-          form.setValue('code', newCode);
-          form.setValue('side', newSide);
-        }
-      }
-    });
-    
-    return () => subscription.unsubscribe();
-  }, [form, editingPosition]);
-
-  // Filtrar posições
-  const filteredPositions = positions.filter(position => {
-    const matchesSearch = position.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         position.street.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || position.status === statusFilter;
-    const matchesStreet = streetFilter === "all" || position.street === streetFilter;
-    
-    return matchesSearch && matchesStatus && matchesStreet;
-  });
-
-  // Obter listas únicas para filtros
-  const uniqueStreets = Array.from(new Set(positions.map(p => p.street))).sort();
-  const statusOptions = [
-    { value: "available", label: "Disponível", color: "bg-green-100 text-green-800" },
-    { value: "occupied", label: "Ocupado", color: "bg-orange-100 text-orange-800" },
-    { value: "reserved", label: "Reservado", color: "bg-blue-100 text-blue-800" },
-    { value: "maintenance", label: "Manutenção", color: "bg-yellow-100 text-yellow-800" },
-    { value: "blocked", label: "Bloqueado", color: "bg-red-100 text-red-800" }
-  ];
-
   const onSubmit = (data: InsertPosition) => {
     if (editingPosition) {
-      // Remove o código do envio para não sobrescrever o código existente
-      const { code, ...updateData } = data;
-      updateMutation.mutate({ id: editingPosition.id, data: updateData });
+      updateMutation.mutate(data);
     } else {
       createMutation.mutate(data);
     }
@@ -229,42 +176,52 @@ export default function Positions() {
   const handleEdit = (position: Position) => {
     setEditingPosition(position);
     form.reset({
-      code: position.code,
       street: position.street,
-      side: position.side,
       position: position.position,
       level: position.level,
-      rackType: position.rackType || "conventional",
-      maxPallets: position.maxPallets,
+      side: position.side,
+      rackType: position.rackType || "convencional",
       status: position.status,
-      restrictions: position.restrictions || undefined,
-      observations: position.observations || undefined,
+      maxPallets: position.maxPallets,
+      hasDivision: position.hasDivision,
+      restrictions: position.restrictions || "",
+      observations: position.observations || ""
     });
     setIsDialogOpen(true);
   };
 
   const handleDelete = (position: Position) => {
-    if (confirm(`Tem certeza que deseja remover a posição ${position.code}?`)) {
+    if (window.confirm(`Tem certeza que deseja excluir a posição ${position.code}?`)) {
       deleteMutation.mutate(position.id);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusOption = statusOptions.find(s => s.value === status);
-    return statusOption ? (
-      <Badge className={statusOption.color}>
-        {statusOption.label}
-      </Badge>
-    ) : (
-      <Badge variant="outline">{status}</Badge>
-    );
+  const getStatusIcon = (position: Position) => {
+    switch (position.status) {
+      case 'available':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'occupied':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'reserved':
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+      case 'maintenance':
+        return <AlertTriangle className="h-4 w-4 text-orange-500" />;
+      default:
+        return <XCircle className="h-4 w-4 text-gray-500" />;
+    }
   };
 
-  const getStatusIcon = (position: Position) => {
-    if (position.status === 'occupied' || position.currentPalletId) {
-      return <Package className="h-4 w-4 text-orange-600" />;
-    }
-    return <CheckCircle className="h-4 w-4 text-green-600" />;
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      available: { label: "Disponível", variant: "default" as const },
+      occupied: { label: "Ocupada", variant: "destructive" as const },
+      reserved: { label: "Reservada", variant: "secondary" as const },
+      maintenance: { label: "Manutenção", variant: "outline" as const },
+      blocked: { label: "Bloqueada", variant: "destructive" as const }
+    };
+    
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.blocked;
+    return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
   const handleShowQRCode = (position: Position) => {
@@ -275,11 +232,25 @@ export default function Positions() {
     setQrCodeDialog({ isOpen: false });
   };
 
+  const filteredPositions = positions.filter(position => {
+    const matchesSearch = 
+      position.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      position.street.toString().includes(searchTerm) ||
+      position.position.toString().includes(searchTerm);
+    
+    const matchesStatus = statusFilter === "all" || position.status === statusFilter;
+    const matchesStreet = streetFilter === "all" || position.street.toString() === streetFilter;
+    
+    return matchesSearch && matchesStatus && matchesStreet;
+  });
+
+  const uniqueStreets = [...new Set(positions.map(p => p.street))].sort();
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Posições</h1>
+          <h1 className="text-3xl font-bold">Posições</h1>
           <p className="text-muted-foreground">
             Gerencie as posições de armazenamento do armazém
           </p>
@@ -306,241 +277,226 @@ export default function Positions() {
                 Nova Posição
               </Button>
             </DialogTrigger>
+            
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingPosition ? "Editar Posição" : "Nova Posição"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingPosition 
+                    ? "Atualize as informações da posição." 
+                    : "Crie uma nova posição de armazenamento. O código será gerado automaticamente."
+                  }
+                </DialogDescription>
+              </DialogHeader>
+
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="street"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rua</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              min="1" 
+                              placeholder="1" 
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="position"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Posição</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              min="1" 
+                              placeholder="1" 
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="level"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nível</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              min="0" 
+                              placeholder="0" 
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="side"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Lado</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o lado" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="E">Esquerdo (E)</SelectItem>
+                              <SelectItem value="D">Direito (D)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="rackType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo de Porta-Pallet</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o tipo" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="convencional">Convencional</SelectItem>
+                              <SelectItem value="dupla_profundidade">Dupla Profundidade</SelectItem>
+                              <SelectItem value="flow_rack">Flow Rack</SelectItem>
+                              <SelectItem value="push_back">Push Back</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="available">Disponível</SelectItem>
+                              <SelectItem value="occupied">Ocupada</SelectItem>
+                              <SelectItem value="reserved">Reservada</SelectItem>
+                              <SelectItem value="maintenance">Em Manutenção</SelectItem>
+                              <SelectItem value="blocked">Bloqueada</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="maxPallets"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Capacidade (Pallets)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              min="1" 
+                              max="2" 
+                              placeholder="1" 
+                              {...field}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="restrictions"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Restrições</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Descreva restrições de peso, altura, tipo de produto, etc."
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="observations"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Observações</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Observações adicionais sobre a posição"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <DialogFooter>
+                    <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                      {createMutation.isPending || updateMutation.isPending ? "Salvando..." : "Salvar"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
           </Dialog>
         </div>
-      </div>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingPosition ? "Editar Posição" : "Nova Posição"}
-              </DialogTitle>
-              <DialogDescription>
-                {editingPosition 
-                  ? "Atualize as informações da posição." 
-                  : "Crie uma nova posição de armazenamento. O código será gerado automaticamente."
-                }
-              </DialogDescription>
-            </DialogHeader>
-
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="street"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Rua</FormLabel>
-                        <FormControl>
-                          <Input placeholder="01, 02, 03..." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="position"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Posição</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            min="1"
-                            placeholder="1, 2, 3..."
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="level"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nível</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            min="0"
-                            placeholder="0, 1, 2..."
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="code"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Código (Gerado automaticamente)</FormLabel>
-                        <FormControl>
-                          <Input {...field} readOnly className="bg-gray-50" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="side"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Lado (Automático)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field} 
-                            readOnly 
-                            className="bg-gray-50"
-                            value={field.value === 'E' ? 'E - Esquerdo' : 'D - Direito'}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="rackType"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de Rack</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="conventional">Convencional</SelectItem>
-                            <SelectItem value="drive-in">Drive-in</SelectItem>
-                            <SelectItem value="push-back">Push-back</SelectItem>
-                            <SelectItem value="cantilever">Cantilever</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="maxPallets"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Máx. Pallets</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            min="1"
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {statusOptions.map(option => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="restrictions"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Restrições (Opcional)</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Ex: Apenas produtos frágeis, peso máximo 500kg..."
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="observations"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Observações (Opcional)</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Observações adicionais..."
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <DialogFooter>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => setIsDialogOpen(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                  >
-                    {createMutation.isPending || updateMutation.isPending ? "Salvando..." : "Salvar"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Filtros */}
@@ -549,52 +505,64 @@ export default function Positions() {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por código ou rua..."
+                  placeholder="Buscar por código, rua ou posição..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
+                    }
+                  }}
                   className="pl-10"
                 />
               </div>
             </div>
             
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Status</SelectItem>
-                {statusOptions.map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  <SelectItem value="available">Disponível</SelectItem>
+                  <SelectItem value="occupied">Ocupada</SelectItem>
+                  <SelectItem value="reserved">Reservada</SelectItem>
+                  <SelectItem value="maintenance">Em Manutenção</SelectItem>
+                  <SelectItem value="blocked">Bloqueada</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Select value={streetFilter} onValueChange={setStreetFilter}>
-              <SelectTrigger className="w-full sm:w-[120px]">
-                <SelectValue placeholder="Rua" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {uniqueStreets.map(street => (
-                  <SelectItem key={street} value={street}>
-                    Rua {street}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={streetFilter} onValueChange={setStreetFilter}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Rua" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {uniqueStreets.map(street => (
+                    <SelectItem key={street} value={street.toString()}>
+                      Rua {street}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Button variant="outline" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+              <Button 
+                onClick={() => refetch()} 
+                variant="outline" 
+                size="icon"
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
         </CardHeader>
       </Card>
 
-      {/* Lista de posições */}
+      {/* Lista de Posições */}
       {isLoading ? (
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
@@ -603,126 +571,81 @@ export default function Positions() {
       ) : filteredPositions.length === 0 ? (
         <Card>
           <CardContent className="text-center py-8">
-            <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {positions.length === 0 ? "Nenhuma posição cadastrada" : "Nenhuma posição encontrada"}
-            </h3>
-            <p className="text-gray-500 mb-4">
-              {positions.length === 0 
-                ? "Comece criando a primeira posição de armazenamento."
-                : "Tente ajustar os filtros ou termos de busca."
+            <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhuma posição encontrada</h3>
+            <p className="text-muted-foreground">
+              {searchTerm || statusFilter !== "all" || streetFilter !== "all" 
+                ? "Tente ajustar os filtros de busca." 
+                : "Crie sua primeira posição para começar."
               }
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-3'}`}>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredPositions.map((position) => (
             <Card key={position.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {getStatusIcon(position)}
-                    <CardTitle className="text-lg">{position.code}</CardTitle>
+                    <div>
+                      <CardTitle className="text-lg font-mono">{position.code}</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Rua {position.street} • {position.side === 'E' ? 'Esquerdo' : 'Direito'} • Nível {position.level}
+                      </p>
+                    </div>
                   </div>
                   {getStatusBadge(position.status)}
                 </div>
               </CardHeader>
               
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-gray-600">Rua:</span>
-                    <span className="ml-2 font-medium">{position.street}</span>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Capacidade:</span>
+                      <p className="font-medium">{position.maxPallets} pallet(s)</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Tipo:</span>
+                      <p className="font-medium">{position.rackType || 'Convencional'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Lado:</span>
-                    <span className="ml-2 font-medium">
-                      {position.side === 'E' ? 'Esquerdo' : 'Direito'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Posição:</span>
-                    <span className="ml-2 font-medium">{position.position}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Nível:</span>
-                    <span className="ml-2 font-medium">{position.level}</span>
-                  </div>
-                </div>
-
-                <div className="text-sm">
-                  <span className="text-gray-600">Tipo:</span>
-                  <span className="ml-2 font-medium capitalize">
-                    {position.rackType || "Convencional"}
-                  </span>
-                </div>
-
-                <div className="text-sm">
-                  <span className="text-gray-600">Capacidade:</span>
-                  <span className="ml-2 font-medium">{position.maxPallets} pallet(s)</span>
-                </div>
-
-                {position.restrictions && (
-                  <div className="text-sm">
-                    <span className="text-gray-600">Restrições:</span>
-                    <p className="text-gray-800 mt-1">{position.restrictions}</p>
-                  </div>
-                )}
-
-                {position.observations && (
-                  <div className="text-sm">
-                    <span className="text-gray-600">Observações:</span>
-                    <p className="text-gray-800 mt-1">{position.observations}</p>
-                  </div>
-                )}
-
-                <Separator />
-                
-                <div className="flex justify-between items-center pt-2">
-                  <div className="text-xs text-gray-500">
-                    {position.createdAt ? new Date(position.createdAt).toLocaleDateString() : 'N/A'}
-                  </div>
-                  <div className="flex space-x-2">
+                  
+                  {position.restrictions && (
+                    <div>
+                      <span className="text-muted-foreground text-sm">Restrições:</span>
+                      <p className="text-sm">{position.restrictions}</p>
+                    </div>
+                  )}
+                  
+                  <Separator />
+                  
+                  <div className="flex gap-2">
                     <Button 
                       variant="outline" 
-                      size="sm"
+                      size="sm" 
                       onClick={() => handleShowQRCode(position)}
-                      title="Gerar QR Code"
+                      className="flex-1"
                     >
-                      <QrCode className="h-4 w-4" />
+                      <QrCode className="h-4 w-4 mr-1" />
+                      QR Code
                     </Button>
                     <Button 
                       variant="outline" 
-                      size="sm"
+                      size="sm" 
                       onClick={() => handleEdit(position)}
                     >
-                      <Edit className="h-4 w-4" />
+                      Editar
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Tem certeza que deseja remover a posição {position.code}? Esta ação não pode ser desfeita.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => handleDelete(position)}
-                            className="bg-red-500 hover:bg-red-600"
-                          >
-                            Remover
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleDelete(position)}
+                    >
+                      Excluir
+                    </Button>
                   </div>
                 </div>
               </CardContent>
