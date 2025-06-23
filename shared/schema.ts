@@ -48,7 +48,7 @@ export const pallets = pgTable("pallets", {
   photoUrl: varchar("photo_url"),
   observations: text("observations"),
   lastInspectionDate: date("last_inspection_date"),
-  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -66,7 +66,7 @@ export const positions = pgTable("positions", {
   restrictions: text("restrictions"),
   status: varchar("status").notNull().default("available"), // available, occupied, reserved, maintenance, blocked
   observations: text("observations"),
-  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -88,7 +88,7 @@ export const products = pgTable("products", {
   minStock: integer("min_stock").default(0),
   maxStock: integer("max_stock"),
   isActive: boolean("is_active").default(true),
-  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -101,7 +101,7 @@ export const ucps = pgTable("ucps", {
   positionId: integer("position_id").references(() => positions.id),
   status: varchar("status").notNull().default("active"), // active, empty, archived
   observations: text("observations"),
-  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdBy: integer("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
