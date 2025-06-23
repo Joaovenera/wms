@@ -478,58 +478,52 @@ export class DatabaseStorage implements IStorage {
       .values(structureData)
       .returning();
 
-    // Verificar se já existem posições para esta estrutura
-    const existingPositions = await db
-      .select()
-      .from(positions)
-      .where(eq(positions.structureId, structure.id));
-    
-    if (existingPositions.length > 0) {
-      // Se já existem posições, não criar novas
-      return structure;
-    }
+    console.log('Created structure:', structure);
 
     // Gerar automaticamente todas as vagas com endereçamento PP-RUA-POSIÇÃO-NÍVEL
     const positionsToInsert: InsertPosition[] = [];
     
-    // Buscar posições existentes com códigos similares para evitar duplicatas
-    const existingCodes = await db
-      .select({ code: positions.code })
-      .from(positions)
-      .where(like(positions.code, `PP-${structure.street}-%`));
-    
-    const existingCodeSet = new Set(existingCodes.map(p => p.code));
+    console.log(`Generating positions for structure: street=${structure.street}, maxLevels=${structure.maxLevels}, maxPositions=${structure.maxPositions}`);
     
     for (let level = 0; level <= structure.maxLevels; level++) {
       for (let position = 1; position <= structure.maxPositions; position++) {
         const positionCode = `PP-${structure.street}-${position.toString().padStart(2, '0')}-${level}`;
         
-        // Só adicionar se o código não existir
-        if (!existingCodeSet.has(positionCode)) {
-          positionsToInsert.push({
-            code: positionCode,
-            street: structure.street,
-            side: structure.side,
-            position: position,
-            level: level,
-            status: 'available',
-            structureId: structure.id,
-            maxPallets: 1,
-            rackType: structure.rackType || 'conventional',
-            corridor: null,
-            restrictions: null,
-            createdBy: structureData.createdBy,
-            observations: `Vaga gerada automaticamente da estrutura ${structure.name}`,
-            hasDivision: false,
-            layoutConfig: null,
-          });
-        }
+        console.log(`Creating position: ${positionCode}`);
+        
+        positionsToInsert.push({
+          code: positionCode,
+          street: structure.street,
+          side: structure.side,
+          position: position,
+          level: level,
+          status: 'available',
+          structureId: structure.id,
+          maxPallets: 1,
+          rackType: structure.rackType || 'conventional',
+          corridor: null,
+          restrictions: null,
+          createdBy: structureData.createdBy,
+          observations: `Vaga gerada automaticamente da estrutura ${structure.name}`,
+          hasDivision: false,
+          layoutConfig: null,
+        });
       }
     }
 
+    console.log(`Total positions to insert: ${positionsToInsert.length}`);
+
     // Inserir todas as vagas em batch
     if (positionsToInsert.length > 0) {
-      await db.insert(positions).values(positionsToInsert);
+      try {
+        await db.insert(positions).values(positionsToInsert);
+        console.log('Positions inserted successfully');
+      } catch (error) {
+        console.error('Error inserting positions:', error);
+        throw error;
+      }
+    } else {
+      console.log('No positions to insert');
     }
 
     return structure;
