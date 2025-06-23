@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -110,9 +110,33 @@ export default function Pallets() {
   });
   const { toast } = useToast();
 
-  const { data: pallets, isLoading } = useQuery<Pallet[]>({
+  const { data: pallets, isLoading, refetch } = useQuery<Pallet[]>({
     queryKey: ['/api/pallets'],
   });
+
+  // Atualização automática quando filtros mudam
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+      refetch();
+    }, 300); // Debounce de 300ms
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, statusFilter, refetch]);
+
+  // Função para forçar atualização
+  const forceRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+    queryClient.refetchQueries({ queryKey: ['/api/pallets'] });
+    refetch();
+  };
+
+  // Handler para Enter no campo de busca
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      forceRefresh();
+    }
+  };
 
   const form = useForm<InsertPallet>({
     resolver: zodResolver(insertPalletSchema.omit({ createdBy: true })),
@@ -590,6 +614,7 @@ export default function Pallets() {
             placeholder="Buscar pallets..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
             className="pl-10"
           />
         </div>
