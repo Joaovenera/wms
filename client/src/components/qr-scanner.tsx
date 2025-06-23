@@ -40,16 +40,19 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
         videoRef.current.srcObject = mediaStream;
         setStream(mediaStream);
         setIsActive(true);
+        setError(null);
 
         // Check if flash is available
         const track = mediaStream.getVideoTracks()[0];
         const capabilities = track.getCapabilities();
-        if (capabilities.torch) {
+        if ('torch' in capabilities) {
           setHasFlash(true);
         }
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
+      setError('Não foi possível acessar a câmera. Use a entrada manual.');
+      setShowManualInput(true);
     }
   };
 
@@ -67,11 +70,17 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
     const track = stream.getVideoTracks()[0];
     try {
       await track.applyConstraints({
-        advanced: [{ torch: !flashOn }]
+        advanced: [{ torch: !flashOn } as any]
       });
       setFlashOn(!flashOn);
     } catch (error) {
       console.error('Error toggling flash:', error);
+    }
+  };
+
+  const handleManualSubmit = () => {
+    if (manualCode.trim()) {
+      onScan(manualCode.trim());
     }
   };
 
@@ -156,11 +165,72 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
           </>
         )}
 
-        {!isActive && (
+        {!isActive && !showManualInput && (
           <div className="flex items-center justify-center h-full text-white">
             <div className="text-center">
               <Camera className="h-16 w-16 mx-auto mb-4 opacity-50" />
               <p className="text-lg">Iniciando câmera...</p>
+              {error && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-red-300 text-sm">{error}</p>
+                  <Button 
+                    onClick={() => setShowManualInput(true)}
+                    variant="outline" 
+                    className="text-white border-white hover:bg-white/20"
+                  >
+                    <Type className="h-4 w-4 mr-2" />
+                    Digitar código
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {showManualInput && (
+          <div className="flex items-center justify-center h-full text-white p-6">
+            <div className="text-center space-y-4 w-full max-w-md">
+              <Type className="h-16 w-16 mx-auto mb-4 opacity-75" />
+              <h3 className="text-xl font-medium">Digite o código</h3>
+              <p className="text-sm opacity-75">Insira o código da UCP, pallet ou posição manualmente</p>
+              
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  placeholder="Ex: UCP-20250623-0001"
+                  className="w-full px-4 py-3 text-black rounded-lg text-center font-mono text-lg"
+                  autoFocus
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleManualSubmit();
+                    }
+                  }}
+                />
+                
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={() => {
+                      setShowManualInput(false);
+                      setError(null);
+                      startCamera();
+                    }}
+                    variant="outline"
+                    className="flex-1 text-white border-white hover:bg-white/20"
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    Tentar câmera
+                  </Button>
+                  <Button
+                    onClick={handleManualSubmit}
+                    disabled={!manualCode.trim()}
+                    className="flex-1 bg-primary hover:bg-primary/90"
+                  >
+                    Confirmar
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -170,8 +240,8 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
 
       {/* Controls */}
       <div className="p-4 space-y-4">
-        <div className="flex justify-center space-x-4">
-          {hasFlash && (
+        <div className="flex justify-center space-x-2">
+          {isActive && hasFlash && (
             <Button
               variant="outline"
               size="lg"
@@ -182,21 +252,34 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
             </Button>
           )}
           
+          {isActive && (
+            <Button
+              size="lg"
+              onClick={captureFrame}
+              className="bg-primary hover:bg-primary/90 text-white"
+            >
+              <Camera className="h-6 w-6 mr-2" />
+              Capturar
+            </Button>
+          )}
+
           <Button
+            variant="outline"
             size="lg"
-            onClick={captureFrame}
-            disabled={!isActive}
-            className="bg-primary hover:bg-primary/90 text-white"
+            onClick={() => setShowManualInput(true)}
+            className="text-white border-white bg-transparent hover:bg-white/30"
           >
-            <Camera className="h-6 w-6 mr-2" />
-            Capturar
+            <Type className="h-6 w-6 mr-2" />
+            Digitar
           </Button>
         </div>
 
         <Card className="bg-white/10 border-white/20">
           <CardContent className="p-3">
             <p className="text-white text-sm text-center">
-              Dica: Certifique-se de que o QR Code esteja bem iluminado e focado
+              {isActive 
+                ? "Posicione o QR Code no quadro ou use o botão Digitar para inserir o código manualmente" 
+                : "Use o botão Digitar para inserir códigos manualmente ou aguarde a câmera carregar"}
             </p>
           </CardContent>
         </Card>
