@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, CheckCircle, AlertCircle } from "lucide-react";
@@ -22,11 +23,13 @@ export default function PalletStructureViewer({
   compact = false 
 }: PalletStructureViewerProps) {
   // Organizar posições por nível e posição
-  const organizedPositions = Array.from({ length: structure.maxLevels + 1 }, (_, level) =>
-    Array.from({ length: structure.maxPositions }, (_, pos) => {
-      const position = positions.find(p => p.level === level && p.position === pos + 1);
-      return position || null;
-    })
+  const organizedPositions = useMemo(() => 
+    Array.from({ length: structure.maxLevels + 1 }, (_, level) =>
+      Array.from({ length: structure.maxPositions }, (_, pos) => {
+        const position = positions.find(p => p.level === level && p.position === pos + 1);
+        return position || null;
+      })
+    ), [positions, structure.maxLevels, structure.maxPositions]
   );
 
   const getPositionStatus = (position: Position | null) => {
@@ -83,17 +86,15 @@ export default function PalletStructureViewer({
               <div className="text-xs text-gray-500 w-6 flex-shrink-0">
                 {level === 0 ? 'T' : level}
               </div>
-              <div className="flex gap-1 flex-wrap">
+              <div className="flex gap-1 overflow-x-auto">
                 {levelPositions.map((position, posIndex) => {
-                  const { color, icon } = getPositionStatus(position);
+                  const { color } = getPositionStatus(position);
                   return (
                     <div
                       key={`${level}-${posIndex}`}
-                      className={`w-8 h-6 rounded border text-xs flex items-center justify-center ${color}`}
-                      title={position ? `${position.code} - ${position.occupied ? 'Ocupado' : 'Disponível'}` : 'Sem posição'}
-                    >
-                      {icon || (position ? (posIndex + 1) : '-')}
-                    </div>
+                      className={`w-6 h-4 rounded-sm border ${color} flex-shrink-0`}
+                      title={position ? `${position.code} - ${position.status}` : 'Posição não definida'}
+                    />
                   );
                 })}
               </div>
@@ -101,41 +102,47 @@ export default function PalletStructureViewer({
           ))}
         </div>
         
-        <div className="flex justify-between mt-2 text-xs text-gray-600">
-          <span>{positions.length} posições</span>
-          <span>{availableCount} livres</span>
+        <div className="flex items-center gap-3 mt-3 text-xs">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-100 border border-green-300 rounded-sm"></div>
+            <span>Livre</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-orange-100 border border-orange-300 rounded-sm"></div>
+            <span>Ocupado</span>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">{structure.name}</CardTitle>
           <div className="flex gap-2">
-            <Badge variant="outline">
-              Rua {structure.street} • Lado {structure.side === 'E' ? 'Esquerdo' : 'Direito'}
+            <Badge variant="secondary">
+              Rua {structure.street} - {structure.side === 'E' ? 'Esquerdo' : 'Direito'}
             </Badge>
-            <Badge variant={occupancyRate > 80 ? "destructive" : occupancyRate > 50 ? "default" : "secondary"}>
-              {occupancyRate}% Ocupado
+            <Badge variant="outline">
+              {occupancyRate}% ocupado
             </Badge>
           </div>
         </div>
         
-        <div className="grid grid-cols-3 gap-4 mt-3">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{positions.length}</div>
-            <div className="text-sm text-gray-600">Total Posições</div>
+        <div className="grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <span className="text-gray-600">Total:</span>
+            <span className="ml-2 font-medium">{positions.length} posições</span>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{availableCount}</div>
-            <div className="text-sm text-gray-600">Disponíveis</div>
+          <div>
+            <span className="text-green-600">Disponível:</span>
+            <span className="ml-2 font-medium">{availableCount}</span>
           </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">{occupiedCount}</div>
-            <div className="text-sm text-gray-600">Ocupadas</div>
+          <div>
+            <span className="text-orange-600">Ocupado:</span>
+            <span className="ml-2 font-medium">{occupiedCount}</span>
           </div>
         </div>
       </CardHeader>
@@ -147,7 +154,7 @@ export default function PalletStructureViewer({
             <div className="space-y-2 min-w-fit">
               {organizedPositions.map((levelPositions, level) => (
                 <div key={level} className="flex items-center gap-2">
-                  <div className="text-sm font-medium text-gray-700 w-8 flex-shrink-0">
+                  <div className="text-sm font-medium text-gray-700 w-16 flex-shrink-0">
                     {level === 0 ? 'Térreo' : `Nível ${level}`}
                   </div>
                   <div className="flex gap-2">
@@ -158,13 +165,9 @@ export default function PalletStructureViewer({
                           key={`${level}-${posIndex}`}
                           className={`
                             w-16 h-12 rounded-lg border-2 flex flex-col items-center justify-center
-                            transition-all duration-200 hover:shadow-md cursor-pointer
-                            ${color}
+                            ${color} transition-all duration-200 cursor-default
                           `}
-                          title={position ? 
-                            `${position.code}\nStatus: ${position.occupied ? 'Ocupado' : 'Disponível'}` : 
-                            'Posição não criada'
-                          }
+                          title={position ? `${position.code} - Status: ${position.status}` : 'Posição não definida'}
                         >
                           {position ? (
                             <>
@@ -201,8 +204,12 @@ export default function PalletStructureViewer({
             <span>Ocupado</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gray-100 border border-gray-200 rounded"></div>
-            <span>Não configurado</span>
+            <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
+            <span>Manutenção</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
+            <span>Bloqueado</span>
           </div>
         </div>
       </CardContent>
