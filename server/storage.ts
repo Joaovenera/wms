@@ -7,7 +7,7 @@ import {
   ucpItems,
   movements,
   type User,
-  type UpsertUser,
+  type InsertUser,
   type Pallet,
   type InsertPallet,
   type Position,
