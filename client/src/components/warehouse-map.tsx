@@ -83,7 +83,8 @@ export default function WarehouseMap() {
 
   // Agrupar posições por rua
   const streetGroups = positions?.reduce((acc, position) => {
-    const street = position.code.split('-')[1];
+    const codeParts = position.code.split('-');
+    const street = codeParts[1]; // PP-RUA-LADO-POSIÇÃO-NÍVEL
     if (!acc[street]) acc[street] = [];
     acc[street].push(position);
     return acc;

@@ -175,6 +175,11 @@ Core entities include:
   * Added black borders around porta-pallet structures for realistic warehouse visualization
   * Positioned numbers adjacent to structures (left side: structure-number, right side: number-structure)
   * Simplified corredor central with vertical text orientation for authentic top-view perspective
+- June 23, 2025. Fixed duplicate position code issue in porta-pallet creation:
+  * Updated position code format from PP-RUA-POSIÇÃO-NÍVEL to PP-RUA-LADO-POSIÇÃO-NÍVEL
+  * Now supports creating both left (E) and right (D) sides of same street without conflicts
+  * Resolved unique constraint violation that prevented creating opposing sides
+  * Updated warehouse map component to handle new position code format correctly
 
 ## User Preferences
 

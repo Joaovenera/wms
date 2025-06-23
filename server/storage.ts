@@ -478,18 +478,12 @@ export class DatabaseStorage implements IStorage {
       .values(structureData)
       .returning();
 
-    console.log('Created structure:', structure);
-
-    // Gerar automaticamente todas as vagas com endereçamento PP-RUA-POSIÇÃO-NÍVEL
+    // Gerar automaticamente todas as vagas com endereçamento PP-RUA-LADO-POSIÇÃO-NÍVEL
     const positionsToInsert: InsertPosition[] = [];
-    
-    console.log(`Generating positions for structure: street=${structure.street}, maxLevels=${structure.maxLevels}, maxPositions=${structure.maxPositions}`);
     
     for (let level = 0; level <= structure.maxLevels; level++) {
       for (let position = 1; position <= structure.maxPositions; position++) {
-        const positionCode = `PP-${structure.street}-${position.toString().padStart(2, '0')}-${level}`;
-        
-        console.log(`Creating position: ${positionCode}`);
+        const positionCode = `PP-${structure.street}-${structure.side}-${position.toString().padStart(2, '0')}-${level}`;
         
         positionsToInsert.push({
           code: positionCode,
@@ -511,19 +505,9 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    console.log(`Total positions to insert: ${positionsToInsert.length}`);
-
     // Inserir todas as vagas em batch
     if (positionsToInsert.length > 0) {
-      try {
-        await db.insert(positions).values(positionsToInsert);
-        console.log('Positions inserted successfully');
-      } catch (error) {
-        console.error('Error inserting positions:', error);
-        throw error;
-      }
-    } else {
-      console.log('No positions to insert');
+      await db.insert(positions).values(positionsToInsert);
     }
 
     return structure;
