@@ -711,10 +711,7 @@ export default function Positions() {
                   </Form>
                 </TabsContent>
               </Tabs>
-            )}
-
-            {/* Formulário para edição (mantém o formato original simplificado) */}
-            {editingPosition && (
+            ) : (
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <div className="grid grid-cols-4 gap-4">
