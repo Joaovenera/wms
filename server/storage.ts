@@ -154,7 +154,11 @@ export class DatabaseStorage implements IStorage {
 
   // Pallet operations
   async getPallets(): Promise<Pallet[]> {
-    return await db.select().from(pallets).orderBy(desc(pallets.createdAt));
+    console.log('DEBUG: Executando consulta getPallets()');
+    const result = await db.select().from(pallets).orderBy(desc(pallets.createdAt));
+    console.log('DEBUG: Resultado da consulta getPallets():', result.length, 'pallets encontrados');
+    console.log('DEBUG: Primeiros 3 pallets:', result.slice(0, 3));
+    return result;
   }
 
   async getPallet(id: number): Promise<Pallet | undefined> {

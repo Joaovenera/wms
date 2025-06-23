@@ -54,7 +54,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pallet routes
   app.get('/api/pallets', isAuthenticated, async (req, res) => {
     try {
+      console.log('DEBUG: API /api/pallets chamada');
       const pallets = await storage.getPallets();
+      console.log('DEBUG: API retornando', pallets.length, 'pallets');
       res.json(pallets);
     } catch (error) {
       console.error("Error fetching pallets:", error);
