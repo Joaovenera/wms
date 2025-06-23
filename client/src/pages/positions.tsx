@@ -21,9 +21,18 @@ import PalletLayoutConfigurator from "@/components/pallet-layout-configurator";
 
 // Configuração padrão do layout
 const defaultLayoutConfig = {
-  maxPallets: 1,
-  hasDivision: false,
-  slots: [{ id: "slot-0", occupied: false, palletType: undefined }]
+  rows: 3,
+  cols: 3,
+  totalPallets: 9,
+  slots: Array.from({ length: 9 }, (_, i) => ({
+    id: `slot-${i}`,
+    row: Math.floor(i / 3),
+    col: i % 3,
+    width: 1,
+    height: 1,
+    occupied: false,
+    palletType: undefined
+  }))
 };
 
 // Função para gerar código PP-RUA-POSIÇÃO-NÍVEL
@@ -45,7 +54,20 @@ export default function Positions() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
-  const [layoutConfig, setLayoutConfig] = useState(defaultLayoutConfig);
+  const [layoutConfig, setLayoutConfig] = useState<{
+    rows: number;
+    cols: number;
+    totalPallets: number;
+    slots: Array<{
+      id: string;
+      row: number;
+      col: number;
+      width: number;
+      height: number;
+      occupied: boolean;
+      palletType?: string;
+    }>;
+  }>(defaultLayoutConfig);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
 
   // Query para buscar posições
@@ -221,8 +243,8 @@ export default function Positions() {
     const finalData = {
       ...data,
       layoutConfig: layoutConfig,
-      maxPallets: layoutConfig.maxPallets,
-      hasDivision: layoutConfig.hasDivision,
+      maxPallets: layoutConfig.totalPallets || 1,
+      hasDivision: layoutConfig.slots.some(s => s.width > 1 || s.height > 1),
     };
     createMutation.mutate(finalData);
   };
@@ -234,8 +256,8 @@ export default function Positions() {
     const finalData = {
       ...data,
       layoutConfig: layoutConfig,
-      maxPallets: layoutConfig.maxPallets,
-      hasDivision: layoutConfig.hasDivision,
+      maxPallets: layoutConfig.totalPallets || 1,
+      hasDivision: layoutConfig.slots.some(s => s.width > 1 || s.height > 1),
     };
     updateMutation.mutate({ id: editingPosition.id, data: finalData });
   };
