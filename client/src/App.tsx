@@ -12,6 +12,7 @@ import Pallets from "@/pages/pallets";
 import Positions from "@/pages/positions";
 import UCPs from "@/pages/ucps";
 import Products from "@/pages/products";
+import Users from "@/pages/users";
 import MobileHome from "@/pages/mobile/home";
 import MobileScanner from "@/pages/mobile/scanner";
 import MobileLayout from "@/components/layout/mobile-layout";
