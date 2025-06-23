@@ -58,9 +58,8 @@ export default function PortaPaletes() {
   const queryClient = useQueryClient();
 
   // Query para buscar estruturas de porta paletes
-  const { data: structures = [], isLoading, refetch } = useQuery({
+  const { data: structures = [], isLoading, refetch } = useQuery<PalletStructure[]>({
     queryKey: ['/api/pallet-structures'],
-    queryFn: () => apiRequest('/api/pallet-structures'),
   });
 
   // Mutation para criar estrutura
@@ -73,19 +72,15 @@ export default function PortaPaletes() {
         name: `Porta-Pallet Rua ${data.street} Lado ${sideText}`,
       };
       
-      const response = await apiRequest('/api/pallet-structures', {
-        method: 'POST',
-        body: JSON.stringify(structureData),
-      });
-      
+      const response = await apiRequest('/api/pallet-structures', 'POST', structureData);
       return response;
     },
-    onSuccess: (newStructure) => {
+    onSuccess: (newStructure: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/pallet-structures'] });
       queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
       toast({
         title: "Sucesso",
-        description: `Porta-Pallet criado e ${newStructure.totalPositions || 0} posições geradas automaticamente.`,
+        description: `Porta-Pallet criado e posições geradas automaticamente.`,
       });
       setIsOpen(false);
       form.reset();
@@ -101,7 +96,7 @@ export default function PortaPaletes() {
 
   // Mutation para deletar estrutura
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/pallet-structures/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: number) => apiRequest(`/api/pallet-structures/${id}`, 'DELETE'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/pallet-structures'] });
       queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
@@ -429,7 +424,7 @@ export default function PortaPaletes() {
                 
                 <div className="flex justify-between items-center pt-2">
                   <div className="text-xs text-gray-500">
-                    Criado em {new Date(structure.createdAt).toLocaleDateString()}
+                    Criado em {structure.createdAt ? new Date(structure.createdAt).toLocaleDateString() : 'N/A'}
                   </div>
                   <div className="flex space-x-2">
                     <Button 

@@ -478,12 +478,12 @@ export class DatabaseStorage implements IStorage {
       .values(structureData)
       .returning();
 
-    // Gerar automaticamente todas as vagas com endereçamento [posição,nível]
+    // Gerar automaticamente todas as vagas com endereçamento PP-RUA-POSIÇÃO-NÍVEL
     const positionsToInsert: InsertPosition[] = [];
     
-    for (let level = 0; level < structure.maxLevels; level++) {
+    for (let level = 0; level <= structure.maxLevels; level++) {
       for (let position = 1; position <= structure.maxPositions; position++) {
-        const positionCode = `[${position},${level}]`;
+        const positionCode = `PP-${structure.street}-${position.toString().padStart(2, '0')}-${level}`;
         
         positionsToInsert.push({
           code: positionCode,
@@ -493,7 +493,14 @@ export class DatabaseStorage implements IStorage {
           level: level,
           status: 'available',
           structureId: structure.id,
+          maxPallets: 1,
+          rackType: structure.rackType || 'conventional',
+          corridor: null,
+          restrictions: null,
+          createdBy: structureData.createdBy,
           observations: `Vaga gerada automaticamente da estrutura ${structure.name}`,
+          hasDivision: false,
+          layoutConfig: null,
         });
       }
     }
