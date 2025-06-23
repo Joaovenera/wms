@@ -30,7 +30,12 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
   const generateQRCode = async () => {
     try {
       // Detectar tipo baseado no código ou nos dados fornecidos
-      const itemType = palletCode.startsWith('PP-') ? "POSITION" : "PALLET";
+      let itemType = "PALLET";
+      if (palletCode.startsWith('PP-')) {
+        itemType = "POSITION";
+      } else if (palletCode.includes('Porta-Pallet')) {
+        itemType = "STRUCTURE";
+      }
       
       // Gerar QR code com dados do item
       const qrData = JSON.stringify({
@@ -144,7 +149,11 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
           <div className="text-center">
             <div className="text-lg font-bold tracking-wider">{palletCode}</div>
             <div className="text-sm text-gray-600 mt-1">
-              Escaneie para identificar {palletCode.startsWith('PP-') ? 'a posição' : 'o pallet'}
+              Escaneie para identificar {
+                palletCode.startsWith('PP-') ? 'a posição' : 
+                palletCode.includes('Porta-Pallet') ? 'a estrutura' : 
+                'o pallet'
+              }
             </div>
           </div>
 
