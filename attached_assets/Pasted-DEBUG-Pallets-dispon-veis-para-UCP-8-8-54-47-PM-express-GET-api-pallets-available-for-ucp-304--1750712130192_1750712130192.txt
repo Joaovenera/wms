@@ -1,0 +1,40 @@
+DEBUG: Pallets disponíveis para UCP: 8
+8:54:47 PM [express] GET /api/pallets/available-for-ucp 304 in 644ms :: [{"id":15,"code":"PLT0013","…
+8:55:13 PM [express] GET /api/ucps/available 200 in 984ms :: [{"id":2,"code":"UCP-20250623-3801","pa…
+8:55:16 PM [express] GET /api/user 304 in 195ms :: {"id":2,"email":"joaootavio.v@gmail.com","firstNa…
+8:55:17 PM [express] GET /api/positions 304 in 533ms :: [{"id":273,"code":"PP-01-D-01-0","structureI…
+8:55:17 PM [express] GET /api/products 304 in 658ms :: [{"id":1,"sku":"PRD-001","name":"TESTE","desc…
+DEBUG: API /api/pallets/available-for-ucp chamada
+8:55:18 PM [express] GET /api/ucps/stats 304 in 844ms :: {"total":1,"active":1,"empty":0,"archived":…
+8:55:18 PM [express] GET /api/ucps 304 in 719ms :: [{"id":2,"code":"UCP-20250623-3801","palletId":15…
+DEBUG: Pallets disponíveis para UCP: 8
+8:55:18 PM [express] GET /api/pallets/available-for-ucp 304 in 849ms :: [{"id":15,"code":"PLT0013","…
+Error creating comprehensive UCP: error: relation "ucp_history" does not exist
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/workspace/node_modules/src/neon-serverless/session.ts:102:18)
+    at async DatabaseStorage.addUcpHistoryEntry (/home/runner/workspace/server/storage.ts:633:24)
+    at async DatabaseStorage.createUcpWithHistory (/home/runner/workspace/server/storage.ts:378:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:481:22) {
+  length: 110,
+  severity: 'ERROR',
+  code: '42P01',
+  detail: undefined,
+  hint: undefined,
+  position: '13',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '1449',
+  routine: 'parserOpenTable'
+}
+8:55:20 PM [express] POST /api/ucps/comprehensive 500 in 345ms :: {"message":"Failed to create UCP"}
+8:55:21 PM [express] GET /api/positions 304 in 327ms :: [{"id":273,"code":"PP-01-D-01-0","structureI…
+8:55:21 PM [express] GET /api/user 304 in 408ms :: {"id":2,"email":"joaootavio.v@gmail.com","firstNa…
+8:55:21 PM [express] GET /api/dashboard/stats 200 in 593ms :: {"totalPallets":"13","activeUcps":"2",…
