@@ -1,19 +1,128 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Users as UsersIcon, Mail, Calendar, User } from "lucide-react";
-import { type User as UserType } from "@shared/schema";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Search, Users as UsersIcon, Mail, Calendar, User, Plus, Edit, Trash2, Shield, UserCheck } from "lucide-react";
+import { type User as UserType, type InsertUser, insertUserSchema } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+type UserFormData = InsertUser & { confirmPassword: string };
+
+const userFormSchema = insertUserSchema.extend({
+  confirmPassword: insertUserSchema.shape.password,
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Senhas não coincidem",
+  path: ["confirmPassword"],
+});
 
 export default function Users() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: users, isLoading } = useQuery<UserType[]>({
     queryKey: ['/api/users'],
+  });
+
+  // Mutations
+  const createUserMutation = useMutation({
+    mutationFn: async (data: UserFormData) => {
+      const { confirmPassword, ...userData } = data;
+      const res = await apiRequest("POST", "/api/users", userData);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      setIsAddDialogOpen(false);
+      toast({
+        title: "Sucesso",
+        description: "Usuário criado com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao criar usuário",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<UserFormData> }) => {
+      const { confirmPassword, ...userData } = data;
+      const res = await apiRequest("PUT", `/api/users/${id}`, userData);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      setEditingUser(null);
+      toast({
+        title: "Sucesso",
+        description: "Usuário atualizado com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar usuário",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({
+        title: "Sucesso",
+        description: "Usuário excluído com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao excluir usuário",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const changeRoleMutation = useMutation({
+    mutationFn: async ({ id, role }: { id: number; role: string }) => {
+      const res = await apiRequest("PUT", `/api/users/${id}/role`, { role });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      toast({
+        title: "Sucesso",
+        description: "Permissão alterada com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao alterar permissão",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const filteredUsers = users?.filter(user =>
@@ -33,6 +142,160 @@ export default function Users() {
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
 
+  const getRoleBadge = (role: string) => {
+    return role === 'admin' ? (
+      <Badge variant="destructive" className="gap-1">
+        <Shield className="h-3 w-3" />
+        Administrador
+      </Badge>
+    ) : (
+      <Badge variant="secondary" className="gap-1">
+        <User className="h-3 w-3" />
+        Operador
+      </Badge>
+    );
+  };
+
+  // Form handlers
+  const UserForm = ({ user, onClose }: { user?: UserType; onClose: () => void }) => {
+    const form = useForm<UserFormData>({
+      resolver: zodResolver(userFormSchema),
+      defaultValues: {
+        email: user?.email || "",
+        firstName: user?.firstName || "",
+        lastName: user?.lastName || "",
+        role: user?.role || "operator",
+        password: "",
+        confirmPassword: "",
+      },
+    });
+
+    const onSubmit = (data: UserFormData) => {
+      if (user) {
+        // Remove password fields if they're empty for updates
+        const updateData = { ...data };
+        if (!data.password) {
+          delete updateData.password;
+          delete updateData.confirmPassword;
+        }
+        updateUserMutation.mutate({ id: user.id, data: updateData });
+      } else {
+        createUserMutation.mutate(data);
+      }
+    };
+
+    return (
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input placeholder="usuario@email.com" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="firstName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome</FormLabel>
+                  <FormControl>
+                    <Input placeholder="João" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="lastName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sobrenome</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Silva" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="role"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Função</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione uma função" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="operator">Operador</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{user ? "Nova Senha (opcional)" : "Senha"}</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="••••••••" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{user ? "Confirmar Nova Senha" : "Confirmar Senha"}</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="••••••••" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
+              {createUserMutation.isPending || updateUserMutation.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
+        </form>
+      </Form>
+    );
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -42,11 +305,27 @@ export default function Users() {
             Gerencie os usuários do sistema MWS
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <UsersIcon className="h-5 w-5 text-primary" />
-          <span className="text-sm font-medium">
-            {users?.length || 0} usuários cadastrados
-          </span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <UsersIcon className="h-5 w-5 text-primary" />
+            <span className="text-sm font-medium">
+              {users?.length || 0} usuários cadastrados
+            </span>
+          </div>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                Adicionar Usuário
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Adicionar Novo Usuário</DialogTitle>
+              </DialogHeader>
+              <UserForm onClose={() => setIsAddDialogOpen(false)} />
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -111,7 +390,7 @@ export default function Users() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 mb-4">
                   {user.email && (
                     <div className="flex items-center text-sm text-muted-foreground">
                       <Mail className="h-4 w-4 mr-2" />
@@ -119,17 +398,62 @@ export default function Users() {
                     </div>
                   )}
                   
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    <span>Cadastrado em {formatDate(user.createdAt)}</span>
-                  </div>
-
-                  {user.updatedAt && user.updatedAt !== user.createdAt && (
-                    <div className="flex items-center text-sm text-muted-foreground">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center text-muted-foreground">
                       <Calendar className="h-4 w-4 mr-2" />
-                      <span>Atualizado em {formatDate(user.updatedAt)}</span>
+                      <span>Cadastrado em {formatDate(user.createdAt)}</span>
                     </div>
-                  )}
+                    {getRoleBadge(user.role)}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-4 border-t">
+                  <Button
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setEditingUser(user)}
+                    className="flex-1"
+                  >
+                    <Edit className="h-3 w-3 mr-1" />
+                    Editar
+                  </Button>
+                  
+                  <Select onValueChange={(role) => changeRoleMutation.mutate({ id: user.id, role })}>
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue placeholder="Função" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="operator">Operador</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir Usuário</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tem certeza que deseja excluir o usuário {user.firstName} {user.lastName}? 
+                          Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => deleteUserMutation.mutate(user.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </CardContent>
             </Card>
@@ -158,6 +482,18 @@ export default function Users() {
           </CardContent>
         </Card>
       )}
+
+      {/* Edit User Dialog */}
+      <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+          </DialogHeader>
+          {editingUser && (
+            <UserForm user={editingUser} onClose={() => setEditingUser(null)} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
