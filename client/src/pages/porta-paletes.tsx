@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertPortaPalletSchema, type InsertPalletStructure, type PalletStructure } from "@shared/schema";
 import PalletLayoutConfigurator from "@/components/pallet-layout-configurator";
+import { useAuth } from "@/hooks/useAuth";
 
 // Schema específico para porta paletes
 const portaPalletFormSchema = insertPortaPalletSchema.extend({
@@ -56,6 +57,7 @@ export default function PortaPaletes() {
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   // Query para buscar estruturas de porta paletes
   const { data: structures = [], isLoading, refetch } = useQuery<PalletStructure[]>({
@@ -65,11 +67,14 @@ export default function PortaPaletes() {
   // Mutation para criar estrutura
   const createMutation = useMutation({
     mutationFn: async (data: PortaPalletForm) => {
+      if (!user || !(user as any).id) throw new Error("Usuário não autenticado");
+      
       // Gerar nome automaticamente
       const sideText = data.side === "E" ? "Esquerdo" : "Direito";
       const structureData = {
         ...data,
         name: `Porta-Pallet Rua ${data.street} Lado ${sideText}`,
+        createdBy: (user as any).id,
       };
       
       const response = await apiRequest('/api/pallet-structures', 'POST', structureData);
@@ -128,6 +133,8 @@ export default function PortaPaletes() {
   });
 
   const onSubmit = (data: PortaPalletForm) => {
+    console.log("Formulário submetido:", data);
+    console.log("Usuário:", user);
     createMutation.mutate(data);
   };
 
