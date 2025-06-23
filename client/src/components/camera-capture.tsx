@@ -32,8 +32,8 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 800, max: 1280 },
+          height: { ideal: 600, max: 720 }
         }
       });
       
@@ -77,7 +77,11 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
 
       if (context) {
         context.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL("image/jpeg", 0.9);
+        
+        // Reduzir qualidade para diminuir o tamanho do arquivo
+        const imageData = canvas.toDataURL("image/jpeg", 0.7);
+        
+        console.log(`Foto capturada: ${Math.round(imageData.length / 1024)}KB`);
         
         if (imageData && imageData !== 'data:,' && imageData.length > 1000) {
           setCapturedImage(imageData);
