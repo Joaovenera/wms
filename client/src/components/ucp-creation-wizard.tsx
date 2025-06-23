@@ -331,7 +331,7 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto">
-                  {availablePallets.map((pallet) => (
+                  {availablePallets?.map((pallet) => (
                     <Card 
                       key={pallet.id}
                       className={`cursor-pointer transition-colors ${

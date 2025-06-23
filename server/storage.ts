@@ -736,20 +736,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAvailablePalletsForUcp(): Promise<Pallet[]> {
-    // Consulta SQL direta para buscar pallets disponíveis que não estão em UCPs ativas
-    const result = await db.execute(sql`
-      SELECT p.* FROM pallets p
-      WHERE p.status = 'available'
-      AND p.id NOT IN (
-        SELECT DISTINCT u.pallet_id 
-        FROM ucps u 
-        WHERE u.status = 'active' 
-        AND u.pallet_id IS NOT NULL
-      )
-      ORDER BY p.created_at DESC
-    `);
+    // Busca todos os pallets com status 'available'
+    const allAvailablePallets = await db
+      .select()
+      .from(pallets)
+      .where(eq(pallets.status, 'available'))
+      .orderBy(desc(pallets.createdAt));
 
-    return result.rows as Pallet[];
+    // Para UCPs, consideramos todos os pallets com status 'available' como disponíveis
+    // já que o status do pallet é gerenciado automaticamente pelo sistema
+    return allAvailablePallets;
   }
 
   async getNextPalletCode(): Promise<string> {
