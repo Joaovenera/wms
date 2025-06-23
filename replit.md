@@ -131,6 +131,12 @@ Core entities include:
   * Added support for 1-2 pallets per position with optional central division
   * Complete desktop interface with data table, filters, and visual mini-previews
   * Updated database schema with position, level (integer), has_division, and layout_config fields
+- June 23, 2025. Fixed porta-pallets form submission issues:
+  * Corrected apiRequest parameter order in create and delete operations
+  * Fixed form validation schema and field typing issues
+  * Implemented functional create/delete operations for pallet structures
+  * Automatic position generation working correctly with PP-RUA-POSIÇÃO-NÍVEL format
+  * Form now properly validates and submits with proper error handling
 
 ## User Preferences
 

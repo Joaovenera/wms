@@ -24,8 +24,8 @@ import { useAuth } from "@/hooks/useAuth";
 const portaPalletFormSchema = z.object({
   street: z.string().min(1, "Rua é obrigatória").regex(/^\d{2}$/, "Rua deve ter 2 dígitos (ex: 01)"),
   side: z.enum(["E", "D"], { required_error: "Lado é obrigatório" }),
-  maxPositions: z.number().min(1, "Mínimo 1 posição").max(7, "Máximo 7 posições"),
-  maxLevels: z.number().min(0, "Mínimo 0 níveis").max(3, "Máximo 3 níveis"),
+  maxPositions: z.number().min(1, "Mínimo 1 posição"),
+  maxLevels: z.number().min(0, "Mínimo 0 níveis"),
   rackType: z.string().default("conventional"),
   status: z.string().default("active"),
   observations: z.string().optional(),
@@ -103,7 +103,7 @@ export default function PortaPaletes() {
 
   // Mutation para deletar estrutura
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/pallet-structures/${id}`, 'DELETE'),
+    mutationFn: (id: number) => apiRequest('DELETE', `/api/pallet-structures/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/pallet-structures'] });
       queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
@@ -126,8 +126,8 @@ export default function PortaPaletes() {
     defaultValues: {
       street: "",
       side: "E" as const,
-      maxPositions: 5,
-      maxLevels: 3,
+      maxPositions: 10,
+      maxLevels: 5,
       rackType: "conventional",
       status: "active",
       observations: "",
@@ -135,18 +135,7 @@ export default function PortaPaletes() {
   });
 
   const onSubmit = (data: PortaPalletForm) => {
-    console.log("Formulário submetido:", data);
-    console.log("Usuário:", user);
-    console.log("Erros do formulário:", form.formState.errors);
     createMutation.mutate(data);
-  };
-
-  // Adicionar handler para debugar clique do botão
-  const handleSubmitClick = () => {
-    console.log("Botão clicado!");
-    console.log("Form valid:", form.formState.isValid);
-    console.log("Form errors:", form.formState.errors);
-    console.log("Form values:", form.getValues());
   };
 
   const handleDelete = (structure: PalletStructure) => {
@@ -271,13 +260,12 @@ export default function PortaPaletes() {
                             <Input
                               type="number"
                               min={1}
-                              max={7}
                               {...field}
                               onChange={(e) => field.onChange(parseInt(e.target.value))}
                             />
                           </FormControl>
                           <FormDescription>
-                            Posições horizontais (1-7)
+                            Número de posições horizontais
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -358,7 +346,6 @@ export default function PortaPaletes() {
                     <Button 
                       type="submit" 
                       disabled={createMutation.isPending}
-                      onClick={handleSubmitClick}
                     >
                       {createMutation.isPending ? "Criando..." : "Criar Porta-Pallet"}
                     </Button>
