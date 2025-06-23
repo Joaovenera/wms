@@ -13,7 +13,8 @@ import {
   Clock,
   XCircle,
   Wrench,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -284,19 +285,31 @@ export default function MobilePallets() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Pallets</h1>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              size="sm"
-              onClick={() => {
-                setEditingPallet(null);
-                form.reset();
-                setPhotoPreview(null);
-              }}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+              queryClient.refetchQueries({ queryKey: ['/api/pallets'] });
+            }}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                size="sm"
+                onClick={() => {
+                  setEditingPallet(null);
+                  form.reset();
+                  setPhotoPreview(null);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-sm mx-4 max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -544,7 +557,8 @@ export default function MobilePallets() {
               </form>
             </Form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {/* Search and Filter */}
