@@ -361,14 +361,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // UCP routes
+  // Enhanced UCP routes for comprehensive lifecycle management
   app.get('/api/ucps', isAuthenticated, async (req, res) => {
     try {
-      const ucps = await storage.getUcps();
+      const includeArchived = req.query.includeArchived === 'true';
+      const ucps = await storage.getUcps(includeArchived);
       res.json(ucps);
     } catch (error) {
       console.error("Error fetching UCPs:", error);
       res.status(500).json({ message: "Failed to fetch UCPs" });
+    }
+  });
+
+  app.get('/api/ucps/stats', isAuthenticated, async (req, res) => {
+    try {
+      const activeUcps = await storage.getUcps(false);
+      const archivedUcps = await storage.getArchivedUcps();
+      
+      const stats = {
+        total: activeUcps.length + archivedUcps.length,
+        active: activeUcps.filter(u => u.status === 'active').length,
+        empty: activeUcps.filter(u => u.status === 'empty').length,
+        archived: archivedUcps.length,
+      };
+      
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching UCP stats:", error);
+      res.status(500).json({ message: "Failed to fetch UCP stats" });
+    }
+  });
+
+  app.get('/api/ucps/available', isAuthenticated, async (req, res) => {
+    try {
+      const productId = req.query.productId ? parseInt(req.query.productId as string) : undefined;
+      const availableUcps = await storage.getAvailableUcpsForProduct(productId);
+      res.json(availableUcps);
+    } catch (error) {
+      console.error("Error fetching available UCPs:", error);
+      res.status(500).json({ message: "Failed to fetch available UCPs" });
+    }
+  });
+
+  app.get('/api/ucps/archived', isAuthenticated, async (req, res) => {
+    try {
+      const archivedUcps = await storage.getArchivedUcps();
+      res.json(archivedUcps);
+    } catch (error) {
+      console.error("Error fetching archived UCPs:", error);
+      res.status(500).json({ message: "Failed to fetch archived UCPs" });
     }
   });
 
@@ -396,6 +437,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching UCP:", error);
       res.status(500).json({ message: "Failed to fetch UCP" });
+    }
+  });
+
+  // Comprehensive UCP creation with wizard support
+  app.post('/api/ucps/comprehensive', isAuthenticated, async (req: any, res) => {
+    try {
+      const { ucp, items } = req.body;
+      
+      const ucpResult = insertUcpSchema.safeParse({
+        ...ucp,
+        createdBy: req.user.id,
+      });
+      
+      if (!ucpResult.success) {
+        const validationError = fromZodError(ucpResult.error);
+        return res.status(400).json({ message: validationError.message });
+      }
+
+      // Generate UCP code if not provided
+      if (!ucpResult.data.code) {
+        ucpResult.data.code = await storage.getNextUcpCode();
+      }
+
+      // Create UCP with full history tracking
+      const newUcp = await storage.createUcpWithHistory(ucpResult.data, req.user.id);
+      
+      // Add items if provided
+      if (items && items.length > 0) {
+        for (const item of items) {
+          const itemResult = insertUcpItemSchema.safeParse({
+            ...item,
+            ucpId: newUcp.id,
+          });
+          
+          if (itemResult.success) {
+            await storage.addUcpItem(itemResult.data, req.user.id);
+          }
+        }
+      }
+
+      res.status(201).json(newUcp);
+    } catch (error) {
+      console.error("Error creating comprehensive UCP:", error);
+      res.status(500).json({ message: "Failed to create UCP" });
     }
   });
 
@@ -437,6 +522,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating UCP:", error);
       res.status(500).json({ message: "Failed to update UCP" });
+    }
+  });
+
+  // UCP Lifecycle Management Routes
+  app.post('/api/ucps/:id/dismantle', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { reason } = req.body;
+      
+      const success = await storage.dismantleUcp(id, req.user.id, reason);
+      if (!success) {
+        return res.status(404).json({ message: "UCP not found" });
+      }
+      res.json({ message: "UCP dismantled successfully" });
+    } catch (error) {
+      console.error("Error dismantling UCP:", error);
+      res.status(500).json({ message: "Failed to dismantle UCP" });
+    }
+  });
+
+  app.post('/api/ucps/:id/move', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { positionId, reason } = req.body;
+      
+      const success = await storage.moveUcpToPosition(id, positionId, req.user.id, reason);
+      if (!success) {
+        return res.status(404).json({ message: "UCP not found" });
+      }
+      res.json({ message: "UCP moved successfully" });
+    } catch (error) {
+      console.error("Error moving UCP:", error);
+      res.status(500).json({ message: "Failed to move UCP" });
+    }
+  });
+
+  app.get('/api/ucps/:id/history', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const history = await storage.getUcpHistory(id);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching UCP history:", error);
+      res.status(500).json({ message: "Failed to fetch UCP history" });
+    }
+  });
+
+  app.post('/api/pallets/:id/reactivate', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const newUcpCode = await storage.reactivatePallet(id, req.user.id);
+      res.json({ ucpCode: newUcpCode, message: "Pallet reactivated with new UCP" });
+    } catch (error) {
+      console.error("Error reactivating pallet:", error);
+      res.status(500).json({ message: "Failed to reactivate pallet" });
+    }
+  });
+
+  // UCP Item Management
+  app.get('/api/ucps/:id/items', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const includeRemoved = req.query.includeRemoved === 'true';
+      const items = await storage.getUcpItems(id, includeRemoved);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching UCP items:", error);
+      res.status(500).json({ message: "Failed to fetch UCP items" });
+    }
+  });
+
+  app.post('/api/ucps/:id/items', isAuthenticated, async (req: any, res) => {
+    try {
+      const ucpId = parseInt(req.params.id);
+      const result = insertUcpItemSchema.safeParse({
+        ...req.body,
+        ucpId,
+      });
+      
+      if (!result.success) {
+        const validationError = fromZodError(result.error);
+        return res.status(400).json({ message: validationError.message });
+      }
+
+      const item = await storage.addUcpItem(result.data, req.user.id);
+      res.status(201).json(item);
+    } catch (error) {
+      console.error("Error adding UCP item:", error);
+      res.status(500).json({ message: "Failed to add UCP item" });
+    }
+  });
+
+  app.delete('/api/ucp-items/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { reason } = req.body;
+      
+      if (!reason) {
+        return res.status(400).json({ message: "Removal reason is required" });
+      }
+
+      const success = await storage.removeUcpItem(id, req.user.id, reason);
+      if (!success) {
+        return res.status(404).json({ message: "UCP item not found" });
+      }
+      res.json({ message: "UCP item removed successfully" });
+    } catch (error) {
+      console.error("Error removing UCP item:", error);
+      res.status(500).json({ message: "Failed to remove UCP item" });
     }
   });
 
