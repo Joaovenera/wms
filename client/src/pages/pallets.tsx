@@ -245,18 +245,24 @@ export default function Pallets() {
     },
   });
 
+  // Log dos dados recebidos para debug
+  console.log('Dados dos pallets recebidos:', pallets);
+  console.log('Status filter atual:', statusFilter);
+
   const filteredPallets = pallets?.filter(pallet => {
-    const matchesSearch = pallet.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = !searchTerm || 
+      pallet.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pallet.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
       pallet.material.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || pallet.status === statusFilter;
     
-    // Debug logging
-    console.log(`Pallet ${pallet.code}: status=${pallet.status}, filter=${statusFilter}, matches=${matchesStatus}`);
+    console.log(`Pallet ${pallet.code}: status="${pallet.status}", filter="${statusFilter}", matchesStatus=${matchesStatus}, matchesSearch=${matchesSearch}`);
     
     return matchesSearch && matchesStatus;
   }) || [];
+
+  console.log(`Total pallets: ${pallets?.length || 0}, Filtered: ${filteredPallets.length}`);
 
   const handleCameraCapture = (imageData: string) => {
     if (imageData && imageData !== 'data:,') {
