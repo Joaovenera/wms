@@ -351,6 +351,13 @@ export const insertUcpSchema = createInsertSchema(ucps).omit({
 export const insertUcpItemSchema = createInsertSchema(ucpItems).omit({
   id: true,
   addedAt: true,
+  removedAt: true,
+  isActive: true,
+});
+
+export const insertUcpHistorySchema = createInsertSchema(ucpHistory).omit({
+  id: true,
+  timestamp: true,
 });
 
 export const insertMovementSchema = createInsertSchema(movements).omit({
@@ -393,6 +400,8 @@ export type InsertUcp = z.infer<typeof insertUcpSchema>;
 export type Ucp = typeof ucps.$inferSelect;
 export type InsertUcpItem = z.infer<typeof insertUcpItemSchema>;
 export type UcpItem = typeof ucpItems.$inferSelect;
+export type InsertUcpHistory = z.infer<typeof insertUcpHistorySchema>;
+export type UcpHistory = typeof ucpHistory.$inferSelect;
 export type InsertMovement = z.infer<typeof insertMovementSchema>;
 export type Movement = typeof movements.$inferSelect;
 export type InsertPalletStructure = z.infer<typeof insertPalletStructureSchema>;

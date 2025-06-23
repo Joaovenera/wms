@@ -5,6 +5,7 @@ import {
   products,
   ucps,
   ucpItems,
+  ucpHistory,
   movements,
   palletStructures,
   type User,
@@ -19,6 +20,8 @@ import {
   type InsertUcp,
   type UcpItem,
   type InsertUcpItem,
+  type UcpHistory,
+  type InsertUcpHistory,
   type Movement,
   type InsertMovement,
   type PalletStructure,
@@ -60,18 +63,33 @@ export interface IStorage {
   updateProduct(id: number, product: Partial<InsertProduct>): Promise<Product | undefined>;
   deleteProduct(id: number): Promise<boolean>;
 
-  // UCP operations
-  getUcps(): Promise<(Ucp & { pallet?: Pallet; position?: Position })[]>;
+  // UCP operations - Enhanced for lifecycle management
+  getUcps(includeArchived?: boolean): Promise<(Ucp & { pallet?: Pallet; position?: Position })[]>;
   getUcp(id: number): Promise<(Ucp & { pallet?: Pallet; position?: Position; items?: (UcpItem & { product?: Product })[] }) | undefined>;
   getUcpByCode(code: string): Promise<(Ucp & { pallet?: Pallet; position?: Position; items?: (UcpItem & { product?: Product })[] }) | undefined>;
   createUcp(ucp: InsertUcp): Promise<Ucp>;
   updateUcp(id: number, ucp: Partial<InsertUcp>): Promise<Ucp | undefined>;
   deleteUcp(id: number): Promise<boolean>;
-
-  // UCP Item operations
-  getUcpItems(ucpId: number): Promise<(UcpItem & { product?: Product })[]>;
-  addUcpItem(item: InsertUcpItem): Promise<UcpItem>;
-  removeUcpItem(id: number): Promise<boolean>;
+  
+  // Enhanced UCP operations for comprehensive management
+  createUcpWithHistory(ucp: InsertUcp, userId: number): Promise<Ucp>;
+  moveUcpToPosition(ucpId: number, newPositionId: number, userId: number, reason?: string): Promise<boolean>;
+  dismantleUcp(ucpId: number, userId: number, reason?: string): Promise<boolean>;
+  reactivatePallet(palletId: number, userId: number): Promise<string>; // Returns new UCP code
+  getArchivedUcps(): Promise<(Ucp & { pallet?: Pallet; position?: Position })[]>;
+  
+  // UCP Item operations - Enhanced for lifecycle tracking
+  getUcpItems(ucpId: number, includeRemoved?: boolean): Promise<(UcpItem & { product?: Product })[]>;
+  addUcpItem(item: InsertUcpItem, userId: number): Promise<UcpItem>;
+  removeUcpItem(itemId: number, userId: number, reason: string): Promise<boolean>;
+  getAvailableUcpsForProduct(productId?: number): Promise<(Ucp & { pallet?: Pallet; position?: Position; availableSpace?: number })[]>;
+  
+  // UCP History operations
+  getUcpHistory(ucpId: number): Promise<(UcpHistory & { performedByUser?: User; item?: UcpItem & { product?: Product }; fromPosition?: Position; toPosition?: Position })[]>;
+  addUcpHistoryEntry(entry: InsertUcpHistory): Promise<UcpHistory>;
+  
+  // UCP Code generation
+  getNextUcpCode(): Promise<string>;
 
   // Movement operations
   getMovements(limit?: number): Promise<(Movement & { ucp?: Ucp; product?: Product; fromPosition?: Position; toPosition?: Position })[]>;
