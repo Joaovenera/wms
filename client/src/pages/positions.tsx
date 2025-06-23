@@ -13,10 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, Plus, Edit, Trash2, Search, RefreshCw, Filter, Package, CheckCircle } from "lucide-react";
+import { MapPin, Plus, Edit, Trash2, Search, RefreshCw, Filter, Package, CheckCircle, QrCode } from "lucide-react";
 import { useMobile } from "@/hooks/use-mobile";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { insertPositionSchema, type Position, type InsertPosition, type PalletStructure } from "@shared/schema";
+import QRCodeDialog from "@/components/qr-code-dialog";
 
 // Função para gerar código PP-RUA-POSIÇÃO-NÍVEL
 const generatePositionCode = (street: string, position: number, level: number) => {
@@ -37,6 +38,7 @@ export default function Positions() {
   const [streetFilter, setStreetFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
+  const [qrCodeDialog, setQrCodeDialog] = useState<{ isOpen: boolean; position?: Position }>({ isOpen: false });
 
   // Query para buscar posições
   const { data: positions = [], isLoading, refetch } = useQuery<Position[]>({
@@ -214,6 +216,14 @@ export default function Positions() {
       return <Package className="h-4 w-4 text-orange-600" />;
     }
     return <CheckCircle className="h-4 w-4 text-green-600" />;
+  };
+
+  const handleShowQRCode = (position: Position) => {
+    setQrCodeDialog({ isOpen: true, position });
+  };
+
+  const handleCloseQRCode = () => {
+    setQrCodeDialog({ isOpen: false });
   };
 
   return (
@@ -611,6 +621,14 @@ export default function Positions() {
                     {position.createdAt ? new Date(position.createdAt).toLocaleDateString() : 'N/A'}
                   </div>
                   <div className="flex space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleShowQRCode(position)}
+                      title="Gerar QR Code"
+                    >
+                      <QrCode className="h-4 w-4" />
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm"
