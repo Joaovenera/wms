@@ -478,30 +478,52 @@ export class DatabaseStorage implements IStorage {
       .values(structureData)
       .returning();
 
+    // Verificar se já existem posições para esta estrutura
+    const existingPositions = await db
+      .select()
+      .from(positions)
+      .where(eq(positions.structureId, structure.id));
+    
+    if (existingPositions.length > 0) {
+      // Se já existem posições, não criar novas
+      return structure;
+    }
+
     // Gerar automaticamente todas as vagas com endereçamento PP-RUA-POSIÇÃO-NÍVEL
     const positionsToInsert: InsertPosition[] = [];
+    
+    // Buscar posições existentes com códigos similares para evitar duplicatas
+    const existingCodes = await db
+      .select({ code: positions.code })
+      .from(positions)
+      .where(like(positions.code, `PP-${structure.street}-%`));
+    
+    const existingCodeSet = new Set(existingCodes.map(p => p.code));
     
     for (let level = 0; level <= structure.maxLevels; level++) {
       for (let position = 1; position <= structure.maxPositions; position++) {
         const positionCode = `PP-${structure.street}-${position.toString().padStart(2, '0')}-${level}`;
         
-        positionsToInsert.push({
-          code: positionCode,
-          street: structure.street,
-          side: structure.side,
-          position: position,
-          level: level,
-          status: 'available',
-          structureId: structure.id,
-          maxPallets: 1,
-          rackType: structure.rackType || 'conventional',
-          corridor: null,
-          restrictions: null,
-          createdBy: structureData.createdBy,
-          observations: `Vaga gerada automaticamente da estrutura ${structure.name}`,
-          hasDivision: false,
-          layoutConfig: null,
-        });
+        // Só adicionar se o código não existir
+        if (!existingCodeSet.has(positionCode)) {
+          positionsToInsert.push({
+            code: positionCode,
+            street: structure.street,
+            side: structure.side,
+            position: position,
+            level: level,
+            status: 'available',
+            structureId: structure.id,
+            maxPallets: 1,
+            rackType: structure.rackType || 'conventional',
+            corridor: null,
+            restrictions: null,
+            createdBy: structureData.createdBy,
+            observations: `Vaga gerada automaticamente da estrutura ${structure.name}`,
+            hasDivision: false,
+            layoutConfig: null,
+          });
+        }
       }
     }
 
