@@ -150,10 +150,11 @@ export default function MobilePallets() {
       width: 0,
       length: 0,
       height: 0,
-      maxWeight: 0,
+      maxWeight: "0",
+      createdBy: 1,
       status: "available",
-      photoUrl: null,
-      observations: null,
+      photoUrl: "",
+      observations: "",
     },
   });
 
@@ -245,10 +246,11 @@ export default function MobilePallets() {
       width: pallet.width,
       length: pallet.length,
       height: pallet.height,
-      maxWeight: pallet.maxWeight,
+      maxWeight: pallet.maxWeight.toString(),
+      createdBy: pallet.createdBy,
       status: pallet.status,
-      photoUrl: pallet.photoUrl,
-      observations: pallet.observations,
+      photoUrl: pallet.photoUrl || "",
+      observations: pallet.observations || "",
     });
     setPhotoPreview(pallet.photoUrl);
     setIsCreateOpen(true);
@@ -286,14 +288,14 @@ export default function MobilePallets() {
               <Plus className="h-4 w-4" />
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-sm mx-4">
+          <DialogContent className="max-w-sm mx-4 max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingPallet ? "Editar Pallet" : "Novo Pallet"}
               </DialogTitle>
             </DialogHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
                 <FormField
                   control={form.control}
                   name="code"
@@ -322,7 +324,7 @@ export default function MobilePallets() {
                             form.setValue('width', defaults.width);
                             form.setValue('length', defaults.length);
                             form.setValue('height', defaults.height);
-                            form.setValue('maxWeight', defaults.maxWeight);
+                            form.setValue('maxWeight', defaults.maxWeight.toString());
                           }
                         }} 
                         value={field.value}
@@ -499,7 +501,7 @@ export default function MobilePallets() {
                     name="photoUrl"
                     render={({ field }) => (
                       <FormControl>
-                        <Input type="hidden" {...field} />
+                        <Input type="hidden" {...field} value={field.value || ""} />
                       </FormControl>
                     )}
                   />
@@ -512,7 +514,7 @@ export default function MobilePallets() {
                     <FormItem>
                       <FormLabel>Observações</FormLabel>
                       <FormControl>
-                        <Textarea {...field} />
+                        <Textarea {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
