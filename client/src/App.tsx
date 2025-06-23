@@ -54,6 +54,7 @@ function Router() {
         <Route path="/positions" component={Positions} />
         <Route path="/ucps" component={UCPs} />
         <Route path="/products" component={Products} />
+        <Route path="/users" component={Users} />
         <Route component={NotFound} />
       </Switch>
     </DesktopLayout>

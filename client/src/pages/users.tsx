@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Users, Mail, Calendar, User } from "lucide-react";
+import { Search, Users as UsersIcon, Mail, Calendar, User } from "lucide-react";
 import { type User as UserType } from "@shared/schema";
 
 export default function Users() {
@@ -43,7 +43,7 @@ export default function Users() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-primary" />
+          <UsersIcon className="h-5 w-5 text-primary" />
           <span className="text-sm font-medium">
             {users?.length || 0} usuários cadastrados
           </span>
@@ -141,7 +141,7 @@ export default function Users() {
       {!isLoading && filteredUsers.length === 0 && (
         <Card>
           <CardContent className="p-12 text-center">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <UsersIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">
               {searchTerm ? 'Nenhum usuário encontrado' : 'Nenhum usuário cadastrado'}
             </h3>
