@@ -34,9 +34,11 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
       if (palletCode.startsWith('UCP-')) {
         itemType = "UCP";
       } else if (palletCode.startsWith('PP-')) {
-        itemType = "POSITION";
+        itemType = "PORTA-PALLET";
       } else if (palletCode.includes('Porta-Pallet')) {
-        itemType = "STRUCTURE";
+        itemType = "PORTA-PALLET";
+      } else if (palletCode.startsWith('PLT')) {
+        itemType = "PALLET";
       }
       
       // Gerar QR code com dados do item
@@ -153,8 +155,8 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
             <div className="text-sm text-gray-600 mt-1">
               Escaneie para identificar {
                 palletCode.startsWith('UCP-') ? 'a UCP' :
-                palletCode.startsWith('PP-') ? 'a posição' : 
-                palletCode.includes('Porta-Pallet') ? 'a estrutura' : 
+                palletCode.startsWith('PP-') ? 'o porta-pallet' : 
+                palletCode.includes('Porta-Pallet') ? 'o porta-pallet' : 
                 'o pallet'
               }
             </div>
