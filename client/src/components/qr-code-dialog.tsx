@@ -31,7 +31,9 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
     try {
       // Detectar tipo baseado no código ou nos dados fornecidos
       let itemType = "PALLET";
-      if (palletCode.startsWith('PP-')) {
+      if (palletCode.startsWith('UCP-')) {
+        itemType = "UCP";
+      } else if (palletCode.startsWith('PP-')) {
         itemType = "POSITION";
       } else if (palletCode.includes('Porta-Pallet')) {
         itemType = "STRUCTURE";
@@ -150,6 +152,7 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
             <div className="text-lg font-bold tracking-wider">{palletCode}</div>
             <div className="text-sm text-gray-600 mt-1">
               Escaneie para identificar {
+                palletCode.startsWith('UCP-') ? 'a UCP' :
                 palletCode.startsWith('PP-') ? 'a posição' : 
                 palletCode.includes('Porta-Pallet') ? 'a estrutura' : 
                 'o pallet'
