@@ -607,85 +607,55 @@ export class DatabaseStorage implements IStorage {
       })));
   }
 
-  async getUcpHistory(ucpId: number): Promise<(UcpHistory & { performedByUser?: User; item?: UcpItem & { product?: Product }; fromPosition?: Position; toPosition?: Position })[]> {
-    const result = await db
-      .select({
-        // UCP History fields
-        id: ucpHistory.id,
-        ucpId: ucpHistory.ucpId,
-        action: ucpHistory.action,
-        description: ucpHistory.description,
-        oldValue: ucpHistory.oldValue,
-        newValue: ucpHistory.newValue,
-        itemId: ucpHistory.itemId,
-        fromPositionId: ucpHistory.fromPositionId,
-        toPositionId: ucpHistory.toPositionId,
-        performedBy: ucpHistory.performedBy,
-        timestamp: ucpHistory.timestamp,
-        // User fields
-        userId: users.id,
-        userFirstName: users.firstName,
-        userLastName: users.lastName,
-        userEmail: users.email,
-        // Item fields
-        itemUcpId: ucpItems.ucpId,
-        itemProductId: ucpItems.productId,
-        itemQuantity: ucpItems.quantity,
-        itemInternalCode: ucpItems.internalCode,
-        // Product fields
-        productId: products.id,
-        productSku: products.sku,
-        productName: products.name,
-        // Position fields
-        positionId: positions.id,
-        positionCode: positions.code,
-        positionStreet: positions.street,
-      })
-      .from(ucpHistory)
-      .leftJoin(users, eq(ucpHistory.performedBy, users.id))
-      .leftJoin(ucpItems, eq(ucpHistory.itemId, ucpItems.id))
-      .leftJoin(products, eq(ucpItems.productId, products.id))
-      .leftJoin(positions, eq(ucpHistory.fromPositionId, positions.id))
-      .where(eq(ucpHistory.ucpId, ucpId))
-      .orderBy(desc(ucpHistory.timestamp));
+  async getUcpHistory(ucpId: number): Promise<any[]> {
+    try {
+      const result = await db
+        .select({
+          id: ucpHistory.id,
+          ucpId: ucpHistory.ucpId,
+          action: ucpHistory.action,
+          description: ucpHistory.description,
+          oldValue: ucpHistory.oldValue,
+          newValue: ucpHistory.newValue,
+          itemId: ucpHistory.itemId,
+          fromPositionId: ucpHistory.fromPositionId,
+          toPositionId: ucpHistory.toPositionId,
+          performedBy: ucpHistory.performedBy,
+          timestamp: ucpHistory.timestamp,
+          userFirstName: users.firstName,
+          userLastName: users.lastName,
+          userEmail: users.email,
+        })
+        .from(ucpHistory)
+        .leftJoin(users, eq(ucpHistory.performedBy, users.id))
+        .where(eq(ucpHistory.ucpId, ucpId))
+        .orderBy(desc(ucpHistory.timestamp));
 
-    return result.map(row => ({
-      id: row.id,
-      ucpId: row.ucpId,
-      action: row.action,
-      description: row.description,
-      oldValue: row.oldValue,
-      newValue: row.newValue,
-      itemId: row.itemId,
-      fromPositionId: row.fromPositionId,
-      toPositionId: row.toPositionId,
-      performedBy: row.performedBy,
-      timestamp: row.timestamp,
-      performedByUser: row.userId ? {
-        id: row.userId,
-        firstName: row.userFirstName,
-        lastName: row.userLastName,
-        email: row.userEmail,
-      } : undefined,
-      item: row.itemUcpId ? {
-        id: row.itemId || 0,
-        ucpId: row.itemUcpId,
-        productId: row.itemProductId || 0,
-        quantity: row.itemQuantity || '',
-        internalCode: row.itemInternalCode,
-        product: row.productId ? {
-          id: row.productId,
-          sku: row.productSku || '',
-          name: row.productName || '',
+      console.log(`DEBUG: Raw query result for UCP ${ucpId}:`, result);
+
+      return result.map(row => ({
+        id: row.id,
+        ucpId: row.ucpId,
+        action: row.action,
+        description: row.description,
+        oldValue: row.oldValue,
+        newValue: row.newValue,
+        itemId: row.itemId,
+        fromPositionId: row.fromPositionId,
+        toPositionId: row.toPositionId,
+        performedBy: row.performedBy,
+        timestamp: row.timestamp?.toISOString() || null,
+        performedByUser: row.userFirstName ? {
+          id: row.performedBy,
+          firstName: row.userFirstName,
+          lastName: row.userLastName,
+          email: row.userEmail || '',
         } : undefined,
-      } : undefined,
-      fromPosition: row.positionId ? {
-        id: row.positionId,
-        code: row.positionCode || '',
-        street: row.positionStreet || '',
-      } : undefined,
-      toPosition: undefined, // Would need separate join for toPosition
-    }));
+      }));
+    } catch (error) {
+      console.error('Error in getUcpHistory:', error);
+      throw error;
+    }
   }
 
   async addUcpHistoryEntry(entry: InsertUcpHistory): Promise<UcpHistory> {

@@ -578,7 +578,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/ucps/:id/history', isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      console.log(`DEBUG: Fetching history for UCP ID: ${id}`);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid UCP ID" });
+      }
+      
       const history = await storage.getUcpHistory(id);
+      console.log(`DEBUG: Found ${history.length} history entries for UCP ${id}`);
+      
       res.json(history);
     } catch (error) {
       console.error("Error fetching UCP history:", error);
