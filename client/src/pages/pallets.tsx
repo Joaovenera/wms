@@ -68,6 +68,34 @@ const getStatusInfo = (status: string) => {
   }
 };
 
+// Valores padrão para cada tipo de pallet
+const palletTypeDefaults = {
+  PBR: {
+    width: 100,
+    length: 120,
+    height: 14,
+    maxWeight: 1500
+  },
+  Europeu: {
+    width: 80,
+    length: 120,
+    height: 14.4,
+    maxWeight: 1500
+  },
+  Chep: {
+    width: 110,
+    length: 110,
+    height: 15,
+    maxWeight: 1250
+  },
+  Americano: {
+    width: 101.6,
+    length: 121.9,
+    height: 14,
+    maxWeight: 1360
+  }
+};
+
 export default function Pallets() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -278,7 +306,20 @@ export default function Pallets() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Tipo</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select 
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            // Aplicar valores padrão baseado no tipo selecionado
+                            const defaults = palletTypeDefaults[value as keyof typeof palletTypeDefaults];
+                            if (defaults) {
+                              form.setValue('width', defaults.width);
+                              form.setValue('length', defaults.length);
+                              form.setValue('height', defaults.height);
+                              form.setValue('maxWeight', defaults.maxWeight);
+                            }
+                          }} 
+                          value={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione o tipo" />
