@@ -25,10 +25,11 @@ import { db } from "./db";
 import { eq, desc, sql, and, like, or } from "drizzle-orm";
 
 export interface IStorage {
-  // User operations (required for Replit Auth)
-  getUser(id: string): Promise<User | undefined>;
+  // User operations
+  getUserById(id: number): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  createUser(user: InsertUser): Promise<User>;
 
   // Pallet operations
   getPallets(): Promise<Pallet[]>;
@@ -82,9 +83,14 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // User operations (required for Replit Auth)
-  async getUser(id: string): Promise<User | undefined> {
+  // User operations
+  async getUserById(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
@@ -92,17 +98,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users).orderBy(desc(users.createdAt));
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
+  async createUser(userData: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
       .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
       .returning();
     return user;
   }

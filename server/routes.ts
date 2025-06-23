@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 import {
   insertPalletSchema,
   insertPositionSchema,
@@ -17,10 +17,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const userId = req.user.id;
+      const user = await storage.getUserById(userId);
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
@@ -504,8 +504,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/users/:id', isAuthenticated, async (req, res) => {
     try {
-      const id = req.params.id;
-      const user = await storage.getUser(id);
+      const id = parseInt(req.params.id);
+      const user = await storage.getUserById(id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
