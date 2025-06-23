@@ -339,7 +339,7 @@ export default function Pallets() {
                               form.setValue('width', defaults.width);
                               form.setValue('length', defaults.length);
                               form.setValue('height', defaults.height);
-                              form.setValue('maxWeight', defaults.maxWeight.toString());
+                              form.setValue('maxWeight', defaults.maxWeight);
                             }
                           }} 
                           value={field.value}
@@ -534,7 +534,7 @@ export default function Pallets() {
                         </div>
                       </div>
                       <FormControl>
-                        <Input type="hidden" {...field} value={field.value || ""} />
+                        <Input type="hidden" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -548,7 +548,7 @@ export default function Pallets() {
                     <FormItem>
                       <FormLabel>Observações</FormLabel>
                       <FormControl>
-                        <Textarea {...field} value={field.value || ""} />
+                        <Textarea {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
