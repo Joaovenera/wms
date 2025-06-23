@@ -1,0 +1,71 @@
+Com base nos documentos fornecidos, aqui está um prompt detalhado para a criação do módulo de "Cadastro e Gerenciamento de Unidades de Carga Paletizada (UCPs)" em seu sistema de controle de estoque.
+
+Prompt para Desenvolvimento: Módulo de Criação e Gerenciamento de Unidades de Carga Paletizada (UCPs)
+Objetivo Geral:
+
+Desenvolver uma funcionalidade robusta e integrada para o cadastro e gerenciamento de Unidades de Carga Paletizada (UCPs). [cite_start]O objetivo é garantir um controle preciso sobre quais produtos estão agrupados em cada pallet, seu histórico de movimentação e seu ciclo de vida completo, desde a criação até a desmontagem e arquivamento. [cite_start]A funcionalidade deve ser central para a rastreabilidade do estoque, ligando produtos individuais a pallets físicos e suas localizações no armazém.   
+
+1. Atores e Permissões:
+
+[cite_start]Administradores e Operadores: Terão a permissão para criar e gerenciar o conteúdo das UCPs.   
+[cite_start]Administradores: Terão acesso a funcionalidades exclusivas, como a consulta ao histórico de UCPs arquivadas e a configuração de regras do sistema.   
+2. Fluxo de Criação da UCP (integrado ao Processo de Entrada de Mercadorias):
+
+[cite_start]A criação de uma UCP é uma etapa fundamental do processo de recebimento de mercadorias. [cite_start]Após a conferência e etiquetagem individual dos itens com o Código Interno (CI), o sistema deve orquestrar a associação desses itens a uma UCP.   
+
+Passo a Passo:
+
+[cite_start]Seleção de Itens: Após a geração das etiquetas de QR Code para os produtos individuais, o operador seleciona os itens que serão agrupados.   
+Associação com a UCP: O sistema deve oferecer as seguintes opções:
+[cite_start]Sugerir UCP Ativa: Sugerir UCPs já existentes que possuam espaço disponível.   
+[cite_start]Seleção Manual: Permitir ao operador selecionar manualmente uma UCP ativa.   
+[cite_start]Criação Rápida de Nova UCP: Se um novo pallet for utilizado, o sistema deve permitir um cadastro rápido de uma nova UCP.   
+[cite_start]Geração do Código da UCP: Ao criar uma nova UCP, o sistema deve gerar um código único, como, por exemplo, UCP-20250618-0001.   
+[cite_start]Associação ao Pallet Físico: A UCP deve ser obrigatoriamente vinculada a um pallet físico existente no sistema, através do código único do pallet (ex: PLT0001). [cite_start]O pallet associado deve ter seu status atualizado para "Em Uso".   
+[cite_start]Impressão da Etiqueta da UCP: O sistema deve gerar e permitir a impressão de uma etiqueta com QR Code Model 2 para a nova UCP, a qual será afixada no pallet físico.   
+[cite_start]Alocação no Armazém: O operador, utilizando um dispositivo móvel com o mapa visual do armazém, escaneia o QR Code da UCP e o QR Code da posição no porta-pallet para registrar a localização exata da UCP (ex: RUA01-E-A01-N01). [cite_start]O status da posição no porta-pallet deve ser atualizado para "Ocupada".   
+[cite_start]Confirmação: O sistema deve registrar que a UCP X, contendo os produtos Y com seus respectivos CIs, foi armazenada na posição W.   
+3. Campos para Cadastro da UCP:
+
+A entidade "UCP" no banco de dados deverá conter os seguintes campos:
+
+[cite_start]Código da UCP: Um identificador único e não reutilizável gerado pelo sistema (ex: UCP-20250618-0001).   
+[cite_start]Data de Criação: Data e hora em que a UCP foi montada.   
+[cite_start]Usuário Responsável: Identificação do usuário (administrador ou operador) que criou a UCP.   
+[cite_start]Pallet Associado: Chave de referência para o código único do pallet físico ao qual a UCP está vinculada.   
+[cite_start]Posição no Porta-Pallet: O código da localização atual da UCP no armazém.   
+Status da UCP: Um campo para controlar o ciclo de vida da UCP. [cite_start]Os status devem ser, no mínimo, "Em Uso" e "Vazia/Desmontada".   
+Lista de Produtos: Uma relação dinâmica contendo:
+[cite_start]Código do Produto (SKU Mestre).   
+[cite_start]Código Interno do Item (CI) - A chave para a rastreabilidade individual.   
+[cite_start]Nome do Produto.   
+[cite_start]Quantidade.   
+[cite_start]Lote (se aplicável).   
+[cite_start]Data de Validade (se aplicável).   
+[cite_start]Observações: Um campo de texto para informações adicionais relevantes.   
+4. Gestão de Conteúdo e Histórico:
+
+[cite_start]Adição e Remoção de Produtos: O sistema deve permitir que operadores adicionem ou removam produtos de uma UCP "Em Uso", registrando sempre a data, hora, usuário e motivo da remoção (ex: venda, avaria).   
+Histórico Completo (Logs): Todas as ações realizadas em uma UCP devem ser registradas em um histórico detalhado, incluindo:
+[cite_start]Data de criação e produtos iniciais.   
+[cite_start]Todas as alterações de conteúdo (adições/remoções).   
+[cite_start]Todo o histórico de movimentação entre posições no porta-pallet.   
+5. Ciclo de Vida e Desmontagem:
+
+[cite_start]Status "Vazia/Desmontada": Quando o último item for removido de uma UCP, o sistema deve, automaticamente, alterar seu status para "Vazia/Desmontada".   
+[cite_start]Liberação do Pallet: Simultaneamente, o status do pallet físico associado deve ser atualizado para "Disponível" (ou outro estado pertinente, como "Defeituoso").   
+[cite_start]Arquivamento: Uma UCP com status "Vazia/Desmontada" é considerada arquivada. [cite_start]Ela não deve aparecer em listas de UCPs ativas, mas todos os seus dados e histórico devem ser preservados para consulta. [cite_start]O código da UCP nunca será reutilizado.   
+6. Reativação de Pallet (Criação de Nova UCP):
+
+[cite_start]Quando um operador escanear um pallet físico "Disponível" para iniciar uma nova carga, o sistema deve obrigatoriamente criar uma nova UCP com um código totalmente novo e único.   
+[cite_start]O sistema pode, opcionalmente, informar ao operador que aquele pallet já esteve associado a UCPs anteriores, exibindo um breve histórico.   
+[cite_start]Uma nova etiqueta de QR Code para a nova UCP deverá ser impressa.   
+Critérios de Aceite:
+
+Um usuário (operador/administrador) consegue criar uma UCP durante o processo de recebimento.
+Cada nova UCP gera um código único e uma etiqueta de QR Code imprimível.
+A criação de uma UCP altera o status do pallet físico associado para "Em Uso".
+Ao alocar a UCP, o status da posição do porta-pallet muda para "Ocupada".
+O sistema impede a reutilização de um código de UCP já arquivado.
+Quando uma UCP é esvaziada, seu status muda para "Vazia/Desmontada" e o pallet associado é liberado.
+Todo o histórico de produtos e localizações de uma UCP é mantido indefinidamente para consulta.
