@@ -124,6 +124,13 @@ Core entities include:
   * Added icon-based status indicators with emojis for better visual recognition
   * Implemented staggered animation delays for smooth loading experience
   * Enhanced KPI cards with gradient overlays and interactive hover states
+- June 23, 2025. Implemented PP-RUA-POSIÇÃO-NÍVEL addressing system for porta-pallets:
+  * Created new addressing format PP-01-01-0 (PortaPallet-Street-Position-Level)
+  * Added automatic side calculation (even positions=right, odd positions=left)
+  * Implemented visual pallet layout configurator with graphical representation
+  * Added support for 1-2 pallets per position with optional central division
+  * Complete desktop interface with data table, filters, and visual mini-previews
+  * Updated database schema with position, level (integer), has_division, and layout_config fields
 
 ## User Preferences
 

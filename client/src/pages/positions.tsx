@@ -905,20 +905,385 @@ export default function Positions() {
         </Dialog>
       </div>
 
-      {/* Desktop table and content would continue here... */}
-      <div className="text-center py-12">
-        <Settings className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-        <h3 className="text-xl font-semibold mb-2">Interface Desktop em Desenvolvimento</h3>
-        <p className="text-gray-600 mb-4">
-          A versão desktop completa está sendo desenvolvida. Use a versão mobile por enquanto.
-        </p>
-        <Button 
-          variant="outline" 
-          onClick={() => window.location.reload()}
-        >
-          Recarregar Página
-        </Button>
+      {/* Filtros e busca */}
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Buscar por código, rua ou tipo..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              <SelectItem value="available">Disponível</SelectItem>
+              <SelectItem value="occupied">Ocupado</SelectItem>
+              <SelectItem value="reserved">Reservado</SelectItem>
+              <SelectItem value="maintenance">Manutenção</SelectItem>
+              <SelectItem value="blocked">Bloqueado</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+        </div>
       </div>
+
+      {/* Tabela de posições */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Lista de Porta-Pallets</span>
+            <Badge variant="outline">
+              {filteredPositions.length} {filteredPositions.length === 1 ? 'posição' : 'posições'}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-12">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p className="text-gray-500">Carregando porta-pallets...</p>
+            </div>
+          ) : filteredPositions.length === 0 ? (
+            <div className="text-center py-12">
+              <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum porta-pallet encontrado</h3>
+              <p className="text-gray-600 mb-4">
+                {searchTerm || filterStatus !== "all" 
+                  ? "Tente ajustar os filtros de busca"
+                  : "Cadastre o primeiro porta-pallet do sistema"
+                }
+              </p>
+              <Button onClick={() => setIsAddDialogOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Porta-Pallet
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-3 font-semibold">Código</th>
+                    <th className="text-left p-3 font-semibold">Localização</th>
+                    <th className="text-left p-3 font-semibold">Tipo/Capacidade</th>
+                    <th className="text-left p-3 font-semibold">Status</th>
+                    <th className="text-left p-3 font-semibold">Lado</th>
+                    <th className="text-left p-3 font-semibold">Configuração</th>
+                    <th className="text-center p-3 font-semibold">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPositions.map((position) => (
+                    <tr key={position.id} className="border-b hover:bg-gray-50">
+                      <td className="p-3">
+                        <div className="font-mono font-bold text-blue-600">
+                          {position.code}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="space-y-1">
+                          <div>Rua {position.street}</div>
+                          <div className="text-sm text-gray-600">
+                            Posição {position.position} • Nível {position.level}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="space-y-1">
+                          <div className="font-medium">{position.rackType || "N/A"}</div>
+                          <div className="text-sm text-gray-600">
+                            {position.maxPallets} pallet{position.maxPallets > 1 ? 's' : ''}
+                            {position.hasDivision ? ' + divisão' : ''}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Badge className={getStatusColor(position.status)}>
+                          {position.status}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <Badge className={getSideColor(position.side)}>
+                          {position.side === "E" ? "Esquerdo" : "Direito"}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          {/* Mini visualização da configuração */}
+                          <div className="flex items-center gap-1 p-1 bg-gray-100 rounded">
+                            <div className="w-1 h-4 bg-red-500 rounded"></div>
+                            {Array.from({ length: position.maxPallets }, (_, i) => (
+                              <div key={i} className="flex items-center gap-1">
+                                <div className="w-4 h-3 border border-blue-300 bg-blue-50 rounded-sm"></div>
+                                {i === 0 && position.hasDivision && position.maxPallets === 2 && (
+                                  <div className="w-0.5 h-3 bg-red-500 rounded-full"></div>
+                                )}
+                              </div>
+                            ))}
+                            <div className="w-1 h-4 bg-red-500 rounded"></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(position)}
+                          >
+                            <Edit className="w-4 h-4 mr-1" />
+                            Editar
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                Excluir
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Deseja realmente excluir o porta-pallet {position.code}?
+                                  Esta ação não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(position)}
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog de edição para desktop */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Porta-Pallet</DialogTitle>
+            <DialogDescription>
+              Modifique as informações e configuração visual do porta-pallet
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEdit)} className="space-y-6">
+              <div className="grid grid-cols-4 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="street"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rua</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="01" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="position"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Posição</FormLabel>
+                      <FormControl>
+                        <Input 
+                          {...field} 
+                          type="number" 
+                          min={1}
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          placeholder="01" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="level"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nível</FormLabel>
+                      <FormControl>
+                        <Input 
+                          {...field} 
+                          type="number" 
+                          min={0}
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          placeholder="0" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Código Gerado</FormLabel>
+                      <FormControl>
+                        <Input {...field} readOnly className="bg-gray-50 font-mono" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="available">Disponível</SelectItem>
+                          <SelectItem value="occupied">Ocupado</SelectItem>
+                          <SelectItem value="reserved">Reservado</SelectItem>
+                          <SelectItem value="maintenance">Manutenção</SelectItem>
+                          <SelectItem value="blocked">Bloqueado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="rackType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de Rack</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o tipo" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Convencional">Convencional</SelectItem>
+                          <SelectItem value="Drive-in">Drive-in</SelectItem>
+                          <SelectItem value="Push-back">Push-back</SelectItem>
+                          <SelectItem value="Cantilever">Cantilever</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="corridor"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Corredor (Compatibilidade)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          {...field} 
+                          value={field.value || ""} 
+                          placeholder="A01, A02..." 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Configurador visual */}
+              <div className="border rounded-lg p-4">
+                <PalletLayoutConfigurator
+                  config={layoutConfig}
+                  onChange={setLayoutConfig}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="restrictions"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Restrições</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          {...field} 
+                          value={field.value || ""} 
+                          placeholder="Restrições de armazenagem..."
+                          rows={3}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="observations"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Observações</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          {...field} 
+                          value={field.value || ""} 
+                          placeholder="Observações gerais..."
+                          rows={3}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
