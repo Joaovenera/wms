@@ -20,6 +20,7 @@ import {
   insertUcpItemSchema,
   insertMovementSchema,
   insertUserSchema,
+  insertPalletStructureSchema,
 } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 

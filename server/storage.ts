@@ -6,6 +6,7 @@ import {
   ucps,
   ucpItems,
   movements,
+  palletStructures,
   type User,
   type InsertUser,
   type Pallet,
@@ -20,6 +21,8 @@ import {
   type InsertUcpItem,
   type Movement,
   type InsertMovement,
+  type PalletStructure,
+  type InsertPalletStructure,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, like, or } from "drizzle-orm";
@@ -85,6 +88,12 @@ export interface IStorage {
 
   // Pallet code generation
   getNextPalletCode(): Promise<string>;
+
+  // Pallet Structure operations
+  getPalletStructures(): Promise<PalletStructure[]>;
+  getPalletStructure(id: number): Promise<PalletStructure | undefined>;
+  createPalletStructure(structure: InsertPalletStructure): Promise<PalletStructure>;
+  deletePalletStructure(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -450,6 +459,60 @@ export class DatabaseStorage implements IStorage {
 
     // Formata o código com zero padding
     return `PLT${nextNumber.toString().padStart(4, '0')}`;
+  }
+
+  // Pallet Structure operations
+  async getPalletStructures(): Promise<PalletStructure[]> {
+    return await db.select().from(palletStructures).orderBy(desc(palletStructures.createdAt));
+  }
+
+  async getPalletStructure(id: number): Promise<PalletStructure | undefined> {
+    const [structure] = await db.select().from(palletStructures).where(eq(palletStructures.id, id));
+    return structure;
+  }
+
+  async createPalletStructure(structureData: InsertPalletStructure): Promise<PalletStructure> {
+    // Criar a estrutura
+    const [structure] = await db
+      .insert(palletStructures)
+      .values(structureData)
+      .returning();
+
+    // Gerar automaticamente todas as vagas com endereçamento [posição,nível]
+    const positions = [];
+    
+    for (let level = 0; level < structure.maxLevels; level++) {
+      for (let position = 1; position <= structure.maxPositions; position++) {
+        const positionCode = `[${position},${level}]`;
+        
+        positions.push({
+          code: positionCode,
+          street: structure.street,
+          side: structure.side,
+          position: position,
+          level: level,
+          status: 'available',
+          structureId: structure.id,
+          observations: `Vaga gerada automaticamente da estrutura ${structure.name}`,
+        });
+      }
+    }
+
+    // Inserir todas as vagas em batch
+    if (positions.length > 0) {
+      await db.insert(positions).values(positions);
+    }
+
+    return structure;
+  }
+
+  async deletePalletStructure(id: number): Promise<boolean> {
+    // Primeiro, deletar todas as vagas associadas à estrutura
+    await db.delete(positions).where(eq(positions.structureId, id));
+    
+    // Depois, deletar a estrutura
+    const result = await db.delete(palletStructures).where(eq(palletStructures.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 }
 
