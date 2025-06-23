@@ -53,7 +53,7 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
-    if (printWindow && qrCodeUrl && palletData) {
+    if (printWindow && qrCodeUrl) {
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -87,15 +87,6 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
               margin: 10px 0;
               letter-spacing: 2px;
             }
-            .pallet-info {
-              font-size: 12px;
-              color: #666;
-              margin-top: 15px;
-              text-align: left;
-            }
-            .info-row {
-              margin: 3px 0;
-            }
             @media print {
               body { margin: 0; padding: 0; }
               .qr-container { margin: 0; box-shadow: none; }
@@ -108,13 +99,6 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
               <img src="${qrCodeUrl}" alt="QR Code ${palletCode}" />
             </div>
             <div class="pallet-code">${palletCode}</div>
-            <div class="pallet-info">
-              <div class="info-row"><strong>Tipo:</strong> ${palletData.type}</div>
-              <div class="info-row"><strong>Material:</strong> ${palletData.material}</div>
-              <div class="info-row"><strong>Dimensões:</strong> ${palletData.dimensions}</div>
-              <div class="info-row"><strong>Carga Máx:</strong> ${palletData.maxWeight}</div>
-              <div class="info-row"><strong>Gerado em:</strong> ${new Date().toLocaleString('pt-BR')}</div>
-            </div>
           </div>
         </body>
         </html>
