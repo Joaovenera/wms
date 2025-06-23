@@ -93,7 +93,6 @@ export default function Users() {
               <CardContent className="p-6">
                 <div className="flex items-center space-x-4 mb-4">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src={user.profileImageUrl || undefined} alt={user.firstName || user.email || 'User'} />
                     <AvatarFallback className="bg-primary text-primary-foreground">
                       {getInitials(user)}
                     </AvatarFallback>

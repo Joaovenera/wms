@@ -34,8 +34,14 @@ export default function DesktopLayout({ children }: DesktopLayoutProps) {
     { name: "Usuários", href: "/users", icon: Users },
   ];
 
-  const handleLogout = () => {
-    window.location.href = '/api/logout';
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Logout error:', error);
+      window.location.href = '/';
+    }
   };
 
   return (
