@@ -58,7 +58,7 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
         <!DOCTYPE html>
         <html>
         <head>
-          <title>QR Code - ${palletCode}</title>
+          <title>${palletCode}</title>
           <style>
             body {
               font-family: 'Arial', sans-serif;
@@ -73,10 +73,7 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
               text-align: center;
               border: 2px solid #000;
               padding: 20px;
-              margin: 20px;
-              border-radius: 8px;
               background: white;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
             .qr-code {
               margin: 10px 0;
@@ -89,7 +86,8 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
             }
             @media print {
               body { margin: 0; padding: 0; }
-              .qr-container { margin: 0; box-shadow: none; }
+              .qr-container { margin: 0; border: none; }
+              @page { margin: 0; }
             }
           </style>
         </head>
@@ -104,7 +102,10 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
         </html>
       `);
       printWindow.document.close();
-      printWindow.print();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
     }
   };
 
