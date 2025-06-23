@@ -18,8 +18,10 @@ import { insertUcpSchema, type Ucp, type InsertUcp, type Pallet, type Position }
 import { 
   Plus, Search, Edit, Trash2, Package, QrCode, MapPin, 
   Activity, Clock, Archive, RefreshCw, Filter, Eye,
-  TrendingUp, BarChart3, Layers, Move, AlertCircle
+  TrendingUp, BarChart3, Layers, Move, AlertCircle, Camera
 } from "lucide-react";
+import QRCodeDialog from "@/components/qr-code-dialog";
+import QrScanner from "@/components/qr-scanner";
 
 interface UcpWithRelations extends Ucp {
   pallet?: Pallet;
@@ -32,6 +34,9 @@ export default function UCPs() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingUcp, setEditingUcp] = useState<UcpWithRelations | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);
+  const [selectedUcp, setSelectedUcp] = useState<UcpWithRelations | null>(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: ucps, isLoading } = useQuery<UcpWithRelations[]>({
@@ -184,6 +189,31 @@ export default function UCPs() {
     }
   };
 
+  const handleShowQR = (ucp: UcpWithRelations) => {
+    setSelectedUcp(ucp);
+    setIsQRDialogOpen(true);
+  };
+
+  const handleScanQR = (code: string) => {
+    setIsScannerOpen(false);
+    
+    // Buscar UCP pelo código escaneado
+    const foundUcp = ucps?.find(ucp => ucp.code === code);
+    if (foundUcp) {
+      setSearchTerm(code);
+      toast({
+        title: "UCP encontrada",
+        description: `UCP ${code} localizada com sucesso`,
+      });
+    } else {
+      toast({
+        title: "UCP não encontrada",
+        description: `Nenhuma UCP encontrada com o código ${code}`,
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'bg-success text-white';
@@ -220,6 +250,14 @@ export default function UCPs() {
           <p className="text-gray-600">Unidades de Carga Paletizada</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsScannerOpen(true)}
+          >
+            <Camera className="h-4 w-4 mr-2" />
+            Escanear QR
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -572,8 +610,18 @@ export default function UCPs() {
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => handleShowQR(ucp)}
+                    className="hover:bg-green-50 hover:text-green-600"
+                    title="Mostrar QR Code"
+                  >
+                    <QrCode className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => handleEdit(ucp)}
                     className="hover:bg-blue-50 hover:text-blue-600"
+                    title="Editar UCP"
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -583,6 +631,7 @@ export default function UCPs() {
                     onClick={() => handleDelete(ucp)}
                     disabled={deleteMutation.isPending}
                     className="hover:bg-red-50 hover:text-red-600"
+                    title="Excluir UCP"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -610,6 +659,33 @@ export default function UCPs() {
             </div>
           )}
         </div>
+      )}
+
+      {/* QR Code Dialog */}
+      {selectedUcp && (
+        <QRCodeDialog
+          isOpen={isQRDialogOpen}
+          onClose={() => {
+            setIsQRDialogOpen(false);
+            setSelectedUcp(null);
+          }}
+          palletCode={selectedUcp.code}
+          palletData={{
+            code: selectedUcp.code,
+            type: "UCP",
+            material: selectedUcp.pallet?.type || "N/A",
+            dimensions: selectedUcp.position?.code || "Sem posição",
+            maxWeight: selectedUcp.status === 'active' ? "Ativa" : selectedUcp.status === 'empty' ? "Vazia" : "Arquivada"
+          }}
+        />
+      )}
+
+      {/* QR Scanner */}
+      {isScannerOpen && (
+        <QrScanner
+          onScan={handleScanQR}
+          onClose={() => setIsScannerOpen(false)}
+        />
       )}
     </div>
   );
