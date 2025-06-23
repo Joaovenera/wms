@@ -1,16 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, CheckCircle, AlertCircle } from "lucide-react";
-
-interface Position {
-  id: number;
-  code: string;
-  level: number;
-  position: number;
-  currentPalletId?: number | null;
-  status: string;
-  occupied: boolean;
-}
+import { type Position } from "@shared/schema";
 
 interface PalletStructureViewerProps {
   structure: {
@@ -41,11 +32,27 @@ export default function PalletStructureViewer({
   const getPositionStatus = (position: Position | null) => {
     if (!position) return { status: 'empty', color: 'bg-gray-100 border-gray-200', icon: null };
     
-    if (position.occupied && position.currentPalletId) {
+    if (position.status === 'occupied' || position.currentPalletId) {
       return { 
         status: 'occupied', 
         color: 'bg-orange-100 border-orange-300 text-orange-800', 
         icon: <Package className="h-3 w-3" />
+      };
+    }
+    
+    if (position.status === 'maintenance') {
+      return { 
+        status: 'maintenance', 
+        color: 'bg-yellow-100 border-yellow-300 text-yellow-800', 
+        icon: <AlertCircle className="h-3 w-3" />
+      };
+    }
+    
+    if (position.status === 'blocked') {
+      return { 
+        status: 'blocked', 
+        color: 'bg-red-100 border-red-300 text-red-800', 
+        icon: <AlertCircle className="h-3 w-3" />
       };
     }
     
@@ -56,7 +63,7 @@ export default function PalletStructureViewer({
     };
   };
 
-  const occupiedCount = positions.filter(p => p.occupied).length;
+  const occupiedCount = positions.filter(p => p.status === 'occupied' || p.currentPalletId).length;
   const availableCount = positions.length - occupiedCount;
   const occupancyRate = positions.length > 0 ? Math.round((occupiedCount / positions.length) * 100) : 0;
 
