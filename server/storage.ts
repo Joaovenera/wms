@@ -258,14 +258,21 @@ export class DatabaseStorage implements IStorage {
     return !!updatedProduct;
   }
 
-  // UCP operations
-  async getUcps(): Promise<(Ucp & { pallet?: Pallet; position?: Position })[]> {
-    return await db
+  // UCP operations - Enhanced for lifecycle management
+  async getUcps(includeArchived = false): Promise<(Ucp & { pallet?: Pallet; position?: Position })[]> {
+    let query = db
       .select()
       .from(ucps)
       .leftJoin(pallets, eq(ucps.palletId, pallets.id))
-      .leftJoin(positions, eq(ucps.positionId, positions.id))
-      .where(eq(ucps.status, "active"))
+      .leftJoin(positions, eq(ucps.positionId, positions.id));
+    
+    if (!includeArchived) {
+      query = query.where(
+        or(eq(ucps.status, "active"), eq(ucps.status, "empty"))
+      );
+    }
+    
+    return await query
       .orderBy(desc(ucps.createdAt))
       .then(rows => rows.map(row => ({
         ...row.ucps,
@@ -349,19 +356,7 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount > 0;
   }
 
-  // UCP Item operations
-  async getUcpItems(ucpId: number): Promise<(UcpItem & { product?: Product })[]> {
-    return await db
-      .select()
-      .from(ucpItems)
-      .leftJoin(products, eq(ucpItems.productId, products.id))
-      .where(eq(ucpItems.ucpId, ucpId))
-      .then(rows => rows.map(row => ({
-        ...row.ucp_items,
-        product: row.products || undefined,
-      })));
-  }
-
+  // Legacy UCP Item operations (kept for compatibility)
   async addUcpItem(item: InsertUcpItem): Promise<UcpItem> {
     const [newItem] = await db.insert(ucpItems).values(item).returning();
     return newItem;
@@ -369,7 +364,286 @@ export class DatabaseStorage implements IStorage {
 
   async removeUcpItem(id: number): Promise<boolean> {
     const result = await db.delete(ucpItems).where(eq(ucpItems.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
+  }
+
+  // Enhanced UCP operations for comprehensive lifecycle management
+  async createUcpWithHistory(ucp: InsertUcp, userId: number): Promise<Ucp> {
+    const [newUcp] = await db.insert(ucps).values(ucp).returning();
+    
+    // Create initial history entry
+    await this.addUcpHistoryEntry({
+      ucpId: newUcp.id,
+      action: "created",
+      description: `UCP ${newUcp.code} criada`,
+      newValue: { status: newUcp.status, palletId: newUcp.palletId },
+      performedBy: userId,
+    });
+
+    // Update pallet status to "em_uso" if pallet is assigned
+    if (newUcp.palletId) {
+      await db.update(pallets)
+        .set({ status: "em_uso", updatedAt: new Date() })
+        .where(eq(pallets.id, newUcp.palletId));
+    }
+
+    return newUcp;
+  }
+
+  async moveUcpToPosition(ucpId: number, newPositionId: number, userId: number, reason?: string): Promise<boolean> {
+    const currentUcp = await this.getUcp(ucpId);
+    if (!currentUcp) return false;
+
+    const oldPositionId = currentUcp.positionId;
+    
+    // Update UCP position
+    await db.update(ucps)
+      .set({ positionId: newPositionId, updatedAt: new Date() })
+      .where(eq(ucps.id, ucpId));
+
+    // Update position statuses
+    if (oldPositionId) {
+      await db.update(positions)
+        .set({ status: "disponivel", updatedAt: new Date() })
+        .where(eq(positions.id, oldPositionId));
+    }
+    
+    await db.update(positions)
+      .set({ status: "ocupada", updatedAt: new Date() })
+      .where(eq(positions.id, newPositionId));
+
+    // Create history entry
+    await this.addUcpHistoryEntry({
+      ucpId,
+      action: "moved",
+      description: `UCP movida ${reason ? `- ${reason}` : ''}`,
+      oldValue: { positionId: oldPositionId },
+      newValue: { positionId: newPositionId },
+      fromPositionId: oldPositionId || undefined,
+      toPositionId: newPositionId,
+      performedBy: userId,
+    });
+
+    return true;
+  }
+
+  async dismantleUcp(ucpId: number, userId: number, reason?: string): Promise<boolean> {
+    const currentUcp = await this.getUcp(ucpId);
+    if (!currentUcp) return false;
+
+    // Mark all active items as removed
+    await db.update(ucpItems)
+      .set({ 
+        isActive: false, 
+        removedBy: userId, 
+        removedAt: new Date(),
+        removalReason: reason || "UCP desmontada"
+      })
+      .where(and(eq(ucpItems.ucpId, ucpId), eq(ucpItems.isActive, true)));
+
+    // Update UCP status to archived
+    await db.update(ucps)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(ucps.id, ucpId));
+
+    // Free the pallet
+    if (currentUcp.palletId) {
+      await db.update(pallets)
+        .set({ status: "disponivel", updatedAt: new Date() })
+        .where(eq(pallets.id, currentUcp.palletId));
+    }
+
+    // Free the position
+    if (currentUcp.positionId) {
+      await db.update(positions)
+        .set({ status: "disponivel", updatedAt: new Date() })
+        .where(eq(positions.id, currentUcp.positionId));
+    }
+
+    // Create history entry
+    await this.addUcpHistoryEntry({
+      ucpId,
+      action: "dismantled",
+      description: `UCP desmontada${reason ? ` - ${reason}` : ''}`,
+      oldValue: { status: currentUcp.status },
+      newValue: { status: "archived" },
+      performedBy: userId,
+    });
+
+    return true;
+  }
+
+  async reactivatePallet(palletId: number, userId: number): Promise<string> {
+    const newUcpCode = await this.getNextUcpCode();
+    
+    const newUcp = await this.createUcpWithHistory({
+      code: newUcpCode,
+      palletId,
+      status: "active",
+      createdBy: userId,
+    }, userId);
+
+    return newUcp.code;
+  }
+
+  async getArchivedUcps(): Promise<(Ucp & { pallet?: Pallet; position?: Position })[]> {
+    return await db
+      .select()
+      .from(ucps)
+      .leftJoin(pallets, eq(ucps.palletId, pallets.id))
+      .leftJoin(positions, eq(ucps.positionId, positions.id))
+      .where(eq(ucps.status, "archived"))
+      .orderBy(desc(ucps.updatedAt))
+      .then(rows => rows.map(row => ({
+        ...row.ucps,
+        pallet: row.pallets || undefined,
+        position: row.positions || undefined,
+      })));
+  }
+
+  async getUcpItems(ucpId: number, includeRemoved = false): Promise<(UcpItem & { product?: Product })[]> {
+    let query = db
+      .select()
+      .from(ucpItems)
+      .leftJoin(products, eq(ucpItems.productId, products.id))
+      .where(eq(ucpItems.ucpId, ucpId));
+    
+    if (!includeRemoved) {
+      query = query.where(and(eq(ucpItems.ucpId, ucpId), eq(ucpItems.isActive, true)));
+    }
+
+    return await query.then(rows => rows.map(row => ({
+      ...row.ucp_items,
+      product: row.products || undefined,
+    })));
+  }
+
+  async addUcpItem(item: InsertUcpItem, userId: number): Promise<UcpItem> {
+    const [newItem] = await db.insert(ucpItems).values({
+      ...item,
+      addedBy: userId,
+    }).returning();
+
+    // Create history entry
+    await this.addUcpHistoryEntry({
+      ucpId: item.ucpId,
+      action: "item_added",
+      description: `Produto adicionado à UCP`,
+      newValue: { productId: item.productId, quantity: item.quantity },
+      itemId: newItem.id,
+      performedBy: userId,
+    });
+
+    return newItem;
+  }
+
+  async removeUcpItem(itemId: number, userId: number, reason: string): Promise<boolean> {
+    const item = await db.select().from(ucpItems).where(eq(ucpItems.id, itemId)).then(rows => rows[0]);
+    if (!item) return false;
+
+    // Mark item as removed instead of deleting
+    await db.update(ucpItems)
+      .set({ 
+        isActive: false, 
+        removedBy: userId, 
+        removedAt: new Date(),
+        removalReason: reason
+      })
+      .where(eq(ucpItems.id, itemId));
+
+    // Create history entry
+    await this.addUcpHistoryEntry({
+      ucpId: item.ucpId,
+      action: "item_removed",
+      description: `Produto removido da UCP - ${reason}`,
+      oldValue: { productId: item.productId, quantity: item.quantity },
+      itemId: itemId,
+      performedBy: userId,
+    });
+
+    // Check if UCP is now empty and update status
+    const remainingItems = await this.getUcpItems(item.ucpId, false);
+    if (remainingItems.length === 0) {
+      await db.update(ucps)
+        .set({ status: "empty", updatedAt: new Date() })
+        .where(eq(ucps.id, item.ucpId));
+
+      await this.addUcpHistoryEntry({
+        ucpId: item.ucpId,
+        action: "status_changed",
+        description: "UCP marcada como vazia - último item removido",
+        oldValue: { status: "active" },
+        newValue: { status: "empty" },
+        performedBy: userId,
+      });
+    }
+
+    return true;
+  }
+
+  async getAvailableUcpsForProduct(productId?: number): Promise<(Ucp & { pallet?: Pallet; position?: Position; availableSpace?: number })[]> {
+    return await db
+      .select()
+      .from(ucps)
+      .leftJoin(pallets, eq(ucps.palletId, pallets.id))
+      .leftJoin(positions, eq(ucps.positionId, positions.id))
+      .where(eq(ucps.status, "active"))
+      .orderBy(desc(ucps.createdAt))
+      .then(rows => rows.map(row => ({
+        ...row.ucps,
+        pallet: row.pallets || undefined,
+        position: row.positions || undefined,
+        availableSpace: 100, // TODO: Calculate based on pallet capacity and current items
+      })));
+  }
+
+  async getUcpHistory(ucpId: number): Promise<(UcpHistory & { performedByUser?: User; item?: UcpItem & { product?: Product }; fromPosition?: Position; toPosition?: Position })[]> {
+    return await db
+      .select()
+      .from(ucpHistory)
+      .leftJoin(users, eq(ucpHistory.performedBy, users.id))
+      .leftJoin(ucpItems, eq(ucpHistory.itemId, ucpItems.id))
+      .leftJoin(products, eq(ucpItems.productId, products.id))
+      .leftJoin(positions, eq(ucpHistory.fromPositionId, positions.id))
+      .where(eq(ucpHistory.ucpId, ucpId))
+      .orderBy(desc(ucpHistory.timestamp))
+      .then(rows => rows.map(row => ({
+        ...row.ucp_history,
+        performedByUser: row.users || undefined,
+        item: row.ucp_items ? {
+          ...row.ucp_items,
+          product: row.products || undefined,
+        } : undefined,
+        fromPosition: row.positions || undefined,
+        toPosition: undefined, // Would need separate join for toPosition
+      })));
+  }
+
+  async addUcpHistoryEntry(entry: InsertUcpHistory): Promise<UcpHistory> {
+    const [newEntry] = await db.insert(ucpHistory).values(entry).returning();
+    return newEntry;
+  }
+
+  async getNextUcpCode(): Promise<string> {
+    const today = new Date();
+    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
+    
+    // Get the highest UCP number for today
+    const lastUcp = await db
+      .select()
+      .from(ucps)
+      .where(like(ucps.code, `UCP-${dateStr}-%`))
+      .orderBy(desc(ucps.code))
+      .limit(1)
+      .then(rows => rows[0]);
+
+    let nextNumber = 1;
+    if (lastUcp) {
+      const lastNumber = parseInt(lastUcp.code.split('-')[2] || '0');
+      nextNumber = lastNumber + 1;
+    }
+
+    return `UCP-${dateStr}-${nextNumber.toString().padStart(4, '0')}`;
   }
 
   // Movement operations

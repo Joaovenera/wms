@@ -1,42 +1,60 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { insertUcpSchema, type Ucp, type InsertUcp, type Pallet, type Position } from "@shared/schema";
+import { type Ucp, type Pallet, type Position, type Product } from "@shared/schema";
 import { 
   Plus, Search, Edit, Trash2, Package, QrCode, MapPin, 
   Activity, Clock, Archive, RefreshCw, Filter, Eye,
-  TrendingUp, BarChart3, Layers, Move, AlertCircle, Camera
+  TrendingUp, BarChart3, Layers, Move, AlertCircle, Camera,
+  History, PackagePlus, Users, Calendar, Hash
 } from "lucide-react";
 import QRCodeDialog from "@/components/qr-code-dialog";
 import QrScanner from "@/components/qr-scanner";
+import UcpCreationWizard from "@/components/ucp-creation-wizard";
+import UcpHistoryViewer from "@/components/ucp-history-viewer";
 
 interface UcpWithRelations extends Ucp {
   pallet?: Pallet;
   position?: Position;
+  items?: Array<{
+    id: number;
+    quantity: string;
+    product?: Product;
+    lot?: string;
+    expiryDate?: string;
+    internalCode?: string;
+  }>;
+}
+
+interface UcpStats {
+  total: number;
+  active: number;
+  empty: number;
+  archived: number;
 }
 
 export default function UCPs() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingUcp, setEditingUcp] = useState<UcpWithRelations | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const [isCreationWizardOpen, setIsCreationWizardOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);
   const [selectedUcp, setSelectedUcp] = useState<UcpWithRelations | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyUcpId, setHistoryUcpId] = useState<number | null>(null);
+  const [dismantleDialog, setDismantleDialog] = useState<{ isOpen: boolean; ucp: UcpWithRelations | null }>({ isOpen: false, ucp: null });
   const { toast } = useToast();
 
   const { data: ucps, isLoading } = useQuery<UcpWithRelations[]>({
