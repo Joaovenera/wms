@@ -667,6 +667,20 @@ export default function Positions() {
           ))}
         </div>
       )}
+
+      {/* QR Code Dialog */}
+      <QRCodeDialog
+        isOpen={qrCodeDialog.isOpen}
+        onClose={handleCloseQRCode}
+        palletCode={qrCodeDialog.position?.code || ""}
+        palletData={qrCodeDialog.position ? {
+          code: qrCodeDialog.position.code,
+          type: "Posição",
+          material: qrCodeDialog.position.rackType || "Convencional",
+          dimensions: `Rua ${qrCodeDialog.position.street} - Posição ${qrCodeDialog.position.position} - Nível ${qrCodeDialog.position.level}`,
+          maxWeight: `${qrCodeDialog.position.maxPallets} pallet(s)`
+        } : undefined}
+      />
     </div>
   );
 }
