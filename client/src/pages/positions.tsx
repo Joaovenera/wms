@@ -70,7 +70,7 @@ export default function Positions() {
   // Mutation para criar posição
   const createMutation = useMutation({
     mutationFn: async (data: InsertPosition) => {
-      const response = await apiRequest("/api/positions", "POST", data);
+      const response = await apiRequest("POST", "/api/positions", data);
       return response;
     },
     onSuccess: () => {
@@ -91,7 +91,7 @@ export default function Positions() {
   // Mutation para atualizar posição
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<InsertPosition> }) => {
-      const response = await apiRequest(`/api/positions/${id}`, "PATCH", data);
+      const response = await apiRequest("PATCH", `/api/positions/${id}`, data);
       return response;
     },
     onSuccess: () => {
@@ -113,7 +113,7 @@ export default function Positions() {
   // Mutation para deletar posição
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest(`/api/positions/${id}`, "DELETE");
+      await apiRequest("DELETE", `/api/positions/${id}`);
     },
     onSuccess: () => {
       toast({ title: "Sucesso", description: "Posição removida com sucesso!" });
