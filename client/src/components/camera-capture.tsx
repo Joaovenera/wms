@@ -46,20 +46,37 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
         // Aguardar o vídeo carregar e estar pronto para reprodução
         const video = videoRef.current;
         
-        const onCanPlay = () => {
-          console.log("Vídeo pode reproduzir:", video.videoWidth, "x", video.videoHeight);
-          video.play().then(() => {
-            setIsLoading(false);
-            console.log("Vídeo iniciado com sucesso");
-          }).catch(err => {
-            console.error("Erro ao iniciar vídeo:", err);
-            setError("Erro ao iniciar o vídeo");
-            setIsLoading(false);
-          });
-          video.removeEventListener('canplay', onCanPlay);
+        const waitForVideoReady = () => {
+          let attempts = 0;
+          const maxAttempts = 50; // 5 segundos
+          
+          const checkVideo = () => {
+            attempts++;
+            console.log(`Verificando vídeo (tentativa ${attempts}):`, video.videoWidth, "x", video.videoHeight);
+            
+            if (video.videoWidth > 100 && video.videoHeight > 100) {
+              video.play().then(() => {
+                setIsLoading(false);
+                console.log("Vídeo iniciado com sucesso:", video.videoWidth, "x", video.videoHeight);
+              }).catch(err => {
+                console.error("Erro ao iniciar vídeo:", err);
+                setError("Erro ao iniciar o vídeo");
+                setIsLoading(false);
+              });
+            } else if (attempts < maxAttempts) {
+              setTimeout(checkVideo, 100);
+            } else {
+              console.error("Timeout aguardando vídeo estar pronto");
+              setError("Timeout ao inicializar a câmera");
+              setIsLoading(false);
+            }
+          };
+          
+          // Começar a verificar após um pequeno delay
+          setTimeout(checkVideo, 100);
         };
         
-        video.addEventListener('canplay', onCanPlay);
+        video.addEventListener('loadedmetadata', waitForVideoReady);
         
         // Fallback timeout
         setTimeout(() => {
@@ -89,25 +106,42 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
       const canvas = canvasRef.current;
       const context = canvas.getContext("2d");
 
-      // Aguardar o vídeo estar pronto
-      if (video.videoWidth === 0 || video.videoHeight === 0) {
-        console.error("Vídeo não está pronto para captura");
+      // Aguardar o vídeo estar pronto com dimensões adequadas
+      if (video.videoWidth === 0 || video.videoHeight === 0 || 
+          video.videoWidth < 100 || video.videoHeight < 100) {
+        console.error("Vídeo não está pronto para captura:", video.videoWidth, "x", video.videoHeight);
+        alert("Aguarde o vídeo carregar completamente antes de capturar a foto.");
         return;
       }
 
+      // Definir dimensões do canvas baseadas no vídeo
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
       if (context) {
+        // Limpar canvas
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Desenhar o frame atual do vídeo
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Converter para base64
         const imageData = canvas.toDataURL("image/jpeg", 0.9);
         
+        console.log("Tentativa de captura:", {
+          videoSize: `${video.videoWidth}x${video.videoHeight}`,
+          canvasSize: `${canvas.width}x${canvas.height}`,
+          dataLength: imageData.length,
+          dataPrefix: imageData.substring(0, 50)
+        });
+        
         // Verificar se a imagem foi capturada corretamente
-        if (imageData && imageData !== 'data:,' && imageData.length > 100) {
+        if (imageData && imageData !== 'data:,' && imageData.length > 1000) {
           setCapturedImage(imageData);
-          console.log("Foto capturada com sucesso", imageData.substring(0, 50) + "...");
+          console.log("Foto capturada com sucesso!");
         } else {
-          console.error("Falha na captura da foto");
+          console.error("Falha na captura da foto - dados insuficientes");
+          alert("Erro ao capturar foto. Tente novamente.");
         }
       }
     }
