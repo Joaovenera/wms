@@ -135,7 +135,11 @@ export default function Pallets() {
       await apiRequest('POST', '/api/pallets', data);
     },
     onSuccess: () => {
+      // Invalida todas as queries relacionadas a pallets
       queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
+      // Força refetch imediato
+      queryClient.refetchQueries({ queryKey: ['/api/pallets'] });
       toast({
         title: "Sucesso",
         description: "Layers criado com sucesso",
@@ -157,7 +161,11 @@ export default function Pallets() {
       await apiRequest('PUT', `/api/pallets/${id}`, data);
     },
     onSuccess: () => {
+      // Invalida todas as queries relacionadas a pallets
       queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
+      // Força refetch imediato
+      queryClient.refetchQueries({ queryKey: ['/api/pallets'] });
       toast({
         title: "Sucesso",
         description: "Layers atualizado com sucesso",
@@ -179,7 +187,11 @@ export default function Pallets() {
       await apiRequest('DELETE', `/api/pallets/${id}`);
     },
     onSuccess: () => {
+      // Invalida todas as queries relacionadas a pallets
       queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
+      // Força refetch imediato
+      queryClient.refetchQueries({ queryKey: ['/api/pallets'] });
       toast({
         title: "Sucesso",
         description: "Layers excluído com sucesso",

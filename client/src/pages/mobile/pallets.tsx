@@ -169,7 +169,11 @@ export default function MobilePallets() {
       return await res.json();
     },
     onSuccess: () => {
+      // Invalida todas as queries relacionadas a pallets
       queryClient.invalidateQueries({ queryKey: ["/api/pallets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      // Força refetch imediato
+      queryClient.refetchQueries({ queryKey: ["/api/pallets"] });
       setIsCreateOpen(false);
       setEditingPallet(null);
       form.reset();
@@ -187,7 +191,11 @@ export default function MobilePallets() {
       return await res.json();
     },
     onSuccess: () => {
+      // Invalida todas as queries relacionadas a pallets
       queryClient.invalidateQueries({ queryKey: ["/api/pallets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      // Força refetch imediato
+      queryClient.refetchQueries({ queryKey: ["/api/pallets"] });
       setIsCreateOpen(false);
       setEditingPallet(null);
       form.reset();
