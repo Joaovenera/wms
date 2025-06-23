@@ -79,7 +79,7 @@ export default function PortaPaletes() {
         createdBy: (user as any).id,
       };
       
-      const response = await apiRequest('/api/pallet-structures', 'POST', structureData);
+      const response = await apiRequest('POST', '/api/pallet-structures', structureData);
       return response;
     },
     onSuccess: (newStructure: any) => {
