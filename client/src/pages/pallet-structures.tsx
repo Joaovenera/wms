@@ -306,7 +306,7 @@ export default function PalletStructures() {
                         <Textarea 
                           placeholder="Observações sobre a estrutura..."
                           {...field}
-                          value={field.value || ""}
+                          value={field.value ?? ""}
                         />
                       </FormControl>
                       <FormMessage />
