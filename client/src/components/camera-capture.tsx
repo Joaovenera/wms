@@ -84,28 +84,28 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
   }, [stopCamera, onClose]);
 
   // Start camera when dialog opens
-  useState(() => {
+  useEffect(() => {
     if (isOpen && !stream && !capturedImage) {
       startCamera();
     }
-  });
+  }, [isOpen, stream, capturedImage, startCamera]);
 
   // Cleanup on unmount or close
-  useState(() => {
+  useEffect(() => {
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  });
+  }, [stream]);
 
   // Restart camera when facing mode changes
-  useState(() => {
+  useEffect(() => {
     if (isOpen && stream) {
       stopCamera();
       setTimeout(startCamera, 100);
     }
-  });
+  }, [facingMode, isOpen, stream, stopCamera, startCamera]);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
