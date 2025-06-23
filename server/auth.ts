@@ -5,14 +5,8 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User } from "@shared/schema";
+import { User as UserType } from "@shared/schema";
 import connectPg from "connect-pg-simple";
-
-declare global {
-  namespace Express {
-    interface User extends User {}
-  }
-}
 
 const scryptAsync = promisify(scrypt);
 
@@ -33,7 +27,8 @@ export function setupAuth(app: Express) {
   const PostgresSessionStore = connectPg(session);
   const sessionStore = new PostgresSessionStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: true,
+    createTableIfMissing: false,
+    tableName: 'sessions'
   });
 
   const sessionSettings: session.SessionOptions = {
@@ -114,7 +109,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    const user = req.user as User;
+    const user = req.user as UserType;
     res.json({ 
       id: user.id, 
       email: user.email, 
