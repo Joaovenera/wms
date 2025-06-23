@@ -92,7 +92,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = insertPalletSchema.safeParse({
         ...req.body,
-        createdBy: req.user.claims.sub,
+        createdBy: req.user.id,
       });
       
       if (!result.success) {
@@ -185,7 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = insertPositionSchema.safeParse({
         ...req.body,
-        createdBy: req.user.claims.sub,
+        createdBy: req.user.id,
       });
       
       if (!result.success) {
@@ -278,7 +278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = insertProductSchema.safeParse({
         ...req.body,
-        createdBy: req.user.claims.sub,
+        createdBy: req.user.id,
       });
       
       if (!result.success) {
@@ -371,7 +371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = insertUcpSchema.safeParse({
         ...req.body,
-        createdBy: req.user.claims.sub,
+        createdBy: req.user.id,
       });
       
       if (!result.success) {
@@ -486,7 +486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const result = insertMovementSchema.safeParse({
         ...req.body,
-        performedBy: req.user.claims.sub,
+        performedBy: req.user.id,
       });
       
       if (!result.success) {
