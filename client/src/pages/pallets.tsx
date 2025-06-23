@@ -15,8 +15,57 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { insertPalletSchema, type Pallet, type InsertPallet } from "@shared/schema";
-import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Eye } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import CameraCapture from "@/components/camera-capture";
+
+// Função para obter informações do status
+const getStatusInfo = (status: string) => {
+  switch (status) {
+    case 'available':
+      return {
+        label: 'Disponível',
+        icon: CheckCircle,
+        color: 'bg-green-100 text-green-800 border-green-200',
+        iconColor: 'text-green-600',
+      };
+    case 'in_use':
+      return {
+        label: 'Em Uso',
+        icon: Clock,
+        color: 'bg-blue-100 text-blue-800 border-blue-200',
+        iconColor: 'text-blue-600',
+      };
+    case 'defective':
+      return {
+        label: 'Defeituoso',
+        icon: XCircle,
+        color: 'bg-red-100 text-red-800 border-red-200',
+        iconColor: 'text-red-600',
+      };
+    case 'maintenance':
+      return {
+        label: 'Manutenção',
+        icon: Wrench,
+        color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+        iconColor: 'text-yellow-600',
+      };
+    case 'discard':
+      return {
+        label: 'Descarte',
+        icon: AlertCircle,
+        color: 'bg-gray-100 text-gray-800 border-gray-200',
+        iconColor: 'text-gray-600',
+      };
+    default:
+      return {
+        label: 'Indefinido',
+        icon: AlertCircle,
+        color: 'bg-gray-100 text-gray-800 border-gray-200',
+        iconColor: 'text-gray-600',
+      };
+  }
+};
 
 export default function Pallets() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -495,20 +544,41 @@ export default function Pallets() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPallets.map((pallet) => (
-            <Card key={pallet.id} className="card-hover">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center">
-                    <PalletIcon className="h-5 w-5 mr-2" />
-                    {pallet.code}
-                  </CardTitle>
-                  <Badge className={getStatusColor(pallet.status)}>
-                    {getStatusLabel(pallet.status)}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
+          <AnimatePresence>
+            {filteredPallets.map((pallet, index) => {
+              const statusInfo = getStatusInfo(pallet.status);
+              const StatusIcon = statusInfo.icon;
+              
+              return (
+                <motion.div
+                  key={pallet.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ 
+                    duration: 0.3, 
+                    delay: index * 0.1 
+                  }}
+                  whileHover={{ 
+                    scale: 1.02,
+                    transition: { duration: 0.2 }
+                  }}
+                  className="group"
+                >
+                  <Card className="relative overflow-hidden border-2 hover:border-blue-200 transition-all duration-300 shadow-md hover:shadow-lg">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center">
+                          <PalletIcon className="h-5 w-5 mr-2" />
+                          {pallet.code}
+                        </CardTitle>
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${statusInfo.color}`}>
+                          <StatusIcon className={`h-4 w-4 ${statusInfo.iconColor}`} />
+                          <span className="text-sm font-medium">{statusInfo.label}</span>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Tipo:</span>
@@ -562,10 +632,13 @@ export default function Pallets() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
           {filteredPallets.length === 0 && !isLoading && (
             <div className="col-span-full text-center py-12">
               <PalletIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />

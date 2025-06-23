@@ -1,6 +1,11 @@
 import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Camera, X, RotateCw, Check } from "lucide-react";
 
 interface CameraCaptureProps {
@@ -9,10 +14,16 @@ interface CameraCaptureProps {
   onClose: () => void;
 }
 
-export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCaptureProps) {
+export default function CameraCapture({
+  onCapture,
+  isOpen,
+  onClose,
+}: CameraCaptureProps) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
+  const [facingMode, setFacingMode] = useState<"user" | "environment">(
+    "environment",
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -20,26 +31,26 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
 
   const startCamera = useCallback(async () => {
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach((track) => track.stop());
       setStream(null);
     }
 
     setIsLoading(true);
     setError(null);
-    
+
     try {
       console.log("Iniciando câmera...");
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: facingMode,
-          width: { ideal: 800, max: 1280 },
-          height: { ideal: 600, max: 720 }
-        }
+          width: { ideal: 1920, max: 3840 },
+          height: { ideal: 1080, max: 2160 },
+        },
       });
-      
+
       console.log("Stream obtido:", mediaStream);
       setStream(mediaStream);
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         videoRef.current.oncanplay = () => {
@@ -56,7 +67,7 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
 
   const stopCamera = useCallback(() => {
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach((track) => track.stop());
       setStream(null);
     }
   }, [stream]);
@@ -77,13 +88,13 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
 
       if (context) {
         context.drawImage(video, 0, 0);
-        
+
         // Reduzir qualidade para diminuir o tamanho do arquivo
-        const imageData = canvas.toDataURL("image/jpeg", 0.7);
-        
+        const imageData = canvas.toDataURL("image/jpeg", 0.9);
+
         console.log(`Foto capturada: ${Math.round(imageData.length / 1024)}KB`);
-        
-        if (imageData && imageData !== 'data:,' && imageData.length > 1000) {
+
+        if (imageData && imageData !== "data:," && imageData.length > 1000) {
           setCapturedImage(imageData);
           console.log("Foto capturada com sucesso!");
         } else {
@@ -107,7 +118,7 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
   }, [capturedImage, onCapture, stopCamera, onClose]);
 
   const switchCamera = useCallback(() => {
-    setFacingMode(prev => prev === "user" ? "environment" : "user");
+    setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
     if (stream) {
       stopCamera();
       setTimeout(() => {
@@ -156,7 +167,7 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
                     </div>
                   </div>
                 )}
-                
+
                 {error && (
                   <div className="absolute inset-0 flex items-center justify-center bg-red-900/50 z-10">
                     <div className="text-white text-center p-4">
@@ -219,7 +230,10 @@ export default function CameraCapture({ onCapture, isOpen, onClose }: CameraCapt
                 <Button variant="outline" onClick={retakePhoto}>
                   Refazer
                 </Button>
-                <Button onClick={confirmPhoto} className="bg-green-600 hover:bg-green-700">
+                <Button
+                  onClick={confirmPhoto}
+                  className="bg-green-600 hover:bg-green-700"
+                >
                   <Check className="h-4 w-4 mr-2" />
                   Confirmar
                 </Button>
