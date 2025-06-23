@@ -513,6 +513,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Pallet Structure routes
+  app.get('/api/pallet-structures', isAuthenticated, async (req, res) => {
+    try {
+      const structures = await storage.getPalletStructures();
+      res.json(structures);
+    } catch (error) {
+      console.error("Error fetching pallet structures:", error);
+      res.status(500).json({ message: "Failed to fetch pallet structures" });
+    }
+  });
+
+  app.get('/api/pallet-structures/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const structure = await storage.getPalletStructure(id);
+      if (!structure) {
+        return res.status(404).json({ message: "Pallet structure not found" });
+      }
+      res.json(structure);
+    } catch (error) {
+      console.error("Error fetching pallet structure:", error);
+      res.status(500).json({ message: "Failed to fetch pallet structure" });
+    }
+  });
+
+  app.post('/api/pallet-structures', isAuthenticated, async (req: any, res) => {
+    try {
+      const result = insertPalletStructureSchema.safeParse({
+        ...req.body,
+        createdBy: req.user.id,
+      });
+      
+      if (!result.success) {
+        const validationError = fromZodError(result.error);
+        return res.status(400).json({ message: validationError.message });
+      }
+
+      const structure = await storage.createPalletStructure(result.data);
+      res.status(201).json(structure);
+    } catch (error) {
+      console.error("Error creating pallet structure:", error);
+      res.status(500).json({ message: "Failed to create pallet structure" });
+    }
+  });
+
+  app.delete('/api/pallet-structures/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deletePalletStructure(id);
+      if (!success) {
+        return res.status(404).json({ message: "Pallet structure not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting pallet structure:", error);
+      res.status(500).json({ message: "Failed to delete pallet structure" });
+    }
+  });
+
   // Users routes
   app.get('/api/users', isAuthenticated, async (req, res) => {
     try {

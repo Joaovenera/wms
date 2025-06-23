@@ -10,6 +10,7 @@ import Auth from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import Pallets from "@/pages/pallets";
 import Positions from "@/pages/positions";
+import PalletStructures from "@/pages/pallet-structures";
 import UCPs from "@/pages/ucps";
 import Products from "@/pages/products";
 import Users from "@/pages/users";

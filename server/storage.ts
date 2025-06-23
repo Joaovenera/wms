@@ -479,13 +479,13 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     // Gerar automaticamente todas as vagas com endereçamento [posição,nível]
-    const positions = [];
+    const positionsToInsert: InsertPosition[] = [];
     
     for (let level = 0; level < structure.maxLevels; level++) {
       for (let position = 1; position <= structure.maxPositions; position++) {
         const positionCode = `[${position},${level}]`;
         
-        positions.push({
+        positionsToInsert.push({
           code: positionCode,
           street: structure.street,
           side: structure.side,
@@ -499,8 +499,8 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Inserir todas as vagas em batch
-    if (positions.length > 0) {
-      await db.insert(positions).values(positions);
+    if (positionsToInsert.length > 0) {
+      await db.insert(positions).values(positionsToInsert);
     }
 
     return structure;
