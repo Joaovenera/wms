@@ -54,7 +54,11 @@ export default function UcpHistoryViewer({ ucpId, isOpen, onClose }: UcpHistoryV
     enabled: isOpen && ucpId > 0,
   });
 
-  const getActionIcon = (action: string) => {
+  const getActionIcon = (action: string | undefined) => {
+    if (!action) {
+      return <AlertCircle className="h-4 w-4 text-gray-500" />;
+    }
+    
     switch (action) {
       case 'created':
         return <Plus className="h-4 w-4 text-green-500" />;
@@ -73,7 +77,11 @@ export default function UcpHistoryViewer({ ucpId, isOpen, onClose }: UcpHistoryV
     }
   };
 
-  const getActionColor = (action: string) => {
+  const getActionColor = (action: string | undefined) => {
+    if (!action) {
+      return 'bg-gray-50 border-gray-200';
+    }
+    
     switch (action) {
       case 'created':
         return 'bg-green-50 border-green-200';
@@ -93,6 +101,10 @@ export default function UcpHistoryViewer({ ucpId, isOpen, onClose }: UcpHistoryV
   };
 
   const formatActionDescription = (entry: HistoryEntry) => {
+    if (!entry.action) {
+      return 'Ação não especificada';
+    }
+    
     switch (entry.action) {
       case 'created':
         return `UCP criada no sistema`;
@@ -158,7 +170,7 @@ export default function UcpHistoryViewer({ ucpId, isOpen, onClose }: UcpHistoryV
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Badge variant="secondary" className="text-xs">
-                              {entry.action.replace('_', ' ').toUpperCase()}
+                              {entry.action ? entry.action.replace('_', ' ').toUpperCase() : 'AÇÃO DESCONHECIDA'}
                             </Badge>
                             <span className="text-sm text-muted-foreground">
                               {format(new Date(entry.timestamp), "dd/MM/yyyy 'às' HH:mm", { 
