@@ -85,23 +85,23 @@
   }
   
   .warehouse-position.available {
-    @apply bg-success border-success hover:bg-success/90;
+    @apply bg-green-500 border-green-500 hover:bg-green-600;
   }
   
   .warehouse-position.occupied {
-    @apply bg-destructive border-destructive hover:bg-destructive/90;
+    @apply bg-red-500 border-red-500 hover:bg-red-600;
   }
   
   .warehouse-position.reserved {
-    @apply bg-warning border-warning hover:bg-warning/90;
+    @apply bg-yellow-500 border-yellow-500 hover:bg-yellow-600;
   }
   
   .warehouse-position.maintenance {
-    @apply bg-gray-400 border-gray-400 hover:bg-gray-400/90;
+    @apply bg-gray-400 border-gray-400 hover:bg-gray-500;
   }
   
   .warehouse-position.blocked {
-    @apply bg-gray-600 border-gray-600 hover:bg-gray-600/90;
+    @apply bg-gray-600 border-gray-600 hover:bg-gray-700;
   }
 }
 
