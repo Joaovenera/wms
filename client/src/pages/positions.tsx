@@ -171,7 +171,9 @@ export default function Positions() {
 
   const onSubmit = (data: InsertPosition) => {
     if (editingPosition) {
-      updateMutation.mutate({ id: editingPosition.id, data });
+      // Remove o código do envio para não sobrescrever o código existente
+      const { code, ...updateData } = data;
+      updateMutation.mutate({ id: editingPosition.id, data: updateData });
     } else {
       createMutation.mutate(data);
     }

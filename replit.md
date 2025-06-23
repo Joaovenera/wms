@@ -180,6 +180,11 @@ Core entities include:
   * Now supports creating both left (E) and right (D) sides of same street without conflicts
   * Resolved unique constraint violation that prevented creating opposing sides
   * Updated warehouse map component to handle new position code format correctly
+- June 23, 2025. Fixed position update issues and HTTP method errors:
+  * Corrected apiRequest parameter order (method, url, data) in all position operations
+  * Added PATCH route for position updates alongside existing PUT route
+  * Fixed position code corruption during status updates by excluding code field from updates
+  * Prevented automatic code regeneration from overwriting existing position codes
 
 ## User Preferences
 
