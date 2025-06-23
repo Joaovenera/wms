@@ -15,6 +15,7 @@ import Products from "@/pages/products";
 import Users from "@/pages/users";
 import MobileHome from "@/pages/mobile/home";
 import MobileScanner from "@/pages/mobile/scanner";
+import MobilePallets from "@/pages/mobile/pallets";
 import MobileLayout from "@/components/layout/mobile-layout";
 import DesktopLayout from "@/components/layout/desktop-layout";
 
@@ -39,6 +40,7 @@ function Router() {
       <MobileLayout>
         <Switch>
           <Route path="/" component={MobileHome} />
+          <Route path="/pallets" component={MobilePallets} />
           <Route path="/scanner" component={MobileScanner} />
           <Route component={NotFound} />
         </Switch>

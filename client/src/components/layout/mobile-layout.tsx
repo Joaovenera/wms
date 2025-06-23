@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { Home, QrCode, Package, CheckSquare, User, Warehouse, Wifi } from "lucide-react";
+import { Home, QrCode, Package, CheckSquare, User, Warehouse, Wifi, Box } from "lucide-react";
 
 interface MobileLayoutProps {
   children: ReactNode;
@@ -14,9 +14,9 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
 
   const navigation = [
     { name: "Início", href: "/", icon: Home },
+    { name: "Pallets", href: "/pallets", icon: Box },
     { name: "Scanner", href: "/scanner", icon: QrCode },
     { name: "Estoque", href: "/inventory", icon: Package },
-    { name: "Tarefas", href: "/tasks", icon: CheckSquare },
     { name: "Perfil", href: "/profile", icon: User },
   ];
 
