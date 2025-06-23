@@ -168,6 +168,13 @@ Core entities include:
   * Simplified corridor representation with subtle visual indicators
   * Condensed side labels to "ESQ/DIR" for space efficiency
   * Streamlined position numbering and structural elements for cleaner appearance
+- June 23, 2025. Redesigned to vertical layout with maximum compactness and organization:
+  * Changed from side-by-side to vertical stacking (Esquerdo above Direito)
+  * Removed corridor visualization for cleaner, more organized appearance
+  * Eliminated emojis and level numbers from shelf display for minimal visual noise
+  * Compressed shelf height to 8px (2rem) with hover expansion to 12px for interaction
+  * Reduced structure minimum width to 60px for maximum density
+  * Implemented clean information delivery through hover tooltips and click interactions only
 
 ## User Preferences
 
