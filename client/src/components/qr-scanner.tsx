@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { X, Camera, Flashlight } from "lucide-react";
+import { X, Camera, Flashlight, Type } from "lucide-react";
 
 interface QrScannerProps {
   onScan: (code: string) => void;
@@ -15,6 +15,9 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
   const [hasFlash, setHasFlash] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     startCamera();
