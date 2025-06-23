@@ -631,14 +631,7 @@ export default function Pallets() {
             <SelectItem value="discard">Descarte</SelectItem>
           </SelectContent>
         </Select>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={forceRefresh}
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-        </Button>
+
       </div>
 
       {/* Pallets Grid */}

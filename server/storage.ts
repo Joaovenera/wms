@@ -82,6 +82,9 @@ export interface IStorage {
     dailyMovements: number;
     palletsByStatus: { status: string; count: number }[];
   }>;
+
+  // Pallet code generation
+  getNextPalletCode(): Promise<string>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -419,6 +422,34 @@ export class DatabaseStorage implements IStorage {
         count: item.count,
       })),
     };
+  }
+
+  async getNextPalletCode(): Promise<string> {
+    // Busca todos os códigos existentes no formato PLT#### 
+    const existingPallets = await db
+      .select({ code: pallets.code })
+      .from(pallets)
+      .where(sql`code ~ '^PLT[0-9]{4}$'`)
+      .orderBy(pallets.code);
+
+    // Extrai números dos códigos existentes
+    const existingNumbers = existingPallets
+      .map(p => parseInt(p.code.replace('PLT', ''), 10))
+      .filter(num => !isNaN(num))
+      .sort((a, b) => a - b);
+
+    // Encontra o próximo número sequencial disponível
+    let nextNumber = 1;
+    for (const num of existingNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else if (num > nextNumber) {
+        break;
+      }
+    }
+
+    // Formata o código com zero padding
+    return `PLT${nextNumber.toString().padStart(4, '0')}`;
   }
 }
 
