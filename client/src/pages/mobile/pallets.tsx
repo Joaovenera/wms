@@ -34,6 +34,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { DialogDescription } from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -293,6 +294,12 @@ export default function MobilePallets() {
               <DialogTitle>
                 {editingPallet ? "Editar Pallet" : "Novo Pallet"}
               </DialogTitle>
+              <DialogDescription>
+                {editingPallet 
+                  ? "Modifique as informações do pallet abaixo" 
+                  : "Preencha os dados para criar um novo pallet"
+                }
+              </DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
@@ -470,27 +477,25 @@ export default function MobilePallets() {
                 />
 
                 {/* Photo Section */}
-                <div className="space-y-3">
-                  <FormLabel>Foto do Pallet</FormLabel>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsCameraOpen(true)}
-                      className="flex-1"
-                    >
-                      <Camera className="h-4 w-4 mr-2" />
-                      {photoPreview ? "Alterar Foto" : "Tirar Foto"}
-                    </Button>
-                  </div>
+                <div className="space-y-2">
+                  <FormLabel className="text-sm font-medium">Foto do Pallet</FormLabel>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsCameraOpen(true)}
+                    className="w-full h-10"
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    {photoPreview ? "Alterar Foto" : "Tirar Foto"}
+                  </Button>
                   
                   {photoPreview && (
                     <div className="mt-2">
                       <img
                         src={photoPreview}
                         alt="Preview"
-                        className="w-full h-32 object-cover rounded-lg border"
+                        className="w-full h-24 object-cover rounded border cursor-pointer"
                         onClick={() => setShowImageViewer(photoPreview)}
                       />
                     </div>
