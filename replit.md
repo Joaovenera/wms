@@ -111,6 +111,12 @@ Core entities include:
 ## Changelog
 - June 23, 2025. Initial setup
 - June 23, 2025. Database schema corrected - fixed session index conflict, updated user table with proper serial ID and password field, restored foreign key relationships
+- June 23, 2025. Implemented comprehensive automatic refresh system:
+  * Added automatic data refresh when filter criteria change (300ms debounce)
+  * Added Enter key trigger for immediate refresh in search fields
+  * Added manual refresh buttons with loading states
+  * Enhanced queryClient with 30-second polling for real-time updates
+  * Consistent implementation across desktop and mobile interfaces
 
 ## User Preferences
 

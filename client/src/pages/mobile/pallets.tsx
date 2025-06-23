@@ -587,15 +587,25 @@ export default function MobilePallets() {
 
       {/* Search and Filter */}
       <div className="space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Buscar pallets..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-            className="pl-10"
-          />
+        <div className="flex items-center space-x-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Buscar pallets..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="pl-10"
+            />
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={forceRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger>
