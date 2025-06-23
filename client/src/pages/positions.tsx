@@ -9,15 +9,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { MapPin, Plus, Edit, Trash2, Search, RefreshCw, Filter, Package, CheckCircle, QrCode } from "lucide-react";
+import { MapPin, Plus, Edit, Trash2, Search, RefreshCw, Filter, Package, CheckCircle, QrCode, Scan } from "lucide-react";
 import { useMobile } from "@/hooks/use-mobile";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { insertPositionSchema, type Position, type InsertPosition, type PalletStructure } from "@shared/schema";
 import QRCodeDialog from "@/components/qr-code-dialog";
+import QrScanner from "@/components/qr-scanner";
 
 // Função para gerar código PP-RUA-POSIÇÃO-NÍVEL
 const generatePositionCode = (street: string, position: number, level: number) => {
@@ -39,6 +41,8 @@ export default function Positions() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
   const [qrCodeDialog, setQrCodeDialog] = useState<{ isOpen: boolean; position?: Position }>({ isOpen: false });
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [scannedPosition, setScannedPosition] = useState<Position | null>(null);
 
   // Query para buscar posições
   const { data: positions = [], isLoading, refetch } = useQuery<Position[]>({
@@ -127,6 +131,48 @@ export default function Positions() {
       });
     },
   });
+
+  // Função para processar QR code escaneado
+  const handleQrCodeScan = async (code: string) => {
+    try {
+      setIsQrScannerOpen(false);
+      
+      // Buscar posição pelo código escaneado
+      const position = positions.find(p => p.code === code);
+      
+      if (!position) {
+        toast({
+          title: "Posição não encontrada",
+          description: `Não foi encontrada nenhuma posição com o código: ${code}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setScannedPosition(position);
+      
+      // Mostrar informações da posição escaneada
+      const statusText = position.status === 'available' ? 'Disponível' : 
+                        position.status === 'occupied' ? 'Ocupada' : 
+                        position.status === 'reserved' ? 'Reservada' : 
+                        position.status === 'maintenance' ? 'Em Manutenção' : 'Bloqueada';
+      
+      const statusColor = position.status === 'available' ? 'default' : 'destructive';
+      
+      toast({
+        title: `Posição ${position.code}`,
+        description: `Status: ${statusText} | Rua: ${position.street} | Lado: ${position.side} | Nível: ${position.level}`,
+        variant: statusColor,
+      });
+
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao processar QR code da posição",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Gerar código automaticamente quando street, position ou level mudarem (só para novas posições)
   useEffect(() => {
@@ -239,18 +285,32 @@ export default function Positions() {
           </p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              onClick={() => {
-                setEditingPosition(null);
-                form.reset();
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Posição
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setIsQrScannerOpen(true)}
+            variant="outline"
+          >
+            <Scan className="h-4 w-4 mr-2" />
+            Escanear Vaga
+          </Button>
+          
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                onClick={() => {
+                  setEditingPosition(null);
+                  form.reset();
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Posição
+              </Button>
+            </DialogTrigger>
+          </Dialog>
+        </div>
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -684,6 +744,92 @@ export default function Positions() {
           maxWeight: `${qrCodeDialog.position.maxPallets} pallet(s)`
         } : undefined}
       />
+
+      {/* QR Scanner for Position Verification */}
+      {isQrScannerOpen && (
+        <QrScanner
+          onScan={handleQrCodeScan}
+          onClose={() => setIsQrScannerOpen(false)}
+        />
+      )}
+
+      {/* Scanned Position Info Dialog */}
+      {scannedPosition && (
+        <Dialog open={!!scannedPosition} onOpenChange={() => setScannedPosition(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Informações da Vaga Escaneada</DialogTitle>
+              <DialogDescription>
+                Verificação de disponibilidade da posição {scannedPosition.code}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Código</Label>
+                  <p className="text-lg font-mono">{scannedPosition.code}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Status</Label>
+                  <div className="mt-1">
+                    {getStatusBadge(scannedPosition.status)}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Rua</Label>
+                  <p>{scannedPosition.street}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Lado</Label>
+                  <p>{scannedPosition.side === 'E' ? 'Esquerdo' : 'Direito'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Nível</Label>
+                  <p>{scannedPosition.level}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">Capacidade</Label>
+                  <p>{scannedPosition.maxPallets} pallet(s)</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Tipo</Label>
+                  <p>{scannedPosition.rackType || 'Convencional'}</p>
+                </div>
+              </div>
+              
+              {scannedPosition.restrictions && (
+                <div>
+                  <Label className="text-sm font-medium">Restrições</Label>
+                  <p className="text-sm text-muted-foreground">{scannedPosition.restrictions}</p>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
+                {getStatusIcon(scannedPosition)}
+                <span className="font-medium">
+                  {scannedPosition.status === 'available' ? 
+                    'Esta vaga está DISPONÍVEL para armazenamento' : 
+                    'Esta vaga NÃO está disponível'
+                  }
+                </span>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button onClick={() => setScannedPosition(null)}>
+                Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
