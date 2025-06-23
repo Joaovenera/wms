@@ -13,11 +13,12 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Building2, Plus, Edit2, Trash2, MapPin, RefreshCw } from "lucide-react";
+import { Building2, Plus, Edit2, Trash2, MapPin, RefreshCw, QrCode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { insertPortaPalletSchema, type InsertPalletStructure, type PalletStructure, type Position } from "@shared/schema";
 import PalletStructureViewer from "@/components/pallet-structure-viewer";
+import QRCodeDialog from "@/components/qr-code-dialog";
 import { useAuth } from "@/hooks/useAuth";
 
 // Schema específico para porta paletes
@@ -36,6 +37,7 @@ type PortaPalletForm = z.infer<typeof portaPalletFormSchema>;
 export default function PortaPaletes() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingStructure, setEditingStructure] = useState<PalletStructure | null>(null);
+  const [qrCodeDialog, setQrCodeDialog] = useState<{ isOpen: boolean; structure?: PalletStructure }>({ isOpen: false });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -126,6 +128,10 @@ export default function PortaPaletes() {
     if (confirm(`Tem certeza que deseja remover o porta-pallet "${structure.name}"? Todas as posições associadas também serão removidas.`)) {
       deleteMutation.mutate(structure.id);
     }
+  };
+
+  const handleShowQRCode = (structure: PalletStructure) => {
+    setQrCodeDialog({ isOpen: true, structure });
   };
 
   // Função para obter posições relacionadas a uma estrutura
@@ -405,6 +411,14 @@ export default function PortaPaletes() {
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleShowQRCode(structure)}
+                      title="Gerar QR Code"
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </Button>
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -420,6 +434,20 @@ export default function PortaPaletes() {
           ))}
         </div>
       )}
+
+      {/* QR Code Dialog */}
+      <QRCodeDialog
+        isOpen={qrCodeDialog.isOpen}
+        onClose={() => setQrCodeDialog({ isOpen: false })}
+        palletCode={qrCodeDialog.structure ? `STRUCTURE-${qrCodeDialog.structure.id}` : ""}
+        palletData={qrCodeDialog.structure ? {
+          code: `STRUCTURE-${qrCodeDialog.structure.id}`,
+          type: "Porta-Pallet",
+          material: qrCodeDialog.structure.name,
+          dimensions: `${qrCodeDialog.structure.maxPositions} posições x ${qrCodeDialog.structure.maxLevels + 1} níveis`,
+          maxWeight: `Tipo: ${qrCodeDialog.structure.rackType || "Convencional"}`
+        } : undefined}
+      />
     </div>
   );
 }
