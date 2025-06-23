@@ -32,8 +32,7 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
       // Gerar QR code com dados do pallet
       const qrData = JSON.stringify({
         type: "PALLET",
-        code: palletCode,
-        timestamp: new Date().toISOString()
+        code: palletCode
       });
       
       const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
