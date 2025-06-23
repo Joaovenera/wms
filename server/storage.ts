@@ -183,7 +183,7 @@ export class DatabaseStorage implements IStorage {
 
   async deletePallet(id: number): Promise<boolean> {
     const result = await db.delete(pallets).where(eq(pallets.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   // Position operations
@@ -217,7 +217,7 @@ export class DatabaseStorage implements IStorage {
 
   async deletePosition(id: number): Promise<boolean> {
     const result = await db.delete(positions).where(eq(positions.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   // Product operations
@@ -260,25 +260,32 @@ export class DatabaseStorage implements IStorage {
 
   // UCP operations - Enhanced for lifecycle management
   async getUcps(includeArchived = false): Promise<(Ucp & { pallet?: Pallet; position?: Position })[]> {
-    let query = db
-      .select()
-      .from(ucps)
-      .leftJoin(pallets, eq(ucps.palletId, pallets.id))
-      .leftJoin(positions, eq(ucps.positionId, positions.id));
-    
-    if (!includeArchived) {
-      query = query.where(
-        or(eq(ucps.status, "active"), eq(ucps.status, "empty"))
-      );
+    if (includeArchived) {
+      return await db
+        .select()
+        .from(ucps)
+        .leftJoin(pallets, eq(ucps.palletId, pallets.id))
+        .leftJoin(positions, eq(ucps.positionId, positions.id))
+        .orderBy(desc(ucps.createdAt))
+        .then(rows => rows.map(row => ({
+          ...row.ucps,
+          pallet: row.pallets || undefined,
+          position: row.positions || undefined,
+        })));
+    } else {
+      return await db
+        .select()
+        .from(ucps)
+        .leftJoin(pallets, eq(ucps.palletId, pallets.id))
+        .leftJoin(positions, eq(ucps.positionId, positions.id))
+        .where(or(eq(ucps.status, "active"), eq(ucps.status, "empty")))
+        .orderBy(desc(ucps.createdAt))
+        .then(rows => rows.map(row => ({
+          ...row.ucps,
+          pallet: row.pallets || undefined,
+          position: row.positions || undefined,
+        })));
     }
-    
-    return await query
-      .orderBy(desc(ucps.createdAt))
-      .then(rows => rows.map(row => ({
-        ...row.ucps,
-        pallet: row.pallets || undefined,
-        position: row.positions || undefined,
-      })));
   }
 
   async getUcp(id: number): Promise<(Ucp & { pallet?: Pallet; position?: Position; items?: (UcpItem & { product?: Product })[] }) | undefined> {
@@ -353,17 +360,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUcp(id: number): Promise<boolean> {
     const result = await db.delete(ucps).where(eq(ucps.id, id));
-    return result.rowCount > 0;
-  }
-
-  // Legacy UCP Item operations (kept for compatibility)
-  async addUcpItem(item: InsertUcpItem): Promise<UcpItem> {
-    const [newItem] = await db.insert(ucpItems).values(item).returning();
-    return newItem;
-  }
-
-  async removeUcpItem(id: number): Promise<boolean> {
-    const result = await db.delete(ucpItems).where(eq(ucpItems.id, id));
     return (result.rowCount || 0) > 0;
   }
 
