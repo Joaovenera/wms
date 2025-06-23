@@ -282,13 +282,12 @@ export default function PortaPaletes() {
                             <Input
                               type="number"
                               min={0}
-                              max={3}
                               {...field}
                               onChange={(e) => field.onChange(parseInt(e.target.value))}
                             />
                           </FormControl>
                           <FormDescription>
-                            Níveis verticais (0-3, onde 0 = térreo)
+                            Níveis verticais (onde 0 = térreo)
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
