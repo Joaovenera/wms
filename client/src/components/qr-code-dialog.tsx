@@ -1,0 +1,198 @@
+import { useState, useEffect, useRef } from "react";
+import QRCode from "qrcode";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Printer, Download, QrCode } from "lucide-react";
+
+interface QRCodeDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  palletCode: string;
+  palletData?: {
+    code: string;
+    type: string;
+    material: string;
+    dimensions: string;
+    maxWeight: string;
+  };
+}
+
+export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }: QRCodeDialogProps) {
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  const qrRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen && palletCode) {
+      generateQRCode();
+    }
+  }, [isOpen, palletCode]);
+
+  const generateQRCode = async () => {
+    try {
+      // Gerar QR code com dados do pallet
+      const qrData = JSON.stringify({
+        type: "PALLET",
+        code: palletCode,
+        timestamp: new Date().toISOString()
+      });
+      
+      const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+      
+      setQrCodeUrl(qrCodeDataUrl);
+    } catch (error) {
+      console.error("Erro ao gerar QR code:", error);
+    }
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow && qrCodeUrl && palletData) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>QR Code - ${palletCode}</title>
+          <style>
+            body {
+              font-family: 'Arial', sans-serif;
+              margin: 0;
+              padding: 20px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              background: white;
+            }
+            .qr-container {
+              text-align: center;
+              border: 2px solid #000;
+              padding: 20px;
+              margin: 20px;
+              border-radius: 8px;
+              background: white;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .qr-code {
+              margin: 10px 0;
+            }
+            .pallet-code {
+              font-size: 24px;
+              font-weight: bold;
+              margin: 10px 0;
+              letter-spacing: 2px;
+            }
+            .pallet-info {
+              font-size: 12px;
+              color: #666;
+              margin-top: 15px;
+              text-align: left;
+            }
+            .info-row {
+              margin: 3px 0;
+            }
+            @media print {
+              body { margin: 0; padding: 0; }
+              .qr-container { margin: 0; box-shadow: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="qr-container">
+            <div class="qr-code">
+              <img src="${qrCodeUrl}" alt="QR Code ${palletCode}" />
+            </div>
+            <div class="pallet-code">${palletCode}</div>
+            <div class="pallet-info">
+              <div class="info-row"><strong>Tipo:</strong> ${palletData.type}</div>
+              <div class="info-row"><strong>Material:</strong> ${palletData.material}</div>
+              <div class="info-row"><strong>Dimensões:</strong> ${palletData.dimensions}</div>
+              <div class="info-row"><strong>Carga Máx:</strong> ${palletData.maxWeight}</div>
+              <div class="info-row"><strong>Gerado em:</strong> ${new Date().toLocaleString('pt-BR')}</div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
+
+  const handleDownload = () => {
+    if (qrCodeUrl) {
+      const link = document.createElement('a');
+      link.download = `qrcode-${palletCode}.png`;
+      link.href = qrCodeUrl;
+      link.click();
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <QrCode className="h-5 w-5" />
+            QR Code - {palletCode}
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="flex flex-col items-center space-y-4 py-4">
+          {qrCodeUrl && (
+            <div className="border-2 border-gray-200 rounded-lg p-4 bg-white">
+              <img 
+                src={qrCodeUrl} 
+                alt={`QR Code ${palletCode}`}
+                className="w-64 h-64"
+              />
+            </div>
+          )}
+          
+          <div className="text-center">
+            <div className="text-lg font-bold tracking-wider">{palletCode}</div>
+            <div className="text-sm text-gray-600 mt-1">
+              Escaneie para identificar o pallet
+            </div>
+          </div>
+
+          {palletData && (
+            <div className="w-full bg-gray-50 rounded-lg p-3 text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div><strong>Tipo:</strong> {palletData.type}</div>
+                <div><strong>Material:</strong> {palletData.material}</div>
+                <div><strong>Dimensões:</strong> {palletData.dimensions}</div>
+                <div><strong>Carga Máx:</strong> {palletData.maxWeight}</div>
+              </div>
+            </div>
+          )}
+          
+          <div className="flex gap-2 w-full">
+            <Button
+              onClick={handleDownload}
+              variant="outline"
+              className="flex-1"
+              disabled={!qrCodeUrl}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Baixar
+            </Button>
+            <Button
+              onClick={handlePrint}
+              className="flex-1"
+              disabled={!qrCodeUrl}
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Imprimir
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

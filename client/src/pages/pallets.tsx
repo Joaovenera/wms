@@ -15,9 +15,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { insertPalletSchema, type Pallet, type InsertPallet } from "@shared/schema";
-import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Eye } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Eye, QrCode, Printer } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CameraCapture from "@/components/camera-capture";
+import QRCodeDialog from "@/components/qr-code-dialog";
 
 // Função para obter informações do status
 const getStatusInfo = (status: string) => {
@@ -74,6 +75,10 @@ export default function Pallets() {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [showImageViewer, setShowImageViewer] = useState<string | null>(null);
+  const [qrCodeDialog, setQrCodeDialog] = useState<{ isOpen: boolean; pallet: Pallet | null }>({
+    isOpen: false,
+    pallet: null
+  });
   const { toast } = useToast();
 
   const { data: pallets, isLoading } = useQuery<Pallet[]>({
@@ -208,6 +213,14 @@ export default function Pallets() {
     if (confirm(`Tem certeza que deseja excluir o pallet ${pallet.code}?`)) {
       deleteMutation.mutate(pallet.id);
     }
+  };
+
+  const handleShowQRCode = (pallet: Pallet) => {
+    setQrCodeDialog({ isOpen: true, pallet });
+  };
+
+  const handleCloseQRCode = () => {
+    setQrCodeDialog({ isOpen: false, pallet: null });
   };
 
 
@@ -585,7 +598,7 @@ export default function Pallets() {
                         )}
                       </div>
                       
-                      <div className="flex justify-end space-x-2 mt-4">
+                      <div className="flex justify-end space-x-1 mt-4">
                         {pallet.photoUrl && (
                           <Button
                             size="sm"
@@ -599,6 +612,14 @@ export default function Pallets() {
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => handleShowQRCode(pallet)}
+                          title="Gerar QR Code"
+                        >
+                          <QrCode className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleEdit(pallet)}
                           title="Editar"
                         >
@@ -609,6 +630,7 @@ export default function Pallets() {
                           variant="outline"
                           onClick={() => handleDelete(pallet)}
                           disabled={deleteMutation.isPending}
+                          title="Excluir"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -657,6 +679,22 @@ export default function Pallets() {
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Diálogo de QR Code */}
+      {qrCodeDialog.pallet && (
+        <QRCodeDialog
+          isOpen={qrCodeDialog.isOpen}
+          onClose={handleCloseQRCode}
+          palletCode={qrCodeDialog.pallet.code}
+          palletData={{
+            code: qrCodeDialog.pallet.code,
+            type: qrCodeDialog.pallet.type,
+            material: qrCodeDialog.pallet.material,
+            dimensions: `${qrCodeDialog.pallet.width}×${qrCodeDialog.pallet.length}×${qrCodeDialog.pallet.height}cm`,
+            maxWeight: `${qrCodeDialog.pallet.maxWeight}kg`
+          }}
+        />
       )}
     </div>
   );
