@@ -31,9 +31,9 @@ export default function WarehouseMap() {
   positionMap.forEach(positions => {
     positions.sort((a, b) => {
       if (a.level !== b.level) {
-        return a.level.localeCompare(b.level);
+        return Number(a.level) - Number(b.level);
       }
-      return a.corridor.localeCompare(b.corridor);
+      return (a.corridor || "").localeCompare(b.corridor || "");
     });
   });
 
