@@ -110,6 +110,7 @@ Core entities include:
 
 ## Changelog
 - June 23, 2025. Initial setup
+- June 23, 2025. Database schema corrected - fixed session index conflict, updated user table with proper serial ID and password field, restored foreign key relationships
 
 ## User Preferences
 
