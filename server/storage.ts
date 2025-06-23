@@ -498,20 +498,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUcpItems(ucpId: number, includeRemoved = false): Promise<(UcpItem & { product?: Product })[]> {
-    let query = db
-      .select()
-      .from(ucpItems)
-      .leftJoin(products, eq(ucpItems.productId, products.id))
-      .where(eq(ucpItems.ucpId, ucpId));
-    
-    if (!includeRemoved) {
-      query = query.where(and(eq(ucpItems.ucpId, ucpId), eq(ucpItems.isActive, true)));
+    if (includeRemoved) {
+      return await db
+        .select()
+        .from(ucpItems)
+        .leftJoin(products, eq(ucpItems.productId, products.id))
+        .where(eq(ucpItems.ucpId, ucpId))
+        .then(rows => rows.map(row => ({
+          ...row.ucp_items,
+          product: row.products || undefined,
+        })));
+    } else {
+      return await db
+        .select()
+        .from(ucpItems)
+        .leftJoin(products, eq(ucpItems.productId, products.id))
+        .where(and(eq(ucpItems.ucpId, ucpId), eq(ucpItems.isActive, true)))
+        .then(rows => rows.map(row => ({
+          ...row.ucp_items,
+          product: row.products || undefined,
+        })));
     }
-
-    return await query.then(rows => rows.map(row => ({
-      ...row.ucp_items,
-      product: row.products || undefined,
-    })));
   }
 
   async addUcpItem(item: InsertUcpItem, userId: number): Promise<UcpItem> {

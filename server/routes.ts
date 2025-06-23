@@ -674,7 +674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: validationError.message });
       }
 
-      const item = await storage.addUcpItem(result.data);
+      const item = await storage.addUcpItem(result.data, req.user.id);
       res.status(201).json(item);
     } catch (error) {
       console.error("Error adding UCP item:", error);
@@ -682,14 +682,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/ucp-items/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/ucp-items/:id', isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const success = await storage.removeUcpItem(id);
+      const { reason } = req.body;
+      
+      if (!reason) {
+        return res.status(400).json({ message: "Removal reason is required" });
+      }
+
+      const success = await storage.removeUcpItem(id, req.user.id, reason);
       if (!success) {
         return res.status(404).json({ message: "UCP item not found" });
       }
-      res.status(204).send();
+      res.json({ message: "UCP item removed successfully" });
     } catch (error) {
       console.error("Error removing UCP item:", error);
       res.status(500).json({ message: "Failed to remove UCP item" });
