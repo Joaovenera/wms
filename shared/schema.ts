@@ -56,13 +56,16 @@ export const pallets = pgTable("pallets", {
 // Rack positions table
 export const positions = pgTable("positions", {
   id: serial("id").primaryKey(),
-  code: varchar("code").notNull().unique(), // RUA01-E-A01-N01
-  street: varchar("street").notNull(), // RUA01
-  side: varchar("side").notNull(), // E (Esquerdo), D (Direito)
-  corridor: varchar("corridor").notNull(), // A01, A02, etc.
-  level: varchar("level").notNull(), // N01, N02, etc.
+  code: varchar("code").notNull().unique(), // PP-01-01-0 (PortaPallet-Rua-Posição-Nível)
+  street: varchar("street").notNull(), // 01, 02, 03...
+  position: integer("position").notNull(), // 01, 02, 03... (pares=direita, ímpares=esquerda)
+  level: integer("level").notNull().default(0), // 0, 1, 2, 3... (altura)
   rackType: varchar("rack_type"), // Convencional, Drive-in, Push-back
-  maxPallets: integer("max_pallets").notNull().default(1),
+  maxPallets: integer("max_pallets").notNull().default(1), // 1 ou 2 pallets
+  hasDivision: boolean("has_division").notNull().default(false), // Se tem divisão entre pallets
+  layoutConfig: jsonb("layout_config"), // Configuração visual do layout
+  side: varchar("side").notNull(), // E (Esquerdo), D (Direito) - calculado automaticamente
+  corridor: varchar("corridor"), // Mantido para compatibilidade
   restrictions: text("restrictions"),
   status: varchar("status").notNull().default("available"), // available, occupied, reserved, maintenance, blocked
   observations: text("observations"),
