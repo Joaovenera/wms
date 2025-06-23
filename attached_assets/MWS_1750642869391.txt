@@ -1,0 +1,302 @@
+# MWS - Sistema de Controle de Estoque
+
+O sistema visa gerenciar de forma eficiente e rastreável todo o ciclo de vida dos produtos no seu estoque, desde a entrada até a saída, utilizando um aplicativo móvel para operações em tempo real, QR Codes para identificação precisa das Unidades de Carga Paletizada (UCPs) e localizações, e um painel administrativo web para gestão e relatórios. [cite: 1]
+
+## Cadastro e Gerenciamento de Pallets
+Para otimizar o controle dos seus pallets, o sistema de gerenciamento de estoque pode incluir as seguintes funcionalidades e campos. [cite: 2]
+
+### 1. Cadastro de Pallet
+O cadastro de pallets será uma função exclusiva para **Administradores**, garantindo a integridade dos dados. [cite: 2] Cada pallet terá um **código único** (ex: `PLT0001`, `PLT0002`), fundamental para rastreamento. [cite: 3] As informações essenciais a serem registradas no cadastro incluem: [cite: 4]
+* **Código do Pallet:** Identificador único (ex: `PLT0001`). [cite: 4]
+* **Data de Cadastro:** Data em que o pallet foi incluído no sistema. [cite: 5]
+* **Usuário Cadastrante:** O nome do administrador que realizou o cadastro. [cite: 6]
+* **Tipo de Pallet:** Especifique o padrão (ex: PBR, Europeu, Chep, etc.). [cite: 7]
+* **Material:** Indique o material de fabricação (ex: Madeira, Plástico, Metal). [cite: 8]
+* **Dimensões (cm):** Largura, Comprimento e Altura do pallet.
+* **Capacidade de Carga (kg):** O peso máximo que o pallet pode suportar. [cite: 9]
+* **Foto do Pallet:** Uma imagem para fácil identificação visual. [cite: 10]
+* **Observações:** Campo para informações adicionais relevantes.
+
+### 2. Estado do Pallet
+Para cada pallet cadastrado, será atribuído um estado que reflete sua condição e disponibilidade atual. [cite: 11] Isso permite uma gestão eficiente e a tomada de decisão sobre o uso ou manutenção do pallet. [cite: 12] Os estados propostos são: [cite: 13]
+* **Disponível:** Pallet em perfeito estado e pronto para uso. [cite: 13]
+* **Em Uso:** Pallet que está atualmente sendo utilizado para armazenar ou movimentar produtos. [cite: 14]
+* **Defeituoso:** Pallet que apresenta danos e necessita de reparo. [cite: 15]
+* **Recuperação:** Pallet que está em processo de reparo ou manutenção. [cite: 16]
+* **Descarte:** Pallet que não possui mais condições de uso e será descartado. [cite: 17]
+
+### 3. Rastreabilidade e Identificação
+Para garantir a rastreabilidade física e agilizar a identificação, cada pallet terá um adesivo com um `QR Code Model 2` em todos os cantos dos pés. [cite: 18] Este QR Code conterá o **código único do pallet**, permitindo que qualquer usuário com um leitor (smartphone, coletor de dados) possa acessar rapidamente as informações do pallet no sistema. [cite: 19]
+
+### 4. Gestão de Manutenção
+É crucial acompanhar a vida útil dos pallets. [cite: 20] Por isso, cada registro incluirá: [cite: 21]
+* **Data da Última Inspeção:** Registra a data da última verificação da condição do pallet. [cite: 21] Isso pode ser usado para programar inspeções futuras e manutenção preventiva, garantindo a segurança e a longevidade dos seus pallets. [cite: 22]
+
+## Cadastro e Gerenciamento de Porta-Pallets
+Para um controle preciso e eficiente do seu armazém, é crucial ter um sistema robusto para o cadastro e gerenciamento dos seus porta-pallets. [cite: 23] Isso não só ajuda a organizar o espaço, mas também a localizar produtos rapidamente. [cite: 24]
+
+### 1. Cadastro de Porta-Pallets
+Assim como os pallets, o cadastro dos porta-pallets será uma função exclusiva para **Administradores**, garantindo a padronização e a precisão dos dados. [cite: 25] Cada porta-pallet, ou melhor, cada **posição de armazenamento** dentro do porta-pallet, terá um código único. [cite: 26] As informações essenciais para o cadastro de cada posição incluem: [cite: 27]
+* **Código da Posição:** Um identificador único e lógico para cada espaço no porta-pallet (ex: `RUA01-E-A01-N01`). [cite: 27]
+    * **RUA**: Identifica a rua (ex: RUA01). [cite: 28]
+    * **L/R**: Indica o lado (E = Esquerdo, D = Direito). [cite: 28]
+    * **A**: Corredor / Posicionamento Horizontal (A01, A02, A03...). [cite: 29]
+    * **N**: Nível / Posicionamento Vertical (N01, N02, N03...). [cite: 29]
+* **Data de Cadastro:** A data em que essa posição foi registrada no sistema. [cite: 30]
+* **Usuário Cadastrante:** O nome do administrador que realizou o cadastro. [cite: 31]
+* **Tipo de Porta-Pallet:** (Ex: Convencional, Drive-in, Push-back, etc. – se aplicável, para caracterizar o tipo de estrutura). [cite: 32]
+* **Capacidade Máxima (Pallets):** Quantos pallets essa posição pode acomodar. [cite: 33]
+* **Restrições (se houver):** Por exemplo, "apenas produtos refrigerados", "apenas pallets de 1.2m", "carga máxima X kg". [cite: 34]
+* **Observações:** Qualquer informação adicional relevante sobre a posição. [cite: 35]
+
+### 2. Status da Posição de Porta-Pallet
+Cada posição no porta-pallet terá um status para indicar sua disponibilidade e uso:
+* **Disponível:** A posição está vazia e pronta para receber um pallet. [cite: 36]
+* **Ocupada:** A posição está com um pallet armazenado. [cite: 36]
+* **Reservada:** A posição foi alocada para um pallet que está para chegar ou ser movimentado. [cite: 37]
+* **Em Manutenção:** A posição está indisponível devido a reparos ou inspeção na estrutura do porta-pallet. [cite: 38]
+* **Bloqueada:** A posição não pode ser utilizada por algum motivo específico (ex: avaria permanente, área de quarentena temporária). [cite: 39]
+
+### 3. Identificação e Localização Eficiente
+A chave para um gerenciamento eficaz é a **identificação clara e a localização intuitiva**. [cite: 40] A ideia de usar códigos únicos para cada posição é excelente. [cite: 41] Para isso, podemos aprimorar a implementação: [cite: 42]
+* **Etiquetas com QR Code nas Posições:** Cada "nicho" ou espaço de armazenamento no porta-pallet deve ter uma etiqueta resistente com o **código único da posição** (ex: `RUA01-E-A01-N01`) e um `QR Code Model 2`. [cite: 42] Isso permite que os operadores usem coletores de dados ou smartphones para escanear a posição e confirmar a localização ao guardar ou retirar um pallet. [cite: 43]
+* **Placas de Identificação de Rua e Lado:** No início de cada rua, instale placas grandes e visíveis indicando o número da **Rua** (ex: RUA 01) e o **Lado** (ESQUERDO/DIREITO). [cite: 44]
+* **Mapeamento Visual no Sistema:** O sistema deve ter uma **interface gráfica** que represente o layout do seu armazém. [cite: 45] Ao clicar em uma rua, o usuário deve ser capaz de visualizar as posições de porta-pallet, com cores indicando o status (verde para disponível, vermelho para ocupado, etc.). [cite: 46] Isso facilita a busca visual por espaços vazios. [cite: 46]
+
+### 4. Integração com Movimentação de Estoque
+* **Alocação Automática/Manual:** Ao receber um produto, o sistema pode sugerir a melhor posição disponível ou permitir que o operador escolha manualmente. [cite: 47]
+* **Registro de Armazenagem:** Quando um pallet é guardado, o sistema deve registrar **qual pallet** (pelo seu código único) foi colocado em **qual posição** (pelo código único da posição). [cite: 48]
+* **Registro de Retirada:** Ao retirar um pallet, o sistema deve atualizar o status da posição para "Disponível". [cite: 49]
+* **Rastreabilidade Completa:** Você deve ser capaz de pesquisar um produto e ver exatamente em qual posição ele está, ou pesquisar uma posição e ver qual produto e pallet estão nela. [cite: 50]
+
+## Cadastro e Gerenciamento de Unidades de Carga Paletizada (UCPs)
+Para um controle detalhado do conteúdo dos seus pallets, o sistema precisa gerenciar as Unidades de Carga Paletizada (UCPs). [cite: 51] Isso permite rastrear quais produtos estão em cada pallet e seu histórico. [cite: 52]
+
+### 1. Cadastro de UCPs
+Cada UCP representará um conjunto de produtos agrupados em um pallet. [cite: 53] O cadastro será feito por administradores e operadores e incluirá: [cite: 54]
+* **Código da UCP:** Um código único para identificar a UCP (ex: `UCP-20250618-0001`). [cite: 54]
+* **Data de Criação:** A data em que a UCP foi montada. [cite: 55]
+* **Pallet:** O código do pallet físico ao qual a UCP está associada. [cite: 56]
+* **Posição no Porta-Pallet:** A localização atual da UCP no armazém (ex: `RUA01-E-A01-N01`). [cite: 57]
+* **Lista de Produtos:** Uma lista dos produtos que compõem a UCP, incluindo: [cite: 58]
+    * Código do Produto
+    * Nome do Produto
+    * Quantidade
+    * Lote (se aplicável)
+    * Data de Validade (se aplicável)
+* **Observações:** Informações adicionais sobre a UCP. [cite: 58]
+
+### 3. Histórico da UCP
+O sistema deve manter um histórico completo de cada UCP, mostrando:
+* **Criação:** Data e produtos iniciais. [cite: 59]
+* **Alterações:** Todas as adições e remoções de produtos, com detalhes (data, usuário, produtos, motivo). [cite: 60]
+* **Localização:** O histórico de posições no porta-pallet onde a UCP esteve armazenada. [cite: 61]
+
+### 4. Consulta e Rastreamento
+O sistema deve permitir:
+* **Pesquisar UCP por Código ou Leitura de QR Code Model 2:** Para visualizar seu conteúdo atual e histórico completo. [cite: 62]
+* **Pesquisar Produto:** Para encontrar em quais UCPs um determinado produto está presente. [cite: 63]
+* **Rastrear Movimentação:** Ao selecionar uma UCP, ver seu histórico de movimentação no armazém. [cite: 64]
+
+### 5. Desmontagem e Arquivamento da UCP
+O processo de desmontagem ocorre quando todos os itens de uma UCP são removidos. [cite: 65]
+* **Status da UCP:** Um novo status será adicionado ao ciclo de vida da UCP: **"Vazia/Desmontada"**. [cite: 66] Quando o último item for removido de uma UCP, o sistema automaticamente mudará seu status de "Em Uso" para "Vazia/Desmontada". [cite: 67] Isso libera o pallet físico associado, que terá seu próprio status atualizado. [cite: 68]
+* **Arquivamento Automático:** Uma UCP com o status "Vazia/Desmontada" é considerada "arquivada". [cite: 69]
+    * Ela não aparecerá nas listas de UCPs ativas para novas alocações de produtos. [cite: 70]
+    * Seu código único é permanentemente preservado e **nunca** será reutilizado. [cite: 71]
+    * A UCP arquivada sai do fluxo operacional padrão, mas permanece no banco de dados para consulta. [cite: 72]
+
+### 6. Consulta ao Histórico de UCPs Arquivadas
+O acesso ao histórico de UCPs desmontadas é fundamental para auditorias e análises. [cite: 73]
+* **Módulo de Consulta:** O painel administrativo web contará com uma seção específica para "Consulta de UCPs Arquivadas". [cite: 74]
+* **Funcionalidades de Pesquisa:** O administrador poderá pesquisar por: [cite: 75]
+    * **Código da UCP:** Inserindo ou lendo o QR Code. [cite: 75]
+    * **Intervalo de Datas:** Filtrando por data de criação ou desmontagem. [cite: 76]
+    * **Código do Pallet Associado:** Para ver todas as UCPs que já foram montadas sobre um determinado pallet. [cite: 77]
+    * **Produto Contido:** Pesquisar por um produto para ver em quais UCPs (ativas ou arquivadas) ele já esteve. [cite: 78]
+* **Dados Históricos Preservados:** A consulta a uma UCP arquivada exibirá todo o seu ciclo de vida, incluindo:
+    * Data de criação e usuário responsável. [cite: 79]
+    * Todos os produtos que já fizeram parte da unidade, com detalhes de lote e validade. [cite: 80]
+    * O histórico completo de suas localizações no armazém. [cite: 81]
+    * Registros de todas as movimentações de entrada e saída de itens. [cite: 81]
+
+### 7. Reativação de uma UCP Arquivada
+Na prática, a reativação significa a criação de uma **nova UCP** com um **novo código**. [cite: 82]
+* **Fluxo de Reativação:**
+    * O operador escaneia o QR Code do pallet físico que está "Disponível". [cite: 83]
+    * O sistema identifica que este pallet já esteve associado a UCPs arquivadas e pode exibir um breve histórico. [cite: 84]
+    * Ao adicionar o primeiro novo item a este pallet, o sistema **obrigatoriamente criará uma nova UCP**. [cite: 85]
+    * Será gerado um **código de UCP totalmente novo e único** (ex: `UCP-20250620-0005`). [cite: 86]
+    * Uma nova etiqueta de QR Code para a nova UCP será impressa e afixada no pallet. [cite: 87]
+
+## Cadastro e Gerenciamento de Mercadorias
+O cadastro de mercadorias precisa ser robusto para lidar com variações e garantir a rastreabilidade. [cite: 88]
+
+### 1. Cadastro Principal de Produto (SKU Base)
+Esta seção registrará as informações fundamentais de cada tipo de produto. [cite: 89]
+* **Código do Produto (SKU Mestre):** Um código interno único para o **tipo** de produto (ex: `MAQ_COST_W8A`, `MAQ_COST_S2`). [cite: 90] Este será o código base para agrupar todas as variações. [cite: 91]
+* **Nome do Produto:** Nome comercial do item (ex: Máquina de Costura Industrial W-8A). [cite: 92]
+* **Descrição Detalhada:** Informações completas sobre o produto.
+* **Categoria:** (ex: Máquinas de Costura, Ferramentas, Eletrônicos). [cite: 93]
+* **Unidade de Medida:** (ex: Unidade, Peça, Caixa). [cite: 93]
+* **Foto do Produto:** Uma imagem de alta qualidade do item. [cite: 94]
+* **Fornecedor Padrão:** O principal fornecedor para este produto. [cite: 95]
+* **Estoque Mínimo / Máximo:** Para alertas de reabastecimento. [cite: 95]
+* **Preço de Compra / Venda:** Informações financeiras. [cite: 95]
+
+### 2. Variações do Produto e Código de Barras de Fábrica
+Para cada SKU Mestre, haverá variações. [cite: 97]
+* **Variações (Tensão, Cor, etc.):**
+    * **Tensão:** Campo para especificar a voltagem (110V, 220V, Bivolt). [cite: 98]
+    * **Cor:** Campo para indicar a cor (Azul, Preto, Branco, etc.). [cite: 99]
+    * **Outras Variações:** Quaisquer outras características que diferenciam o produto. [cite: 100]
+* **Códigos de Barras de Fábrica (EAN/UPC):**
+    * **Para produtos com códigos de barras diferentes por variação:** Registrar o código de barras de fábrica correspondente a cada variação. [cite: 101]
+    * **Para produtos com o mesmo código de barras para diferentes variações:** O código de barras de fábrica será o mesmo, e será necessário um campo para "Etiqueta Diferenciadora" que descreva o que muda na etiqueta física (ex: "Etiqueta verde", "Adesivo 220V"). [cite: 102]
+* **Código de Modelo/Produção (se houver):** Registrar o código que aparece acima do código de barras (ex: `W-8A 5DC/L`, `S-2 DC/LI`). [cite: 103]
+
+### 3. Rastreabilidade Individual (Etiquetagem Interna com QR Code) - A Melhoria Crucial
+A etiquetagem de cada item individualmente é **fundamental** para uma rastreabilidade precisa. [cite: 105]
+* **Código Interno do Item (CI):** Cada unidade física de um produto receberá um código único, gerado pelo sistema no momento da entrada. [cite: 106]
+* **Etiqueta com QR Code Model 2:**
+    * **Conteúdo do QR Code:** O Código Interno do Item (CI). [cite: 107]
+    * **Localização:** Esta etiqueta será colada em cada unidade física do produto no momento do recebimento. [cite: 107]
+* **Vantagens da Etiquetagem Interna:**
+    * **Consistência:** Todos os itens terão um padrão de identificação uniforme. [cite: 115]
+    * **Robustez:** Se a etiqueta original estiver danificada, você tem sua própria etiqueta. [cite: 116]
+    * **Informação Adicional no QR Code (Futuramente):** Um QR Code pode conter mais informações do que um código de barras linear. [cite: 118]
+    * **Autonomia:** Você não depende da numeração do fabricante para sua rastreabilidade interna. [cite: 119]
+
+### 4. Controle de Lotes e Origem da Mercadoria
+É vital saber de onde a mercadoria veio e quando. [cite: 108]
+* **Tipo de Chegada:** Campo para indicar a origem da mercadoria, como: [cite: 108]
+    * Container
+    * Transferência de Unidade
+    * Outros (ex: Devolução de Cliente, Produção Interna). [cite: 109]
+* **Número de Lote (se aplicável):** Importante para rastreabilidade, especialmente em casos de recall. [cite: 110]
+* **Data de Fabricação:** (se disponível no lote). [cite: 111]
+* **Data de Validade:** Para produtos perecíveis. [cite: 111]
+* **Número da Remessa / Manifesto:** Referência ao documento de transporte. [cite: 112]
+* **Data de Entrada:** Data em que a mercadoria foi fisicamente recebida. [cite: 113]
+* **Usuário Recebedor:** Quem registrou a entrada da mercadoria.
+
+## Módulo: Processo de Entrada de Mercadorias (Recebimento)
+Este módulo detalha o fluxo completo desde a expectativa de chegada de uma mercadoria até a sua alocação física no armazém. [cite: 121]
+
+### 1. Pré-Recebimento (Planejamento e Validação) [cite: 122]
+#### 1.1. Registro da Expectativa de Recebimento
+* **Fonte de Dados:** Integração para importação automática de documentos como XML de NF-e, Ordens de Compra (OCs) ou Ordens de Transferência (OTs). [cite: 123]
+* **Geração de ID e Status:** Criação de um `ID de Pré-Recebimento` único e atribuição do status inicial como "Pendente". [cite: 125]
+* **Alertas e Notificações:** Sistema de alertas para notificar o responsável se a data de chegada prevista estiver próxima. [cite: 127]
+
+#### 1.2. Dashboard de Gestão de Pré-Recebimentos
+* **Visualização Centralizada:** Um painel de controle que exibe todas as ordens de pré-recebimento. [cite: 128]
+* **Filtros Avançados:** Opções de filtragem por data, fornecedor, tipo de documento e status. [cite: 129]
+* **Ação de Inativação/Cancelamento:** Funcionalidade para "Inativar" ou "Cancelar" uma pré-ordem, requerindo a seleção de um motivo. [cite: 130, 131]
+
+### 2. Chegada da Remessa (Conferência Inicial e Documental) [cite: 133]
+#### 2.1. Registro da Chegada da Remessa
+* **Vinculação:** Vincular o `ID de Pré-Recebimento` correspondente. [cite: 134] Se não houver, permitir um "Recebimento Cego". [cite: 135]
+* **Evidência Fotográfica:** Upload obrigatório de fotos do lacre, código do container e da carga após a abertura. [cite: 136, 137, 138]
+* **Status da Remessa:** Atualização do status da pré-ordem para "Em Chegada" ou "Conferência Inicial".
+
+#### 2.2. Checklist Documental Automatizado
+* **Disparo Automático:** Um checklist digital é disparado assim que a remessa é criada/vinculada. [cite: 140]
+
+### 3. Identificação e Conferência de Produtos [cite: 142]
+#### 3.1. Scan e Reconhecimento Inteligente
+* **Leitura de Código de Barras de Fábrica:** O operador utiliza um coletor de dados para escanear o código de barras de fábrica (EAN/UPC) de cada item. [cite: 143]
+* **Reconhecimento Automático:** O sistema valida o `SKU Mestre` e exibe as variações associadas. [cite: 144]
+
+#### 3.2. Fluxo para Variações Ambíguas
+* **Alertas Visuais:** Se o mesmo código de barras corresponder a múltiplas variações, o sistema exigirá a **confirmação manual** pelo operador. [cite: 145, 146]
+
+#### 3.3. Registro de Dados Detalhados de Recebimento
+* **Contagem e Quantidade:** Registro da quantidade recebida por item, com opções de contagem manual ou múltipla. [cite: 148, 149]
+* **Dados de Lote/Série/Validade:** Campos de preenchimento obrigatório para produtos que exigem essa rastreabilidade. [cite: 151]
+* **Registro de Não Conformidades:** Opção para marcar um item como danificado, com upload obrigatório de foto e campo para comentário. [cite: 152, 153, 154]
+
+### 4. Geração de Etiquetas Internas (QR Code)
+#### 4.1. Geração de Código Interno do Item (CI)
+* **Padrão Sugerido:** `[SKU_PRINCIPAL]-[AAAA_MM_DD]-[SEQUENCIAL_DIARIO]`. [cite: 155]
+    * `SKU_PRINCIPAL`: O código do produto base. [cite: 156]
+    * `AAAA_MM_DD`: Data de entrada no formato AnoMêsDia. [cite: 156]
+    * `SEQUENCIAL_DIARIO`: Um número sequencial reiniciado a cada dia. [cite: 157]
+
+#### 4.2. Impressão e Aplicação de Etiqueta com QR Code
+* **Impressão em Lote Otimizada:** O sistema deve permitir imprimir todas as etiquetas para uma UCP ou conjunto de itens de uma vez. [cite: 160]
+* **Conteúdo do QR Code Model 2:** Deverá conter, no mínimo, o Código Interno do Item (CI), SKU Mestre, Tensão e Lote. [cite: 163, 164]
+* **Aplicação da Etiqueta:** O operador aplica fisicamente a etiqueta QR Code em cada item ou caixa. [cite: 167]
+
+### 5. Associação a UCP e Posicionamento Físico [cite: 168]
+#### 5.1. Seleção de Destino (UCP)
+* **Associação:** Os itens recebidos e etiquetados são associados a uma UCP. [cite: 169]
+* **Criação Rápida de Nova UCP:** Se necessário, o sistema permite um cadastro rápido e a geração de uma nova etiqueta de UCP. [cite: 171, 172]
+
+#### 5.2. Confirmação de Posicionamento no Porta-Pallet
+* **Alocação Visual:** O operador utiliza um tablet com o mapa do depósito para selecionar a posição exata onde a UCP será armazenada. [cite: 173, 174]
+* **Atualização Automática:** O sistema registra que a UCP X está agora na Posição W. [cite: 175]
+
+### 6. Pós-Entrada (Controle e Relatórios) [cite: 177]
+#### 6.1. Validação e Fechamento da Entrada
+* **Conclusão do Workflow:** A remessa só é considerada "Recebida" quando todos os itens previstos estiverem conferidos ou com não conformidade registrada. [cite: 178]
+* **Checkpoint Final (Aprovação):** Exigência de aprovação por um supervisor para formalizar a conclusão. [cite: 179]
+
+#### 6.2. Indicadores de Desempenho (KPIs) e Alertas
+* **Performance do Recebimento:** Medidas como o "Tempo Médio entre Pré-Recebimento e Conferência Final". [cite: 180]
+* **Qualidade do Fornecedor/Transporte:** "Quantidade de Divergências" por fornecedor ou transportadora. [cite: 181]
+* **Alertas Proativos:** Alertas automáticos para produtos com validade próxima. [cite: 182]
+
+#### 6.3. Integração com Módulo de Inventário
+* **Atualização de Saldo:** Atualização automática do saldo de estoque para cada produto, UCP e CI individualmente. [cite: 183]
+
+## Módulo: Processo de Saída de Mercadorias (Expedição)
+Este módulo gerencia o fluxo de saída de mercadorias do armazém. [cite: 184]
+
+### 1. Pré-Expedição (Planejamento e Separação de Pedidos) [cite: 185]
+#### 1.1. Registro da Ordem de Saída/Pedido
+* **Fonte de Dados:** Integração com o sistema de vendas/ERP para importação de Pedidos de Venda, Ordens de Transferência ou Devolução. [cite: 186]
+* **Priorização e Agrupamento:** O sistema permite organizar itens por urgência e agrupar múltiplos pedidos. [cite: 187, 188]
+* **Geração de ID e Status Inicial:** Criação de um `ID de Ordem de Saída` único e status "Pendente de Separação". [cite: 189]
+
+#### 1.2. Criação da Onda de Separação (Picking Wave)
+* **Planejamento da Separação:** O sistema permite criar "ondas de separação" para otimizar o roteiro do separador. [cite: 192]
+* **Atribuição de Separador:** Vincular um usuário (operador) à onda de separação. [cite: 193]
+
+#### 1.3. Separação Física (Picking)
+* **Uso de Coletor/App Mobile:** O operador utiliza um coletor de dados para seguir o roteiro de separação. [cite: 195]
+* **Scan para Confirmação:** O sistema exige a leitura do QR Code da Posição do Porta-Pallet, da UCP e do Código Interno do Item (CI). [cite: 196, 197, 198]
+* **Atualização de Status de Itens:** Os itens separados mudam seu status para "Em Separação". [cite: 200]
+
+### 2. Conferência de Saída e Carregamento (Loading) [cite: 201]
+#### 2.1. Conferência na Área de Expedição
+* **Identificação da Ordem de Saída:** O conferente escaneia o `ID de Ordem de Saída`. [cite: 202]
+* **Scan de Itens Carregados:** Para cada item que entra no caminhão, o conferente escaneia o `Código Interno do Item (CI)`. [cite: 203]
+* **Validação em Tempo Real:** O sistema valida se o item escaneado pertence à ordem de saída. [cite: 204]
+
+#### 2.2. Consolidação e Definição da Carga Final
+* **Flexibilidade de Carregamento:** Permite carregar itens parcialmente de um pedido. [cite: 206]
+* **Edição/Movimentação da Carga:** Possibilidade de adicionar ou remover itens que já foram escaneados para carregamento. [cite: 207, 208]
+* **Finalização do Carregamento:** Após a confirmação, o operador finaliza o "Carregamento". [cite: 210]
+* **Geração do "Manifesto de Carga Preliminar" (PDF):** O sistema gera um PDF com a lista exata de todos os itens e encaminha para o Setor Fiscal. [cite: 211, 212]
+* **Status "Aguardando NF":** O status da Ordem de Saída muda para "Aguardando Nota Fiscal". [cite: 213]
+
+### 3. Emissão da Nota Fiscal e Liberação
+#### 3.1. Vinculação da Nota Fiscal
+* **Recebimento da NF:** O sistema recebe a notificação da emissão da Nota Fiscal. [cite: 214]
+* **Vinculação:** O número da Nota Fiscal é vinculado à `ID de Ordem de Saída`. [cite: 215]
+* **Validação da NF vs Carga:** O sistema pode realizar uma validação para garantir que os itens e quantidades na NF correspondem ao manifesto. [cite: 216, 217]
+
+#### 3.2. Liberação do Caminhão
+* **Status "Liberado para Expedição":** Uma vez que a NF esteja vinculada, o status da Ordem de Saída muda. [cite: 218]
+* **Registro de Saída Efetiva:** Registro da data e hora da liberação do caminhão. [cite: 219]
+
+### 4. Pós-Expedição (Atualização de Estoque e Análise) [cite: 220]
+#### 4.1. Baixa Automática de Estoque
+* **Atualização de Saldo:** O sistema realiza a baixa automática dos itens do estoque no momento da Liberação da NF. [cite: 220, 221]
+* **Histórico da UCP e Posição:** O saldo da UCP e o status da posição do porta-pallet são atualizados. [cite: 222]
+
+#### 4.2. KPIs e Relatórios de Expedição
+* **Tempo de Expedição:** Tempo médio desde a "Pré-Expedição" até a "Liberação do Caminhão". [cite: 223]
+* **Acuracidade da Separação:** Porcentagem de pedidos separados sem divergências. [cite: 224]
+* **Rastreabilidade do Item:** Capacidade de pesquisar um `CI` e ver para qual cliente ele foi expedido.
