@@ -128,10 +128,11 @@ export default function Positions() {
     },
   });
 
-  // Gerar código automaticamente quando street, position ou level mudarem
+  // Gerar código automaticamente quando street, position ou level mudarem (só para novas posições)
   useEffect(() => {
     const subscription = form.watch((value, { name }) => {
-      if (name === 'street' || name === 'position' || name === 'level') {
+      // Só regenera o código se não estiver editando uma posição existente
+      if (!editingPosition && (name === 'street' || name === 'position' || name === 'level')) {
         const street = value.street || "";
         const position = value.position || 1;
         const level = value.level || 0;
@@ -147,7 +148,7 @@ export default function Positions() {
     });
     
     return () => subscription.unsubscribe();
-  }, [form]);
+  }, [form, editingPosition]);
 
   // Filtrar posições
   const filteredPositions = positions.filter(position => {
