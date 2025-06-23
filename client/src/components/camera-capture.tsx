@@ -156,56 +156,62 @@ export default function CameraCapture({
   }, [capturedImage, onCapture, stopCamera, onClose]);
 
   const switchCamera = useCallback(async () => {
-    console.log("Alternando câmera de", facingMode, "para", facingMode === "user" ? "environment" : "user");
+    const currentMode = facingMode;
+    const newMode = currentMode === "user" ? "environment" : "user";
+    console.log("Alternando câmera de", currentMode, "para", newMode);
     
-    // Para completamente o stream atual
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        track.stop();
-      });
-      setStream(null);
-    }
-
-    // Limpa o vídeo
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
-    // Aguarda um pouco para garantir que o stream foi liberado
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    // Alterna o modo da câmera
-    const newFacingMode = facingMode === "user" ? "environment" : "user";
-    setFacingMode(newFacingMode);
-    
-    // Inicia a nova câmera após a mudança do estado
     setIsLoading(true);
     setError(null);
-
+    
     try {
-      const constraints = {
-        video: {
-          facingMode: { exact: newFacingMode },
-          width: { ideal: 800, max: 1920 },
-          height: { ideal: 600, max: 1080 },
-        },
-      };
+      // Para completamente o stream atual
+      if (stream) {
+        stream.getTracks().forEach((track) => {
+          track.stop();
+        });
+        setStream(null);
+      }
 
-      let mediaStream;
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (exactError) {
-        console.log("Tentando sem exact facingMode");
-        const fallbackConstraints = {
+      // Limpa o vídeo
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
+      // Aguarda para garantir que o stream foi completamente liberado
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Função inline para iniciar a nova câmera
+      const initNewCamera = async (mode: "user" | "environment") => {
+        const constraints = {
           video: {
-            facingMode: newFacingMode,
+            facingMode: { exact: mode },
             width: { ideal: 800, max: 1920 },
             height: { ideal: 600, max: 1080 },
           },
         };
-        mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-      }
 
+        let mediaStream;
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (exactError) {
+          console.log("Tentando sem exact facingMode");
+          const fallbackConstraints = {
+            video: {
+              facingMode: mode,
+              width: { ideal: 800, max: 1920 },
+              height: { ideal: 600, max: 1080 },
+            },
+          };
+          mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        }
+
+        return mediaStream;
+      };
+
+      const mediaStream = await initNewCamera(newMode);
+
+      // Atualiza o estado apenas se tudo deu certo
+      setFacingMode(newMode);
       setStream(mediaStream);
 
       if (videoRef.current) {
@@ -214,13 +220,17 @@ export default function CameraCapture({
           if (videoRef.current) {
             videoRef.current.play().then(() => {
               setIsLoading(false);
-            }).catch(console.error);
+              console.log("Câmera alternada com sucesso para:", newMode);
+            }).catch((playError) => {
+              console.error("Erro ao reproduzir vídeo:", playError);
+              setIsLoading(false);
+            });
           }
         };
       }
     } catch (error) {
       console.error("Erro ao alternar câmera:", error);
-      setError("Não foi possível acessar a câmera. Verifique as permissões.");
+      setError("Não foi possível alternar a câmera. Tente novamente.");
       setIsLoading(false);
     }
   }, [facingMode, stream]);
