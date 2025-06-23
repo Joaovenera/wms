@@ -14,16 +14,20 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { insertPalletSchema, type Layers, type InsertPallet } from "@shared/schema";
-import { Plus, Search, Edit, Trash2, Layers as PalletIcon } from "lucide-react";
+import { insertPalletSchema, type Pallet, type InsertPallet } from "@shared/schema";
+import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image } from "lucide-react";
+import CameraCapture from "@/components/camera-capture";
 
 export default function Pallets() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingPallet, setEditingPallet] = useState<Layers | null>(null);
+  const [editingPallet, setEditingPallet] = useState<Pallet | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [showImageViewer, setShowImageViewer] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const { data: pallets, isLoading } = useQuery<Layers[]>({
+  const { data: pallets, isLoading } = useQuery<Pallet[]>({
     queryKey: ['/api/pallets'],
   });
 
@@ -121,7 +125,7 @@ export default function Pallets() {
     }
   };
 
-  const handleEdit = (pallet: Layers) => {
+  const handleEdit = (pallet: Pallet) => {
     setEditingPallet(pallet);
     form.reset({
       code: pallet.code,
@@ -138,7 +142,7 @@ export default function Pallets() {
     setIsCreateOpen(true);
   };
 
-  const handleDelete = (pallet: Layers) => {
+  const handleDelete = (pallet: Pallet) => {
     if (confirm(`Tem certeza que deseja excluir o pallet ${pallet.code}?`)) {
       deleteMutation.mutate(pallet.id);
     }
