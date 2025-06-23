@@ -103,6 +103,7 @@ export default function PalletStructures() {
   };
 
   const handleShowQRCode = (structure: PalletStructure) => {
+    console.log("QR Code clicked for structure:", structure.name);
     setQrCodeDialog({ isOpen: true, structure });
   };
 
@@ -410,7 +411,8 @@ export default function PalletStructures() {
                       onClick={() => handleShowQRCode(structure)}
                       title="Gerar QR Code"
                     >
-                      <QrCode className="w-4 h-4" />
+                      <QrCode className="w-4 h-4 mr-1" />
+                      QR
                     </Button>
                     <Button
                       variant="outline"
