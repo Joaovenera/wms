@@ -117,6 +117,16 @@ export default function Pallets() {
     pallet.material.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
+  const handleCameraCapture = (imageData: string) => {
+    setPhotoPreview(imageData);
+    form.setValue('photoUrl', imageData);
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoPreview(null);
+    form.setValue('photoUrl', '');
+  };
+
   const onSubmit = (data: InsertPallet) => {
     if (editingPallet) {
       updateMutation.mutate({ id: editingPallet.id, data });
@@ -127,6 +137,7 @@ export default function Pallets() {
 
   const handleEdit = (pallet: Pallet) => {
     setEditingPallet(pallet);
+    setPhotoPreview(pallet.photoUrl || null);
     form.reset({
       code: pallet.code,
       type: pallet.type,
@@ -363,9 +374,53 @@ export default function Pallets() {
                   name="photoUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>URL da Foto</FormLabel>
+                      <FormLabel>Foto do Pallet</FormLabel>
+                      <div className="space-y-3">
+                        {/* Preview da foto */}
+                        {photoPreview && (
+                          <div className="relative">
+                            <img
+                              src={photoPreview}
+                              alt="Preview do pallet"
+                              className="w-full h-48 object-cover rounded-lg border"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowImageViewer(photoPreview)}
+                              className="absolute top-2 left-2"
+                            >
+                              <Image className="h-4 w-4 mr-1" />
+                              Ver
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={handleRemovePhoto}
+                              className="absolute top-2 right-2"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                        
+                        {/* Botões de ação */}
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsCameraOpen(true)}
+                            className="flex-1"
+                          >
+                            <Camera className="h-4 w-4 mr-2" />
+                            {photoPreview ? 'Refazer Foto' : 'Capturar Foto'}
+                          </Button>
+                        </div>
+                      </div>
                       <FormControl>
-                        <Input placeholder="https://..." {...field} />
+                        <Input type="hidden" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -390,7 +445,12 @@ export default function Pallets() {
                   <Button 
                     type="button" 
                     variant="outline"
-                    onClick={() => setIsCreateOpen(false)}
+                    onClick={() => {
+                      setIsCreateOpen(false);
+                      setEditingPallet(null);
+                      setPhotoPreview(null);
+                      form.reset();
+                    }}
                   >
                     Cancelar
                   </Button>
@@ -474,10 +534,21 @@ export default function Pallets() {
                 </div>
                 
                 <div className="flex justify-end space-x-2 mt-4">
+                  {pallet.photoUrl && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowImageViewer(pallet.photoUrl!)}
+                      title="Ver foto"
+                    >
+                      <Image className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => handleEdit(pallet)}
+                    title="Editar"
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -505,6 +576,31 @@ export default function Pallets() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Componente de Câmera */}
+      <CameraCapture
+        isOpen={isCameraOpen}
+        onCapture={handleCameraCapture}
+        onClose={() => setIsCameraOpen(false)}
+      />
+
+      {/* Visualizador de Imagem */}
+      {showImageViewer && (
+        <Dialog open={!!showImageViewer} onOpenChange={() => setShowImageViewer(null)}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Visualizar Foto do Pallet</DialogTitle>
+            </DialogHeader>
+            <div className="mt-4">
+              <img
+                src={showImageViewer}
+                alt="Foto do pallet"
+                className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
