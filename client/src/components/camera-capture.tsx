@@ -48,15 +48,15 @@ export default function CameraCapture({
 
     try {
       // Pequeno delay para garantir que as tracks anteriores foram liberadas
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       console.log("Iniciando câmera com facingMode:", facingMode);
-      
+
       const constraints = {
         video: {
           facingMode: { exact: facingMode },
-          width: { ideal: 800, max: 1920 },
-          height: { ideal: 600, max: 1080 },
+          width: { ideal: 1920, max: 3840 },
+          height: { ideal: 1080, max: 2160 },
         },
       };
 
@@ -69,11 +69,12 @@ export default function CameraCapture({
         const fallbackConstraints = {
           video: {
             facingMode: facingMode,
-            width: { ideal: 800, max: 1920 },
-            height: { ideal: 600, max: 1080 },
+            width: { ideal: 1920, max: 3840 },
+            height: { ideal: 1080, max: 2160 },
           },
         };
-        mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        mediaStream =
+          await navigator.mediaDevices.getUserMedia(fallbackConstraints);
       }
 
       console.log("Stream obtido:", mediaStream);
@@ -83,10 +84,13 @@ export default function CameraCapture({
         videoRef.current.srcObject = mediaStream;
         videoRef.current.onloadedmetadata = () => {
           if (videoRef.current) {
-            videoRef.current.play().then(() => {
-              setIsLoading(false);
-              console.log("Câmera pronta");
-            }).catch(console.error);
+            videoRef.current
+              .play()
+              .then(() => {
+                setIsLoading(false);
+                console.log("Câmera pronta");
+              })
+              .catch(console.error);
           }
         };
       }
@@ -159,10 +163,10 @@ export default function CameraCapture({
     const currentMode = facingMode;
     const newMode = currentMode === "user" ? "environment" : "user";
     console.log("Alternando câmera de", currentMode, "para", newMode);
-    
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       // Para completamente o stream atual
       if (stream) {
@@ -178,7 +182,7 @@ export default function CameraCapture({
       }
 
       // Aguarda para garantir que o stream foi completamente liberado
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Função inline para iniciar a nova câmera
       const initNewCamera = async (mode: "user" | "environment") => {
@@ -202,7 +206,8 @@ export default function CameraCapture({
               height: { ideal: 600, max: 1080 },
             },
           };
-          mediaStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+          mediaStream =
+            await navigator.mediaDevices.getUserMedia(fallbackConstraints);
         }
 
         return mediaStream;
@@ -218,13 +223,16 @@ export default function CameraCapture({
         videoRef.current.srcObject = mediaStream;
         videoRef.current.onloadedmetadata = () => {
           if (videoRef.current) {
-            videoRef.current.play().then(() => {
-              setIsLoading(false);
-              console.log("Câmera alternada com sucesso para:", newMode);
-            }).catch((playError) => {
-              console.error("Erro ao reproduzir vídeo:", playError);
-              setIsLoading(false);
-            });
+            videoRef.current
+              .play()
+              .then(() => {
+                setIsLoading(false);
+                console.log("Câmera alternada com sucesso para:", newMode);
+              })
+              .catch((playError) => {
+                console.error("Erro ao reproduzir vídeo:", playError);
+                setIsLoading(false);
+              });
           }
         };
       }

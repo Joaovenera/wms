@@ -15,7 +15,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { insertPalletSchema, type Pallet, type InsertPallet } from "@shared/schema";
-import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Eye, QrCode, Printer } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Eye, QrCode, Printer, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CameraCapture from "@/components/camera-capture";
 import QRCodeDialog from "@/components/qr-code-dialog";
@@ -278,19 +278,31 @@ export default function Pallets() {
           <h1 className="text-3xl font-bold text-gray-900">Pallets</h1>
           <p className="text-gray-600">Gerenciamento de pallets do armazém</p>
         </div>
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              onClick={() => {
-                setEditingPallet(null);
-                form.reset();
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Layers
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+              queryClient.refetchQueries({ queryKey: ['/api/pallets'] });
+            }}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Recarregar
+          </Button>
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                onClick={() => {
+                  setEditingPallet(null);
+                  form.reset();
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Layers
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
                 {editingPallet ? "Editar Layers" : "Nova Layers"}
