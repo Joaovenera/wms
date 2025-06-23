@@ -163,25 +163,25 @@ export default function WarehouseMap() {
               </p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-3">
               {Object.entries(streetGroups).map(([street, streetPositions], streetIndex) => (
                 <div 
                   key={street} 
-                  className="border rounded-xl p-4 bg-gradient-to-r from-gray-50 to-slate-50 hover:shadow-md transition-all duration-300"
+                  className="border rounded-lg p-2 bg-gradient-to-r from-gray-50 to-slate-50 hover:shadow-md transition-all duration-300"
                   style={{ 
                     animationDelay: `${streetIndex * 100}ms`,
                     animation: 'fadeInUp 0.6s ease-out forwards'
                   }}
                 >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
                       <Badge 
                         variant="outline" 
-                        className="px-3 py-1 text-sm font-medium bg-white border-blue-200 text-blue-700"
+                        className="px-2 py-0.5 text-xs font-medium bg-white border-blue-200 text-blue-700"
                       >
                         RUA {street}
                       </Badge>
-                      <span className="text-sm text-gray-600">
+                      <span className="text-xs text-gray-600">
                         {streetPositions.length} posições
                       </span>
                     </div>
@@ -189,7 +189,7 @@ export default function WarehouseMap() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setSelectedStreet(selectedStreet === street ? null : street)}
-                      className="text-xs"
+                      className="text-xs h-6"
                     >
                       <Filter className="w-3 h-3 mr-1" />
                       {selectedStreet === street ? 'Ocultar' : 'Filtrar'}
@@ -197,15 +197,15 @@ export default function WarehouseMap() {
                   </div>
 
                   {(!selectedStreet || selectedStreet === street) && (
-                    <div className="grid gap-3">
+                    <div className="grid gap-2">
                       {/* Agrupar por lado */}
                       {['E', 'D'].map(side => {
                         const sidePositions = streetPositions.filter(p => p.side === side);
                         if (sidePositions.length === 0) return null;
 
                         return (
-                          <div key={side} className="space-y-2">
-                            <div className="flex items-center space-x-2 mb-2">
+                          <div key={side} className="space-y-1">
+                            <div className="flex items-center space-x-2 mb-1">
                               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                               <span className="text-sm font-medium text-gray-700">
                                 Lado {side === 'E' ? 'Esquerdo' : 'Direito'}
@@ -215,7 +215,7 @@ export default function WarehouseMap() {
                               </Badge>
                             </div>
                             
-                            <div className="grid grid-cols-[repeat(auto-fit,minmax(100px,1fr))] gap-2">
+                            <div className="grid grid-cols-[repeat(auto-fit,minmax(60px,1fr))] gap-1">
                               {sidePositions
                                 .sort((a, b) => a.position - b.position || Number(a.level) - Number(b.level))
                                 .map((position, index) => {
@@ -224,14 +224,14 @@ export default function WarehouseMap() {
                                     <div
                                       key={position.id}
                                       className={`
-                                        relative cursor-pointer rounded-lg border-2 p-3 transition-all duration-300
-                                        transform hover:scale-105 hover:shadow-lg
-                                        ${statusInfo.color}
-                                        ${hoveredPosition?.id === position.id ? 'ring-2 ring-blue-400' : ''}
+                                        relative cursor-pointer rounded-md border transition-all duration-200
+                                        transform hover:scale-110 hover:shadow-md hover:z-10
+                                        ${statusInfo.color} ${viewMode === 'compact' ? 'p-1.5' : 'p-2'}
+                                        ${hoveredPosition?.id === position.id ? 'ring-2 ring-blue-400 z-20' : ''}
                                       `}
                                       style={{ 
-                                        animationDelay: `${index * 50}ms`,
-                                        animation: 'bounceIn 0.6s ease-out forwards'
+                                        animationDelay: `${index * 30}ms`,
+                                        animation: 'bounceIn 0.4s ease-out forwards'
                                       }}
                                       onClick={() => handlePositionClick(position)}
                                       onMouseEnter={() => setHoveredPosition(position)}
@@ -239,20 +239,29 @@ export default function WarehouseMap() {
                                       title={`${position.code} - ${statusInfo.label}`}
                                     >
                                       <div className="text-center">
-                                        <div className="text-lg mb-1">{statusInfo.icon}</div>
-                                        <div className="text-xs font-semibold text-white">
-                                          {position.code.split('-').slice(-2).join('-')}
-                                        </div>
-                                        {viewMode === 'detailed' && (
-                                          <div className="text-xs text-white/80 mt-1">
-                                            {statusInfo.label}
-                                          </div>
+                                        {viewMode === 'compact' ? (
+                                          <>
+                                            <div className="text-sm">{statusInfo.icon}</div>
+                                            <div className="text-xs font-bold text-white leading-tight">
+                                              {position.code.split('-').slice(-2).join('-')}
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <div className="text-base mb-1">{statusInfo.icon}</div>
+                                            <div className="text-xs font-semibold text-white">
+                                              {position.code.split('-').slice(-2).join('-')}
+                                            </div>
+                                            <div className="text-xs text-white/80 mt-1">
+                                              {statusInfo.label}
+                                            </div>
+                                          </>
                                         )}
                                       </div>
                                       
-                                      {/* Indicador de nível */}
-                                      <div className="absolute top-1 right-1">
-                                        <div className="w-2 h-2 bg-white/30 rounded-full"></div>
+                                      {/* Indicador de nível - menor no modo compacto */}
+                                      <div className="absolute top-0.5 right-0.5">
+                                        <div className={`bg-white/30 rounded-full ${viewMode === 'compact' ? 'w-1.5 h-1.5' : 'w-2 h-2'}`}></div>
                                       </div>
                                     </div>
                                   );
