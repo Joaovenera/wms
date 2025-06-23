@@ -55,7 +55,6 @@ export default function Positions() {
     defaultValues: {
       street: "",
       side: "E",
-      corridor: "",
       position: 1,
       level: 0,
       rackType: "conventional",
@@ -182,7 +181,6 @@ export default function Positions() {
       code: position.code,
       street: position.street,
       side: position.side,
-      corridor: position.corridor || undefined,
       position: position.position,
       level: position.level,
       rackType: position.rackType || "conventional",
@@ -419,20 +417,6 @@ export default function Positions() {
 
                 <FormField
                   control={form.control}
-                  name="corridor"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Corredor (Opcional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="A, B, C..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
                   name="restrictions"
                   render={({ field }) => (
                     <FormItem>
@@ -593,13 +577,6 @@ export default function Positions() {
                     <span className="ml-2 font-medium">{position.level}</span>
                   </div>
                 </div>
-
-                {position.corridor && (
-                  <div className="text-sm">
-                    <span className="text-gray-600">Corredor:</span>
-                    <span className="ml-2 font-medium">{position.corridor}</span>
-                  </div>
-                )}
 
                 <div className="text-sm">
                   <span className="text-gray-600">Tipo:</span>
