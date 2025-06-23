@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import Auth from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import Pallets from "@/pages/pallets";
+import PortaPaletes from "@/pages/porta-paletes";
 import Positions from "@/pages/positions";
 import PalletStructures from "@/pages/pallet-structures";
 import UCPs from "@/pages/ucps";
@@ -54,6 +55,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/pallets" component={Pallets} />
+        <Route path="/porta-paletes" component={PortaPaletes} />
         <Route path="/positions" component={Positions} />
         <Route path="/pallet-structures" component={PalletStructures} />
         <Route path="/ucps" component={UCPs} />

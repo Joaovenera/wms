@@ -72,17 +72,24 @@ export const palletStructures = pgTable("pallet_structures", {
 // Rack positions table - individual storage positions
 export const positions = pgTable("positions", {
   id: serial("id").primaryKey(),
-  code: varchar("code").notNull().unique(), // [1,0], [1,1], [1,2], [1,3] formato
+  code: varchar("code").notNull().unique(), // PP-01-01-0 formato
   structureId: integer("structure_id").references(() => palletStructures.id),
   street: varchar("street").notNull(), // 01, 02, 03...
   side: varchar("side").notNull(), // E (Esquerdo), D (Direito)
+  corridor: varchar("corridor"), // Campo existente no banco
   position: integer("position").notNull(), // 1, 2, 3, 4, 5, 6, 7
   level: integer("level").notNull(), // 0, 1, 2, 3
+  rackType: varchar("rack_type"), // Tipo do rack
+  maxPallets: integer("max_pallets").notNull().default(1), // Máximo de pallets por posição
+  restrictions: text("restrictions"), // Restrições da posição
   status: varchar("status").notNull().default("available"), // available, occupied, reserved, maintenance, blocked
   currentPalletId: integer("current_pallet_id").references(() => pallets.id),
   observations: text("observations"),
+  createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  hasDivision: boolean("has_division").default(false), // Se a posição tem divisão central
+  layoutConfig: jsonb("layout_config"), // Configuração do layout visual
 });
 
 // Products table
@@ -267,6 +274,12 @@ export const insertPalletStructureSchema = createInsertSchema(palletStructures).
 });
 
 export const insertPositionSchema = createInsertSchema(positions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPortaPalletSchema = createInsertSchema(palletStructures).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
