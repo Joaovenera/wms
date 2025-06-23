@@ -210,27 +210,7 @@ export default function Pallets() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'available': return 'bg-success';
-      case 'in_use': return 'bg-destructive';
-      case 'defective': return 'bg-warning';
-      case 'maintenance': return 'bg-primary';
-      case 'discard': return 'bg-gray-500';
-      default: return 'bg-gray-400';
-    }
-  };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'available': return 'Disponível';
-      case 'in_use': return 'Em Uso';
-      case 'defective': return 'Defeituoso';
-      case 'maintenance': return 'Recuperação';
-      case 'discard': return 'Descarte';
-      default: return status;
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -579,66 +559,67 @@ export default function Pallets() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Tipo:</span>
-                    <span className="font-medium">{pallet.type}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Material:</span>
-                    <span className="font-medium">{pallet.material}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Dimensões:</span>
-                    <span className="font-medium">
-                      {pallet.width}×{pallet.length}×{pallet.height}cm
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Carga máx:</span>
-                    <span className="font-medium">{pallet.maxWeight}kg</span>
-                  </div>
-                  {pallet.observations && (
-                    <div className="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
-                      {pallet.observations}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex justify-end space-x-2 mt-4">
-                  {pallet.photoUrl && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowImageViewer(pallet.photoUrl!)}
-                      title="Ver foto"
-                    >
-                      <Image className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleEdit(pallet)}
-                    title="Editar"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDelete(pallet)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                    </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Tipo:</span>
+                          <span className="font-medium">{pallet.type}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Material:</span>
+                          <span className="font-medium">{pallet.material}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Dimensões:</span>
+                          <span className="font-medium">
+                            {pallet.width}×{pallet.length}×{pallet.height}cm
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Carga máx:</span>
+                          <span className="font-medium">{pallet.maxWeight}kg</span>
+                        </div>
+                        {pallet.observations && (
+                          <div className="text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
+                            {pallet.observations}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex justify-end space-x-2 mt-4">
+                        {pallet.photoUrl && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowImageViewer(pallet.photoUrl!)}
+                            title="Ver foto"
+                          >
+                            <Image className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEdit(pallet)}
+                          title="Editar"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDelete(pallet)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
               );
             })}
           </AnimatePresence>
+          
           {filteredPallets.length === 0 && !isLoading && (
             <div className="col-span-full text-center py-12">
               <PalletIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
