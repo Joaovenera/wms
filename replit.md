@@ -212,6 +212,17 @@ Core entities include:
   * Corrected frontend query key format for proper API communication
   * Changed server port from 5000 to 5001 as requested by user
   * All functionality working correctly on new port configuration
+- July 2, 2025. Implemented comprehensive warehouse map visualization with real-time UCP movement tracking:
+  * Created enhanced warehouse map component with 3D-like visual pallet structure representation
+  * Implemented WebSocket-based real-time tracking system for live warehouse monitoring
+  * Added comprehensive position status indicators with hover tooltips and interactive elements
+  * Built real-time UCP movement broadcasting with automatic data refresh capabilities
+  * Created dedicated warehouse tracking page with multiple view modes (map, movements, analytics)
+  * Enhanced navigation with new "Rastreamento" menu item for easy access
+  * Implemented connection status indicators and error handling for WebSocket reliability
+  * Added live activity feed showing real-time updates and movements
+  * Created comprehensive statistics dashboard with occupancy rates and movement tracking
+  * Integrated visual indicators for UCP positions and recent movement activities
 
 ## User Preferences
 

@@ -195,10 +195,27 @@ export default function WarehouseMapEnhanced() {
             <CardTitle className="text-xl font-bold text-gray-800 flex items-center">
               <BarChart3 className="w-5 h-5 mr-2 text-blue-600" />
               Mapa do Armazém - Rastreamento em Tempo Real
-              <Badge variant="outline" className="ml-2">
-                <Activity className="w-3 h-3 mr-1" />
-                Live
+              <Badge 
+                variant="outline" 
+                className={`ml-2 ${isConnected ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}
+              >
+                {isConnected ? (
+                  <>
+                    <Wifi className="w-3 h-3 mr-1" />
+                    Conectado
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-3 h-3 mr-1" />
+                    Desconectado
+                  </>
+                )}
               </Badge>
+              {connectionError && (
+                <Badge variant="destructive" className="ml-2 text-xs">
+                  Erro de conexão
+                </Badge>
+              )}
             </CardTitle>
             <div className="flex items-center space-x-2">
               <Button
@@ -527,56 +544,116 @@ export default function WarehouseMapEnhanced() {
         </TabsContent>
 
         <TabsContent value="movements" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Navigation className="w-5 h-5 mr-2" />
-                Movimentos Recentes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {movements && movements.length > 0 ? (
-                <div className="space-y-3">
-                  {movements.slice(0, 10).map((movement, index) => (
-                    <div 
-                      key={movement.id}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Navigation className="w-5 h-5 text-blue-600" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Recent Movements */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Navigation className="w-5 h-5 mr-2" />
+                  Movimentos Recentes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {movements && movements.length > 0 ? (
+                  <div className="space-y-3">
+                    {movements.slice(0, 10).map((movement, index) => (
+                      <div 
+                        key={movement.id}
+                        className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <Navigation className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">
+                              UCP {movement.ucp?.code || movement.ucpId}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {movement.fromPosition?.code || 'Entrada'} → {movement.toPosition?.code || 'Saída'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {movement.reason}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">
-                            UCP {movement.ucp?.code || movement.ucpId}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {movement.fromPosition?.code || 'Entrada'} → {movement.toPosition?.code || 'Saída'}
+                        <div className="text-right">
+                          <p className="text-sm font-medium">
+                            {new Date(movement.timestamp).toLocaleTimeString('pt-BR')}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {movement.reason}
+                            {new Date(movement.timestamp).toLocaleDateString('pt-BR')}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">
-                          {new Date(movement.timestamp).toLocaleTimeString('pt-BR')}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {new Date(movement.timestamp).toLocaleDateString('pt-BR')}
-                        </p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">Nenhum movimento recente encontrado</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Real-time Updates */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Zap className="w-5 h-5 mr-2" />
+                  Atualizações em Tempo Real
+                  {isConnected && (
+                    <div className="ml-2 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {realtimeUpdates.length > 0 ? (
+                  <div className="space-y-3">
+                    {realtimeUpdates.map((update, index) => (
+                      <div 
+                        key={`${update.timestamp}-${index}`}
+                        className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            {update.type === 'movement_created' && <Navigation className="w-4 h-4 text-blue-600" />}
+                            {update.type === 'ucp_status_changed' && <Package className="w-4 h-4 text-green-600" />}
+                            {update.type === 'position_status_changed' && <MapPin className="w-4 h-4 text-orange-600" />}
+                            {update.type === 'connection' && <Wifi className="w-4 h-4 text-blue-600" />}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">
+                              {update.type === 'movement_created' && 'Novo Movimento'}
+                              {update.type === 'ucp_status_changed' && 'Status UCP Alterado'}
+                              {update.type === 'position_status_changed' && 'Status Posição Alterado'}
+                              {update.type === 'connection' && 'Sistema Conectado'}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              {update.data?.message || 'Atualização recebida'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500">
+                            {new Date(update.timestamp).toLocaleTimeString('pt-BR')}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">Nenhum movimento recente encontrado</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">
+                      {isConnected ? 'Aguardando atualizações...' : 'Conectando ao sistema...'}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
