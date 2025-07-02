@@ -72,15 +72,15 @@ export default function DesktopLayout({ children }: DesktopLayoutProps) {
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                 <span className="text-sm font-medium text-white">
-                  {user?.firstName?.charAt(0) || user?.email?.charAt(0) || "A"}
+                  {(user as any)?.firstName?.charAt(0) || (user as any)?.email?.charAt(0) || "A"}
                 </span>
               </div>
               <div className="text-sm">
                 <div className="font-medium text-gray-700">
-                  {user?.firstName || user?.email || "Admin"}
+                  {(user as any)?.firstName || (user as any)?.email || "Admin"}
                 </div>
                 <div className="text-gray-500 capitalize">
-                  {user?.role || "Administrador"}
+                  {(user as any)?.role || "Administrador"}
                 </div>
               </div>
             </div>

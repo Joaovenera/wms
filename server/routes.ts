@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
 import { scrypt, randomBytes } from "crypto";
@@ -940,5 +941,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Setup WebSocket server for real-time warehouse tracking
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  // Store connected clients
+  const clients = new Set<WebSocket>();
+  
+  wss.on('connection', (ws) => {
+    clients.add(ws);
+    console.log('New WebSocket client connected. Total clients:', clients.size);
+    
+    // Send initial connection confirmation
+    ws.send(JSON.stringify({
+      type: 'connection',
+      message: 'Connected to warehouse tracking system',
+      timestamp: new Date().toISOString()
+    }));
+    
+    ws.on('close', () => {
+      clients.delete(ws);
+      console.log('WebSocket client disconnected. Total clients:', clients.size);
+    });
+    
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      clients.delete(ws);
+    });
+  });
+  
+  // Broadcast function for real-time updates
+  function broadcastUpdate(type: string, data: any) {
+    const message = JSON.stringify({
+      type,
+      data,
+      timestamp: new Date().toISOString()
+    });
+    
+    clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  }
+  
+  // Enhance movement creation to broadcast real-time updates
+  const originalMovementPost = app._router.stack.find((layer: any) => 
+    layer.route && layer.route.path === '/api/movements' && layer.route.methods.post
+  );
+  
+  // Add real-time movement broadcasting
+  app.post('/api/movements/realtime', isAuthenticated, async (req: any, res) => {
+    try {
+      const result = insertMovementSchema.safeParse({
+        ...req.body,
+        performedBy: req.user.id,
+      });
+      
+      if (!result.success) {
+        const validationError = fromZodError(result.error);
+        return res.status(400).json({ message: validationError.message });
+      }
+
+      const movement = await storage.createMovement(result.data);
+      
+      // Broadcast real-time update to all connected clients
+      broadcastUpdate('movement_created', {
+        movement,
+        user: req.user,
+        message: 'New movement recorded'
+      });
+      
+      res.status(201).json(movement);
+    } catch (error) {
+      console.error("Error creating real-time movement:", error);
+      res.status(500).json({ message: "Failed to create movement" });
+    }
+  });
+  
+  // Add real-time UCP status updates
+  app.patch('/api/ucps/:id/status/realtime', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status, reason } = req.body;
+      
+      const ucp = await storage.updateUcp(id, { status });
+      if (!ucp) {
+        return res.status(404).json({ message: "UCP not found" });
+      }
+      
+      // Broadcast real-time update
+      broadcastUpdate('ucp_status_changed', {
+        ucpId: id,
+        oldStatus: req.body.oldStatus,
+        newStatus: status,
+        reason,
+        user: req.user,
+        timestamp: new Date().toISOString()
+      });
+      
+      res.json(ucp);
+    } catch (error) {
+      console.error("Error updating UCP status:", error);
+      res.status(500).json({ message: "Failed to update UCP status" });
+    }
+  });
+  
+  // Add real-time position status updates
+  app.patch('/api/positions/:id/status/realtime', isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status, reason } = req.body;
+      
+      const position = await storage.updatePosition(id, { status });
+      if (!position) {
+        return res.status(404).json({ message: "Position not found" });
+      }
+      
+      // Broadcast real-time update
+      broadcastUpdate('position_status_changed', {
+        positionId: id,
+        oldStatus: req.body.oldStatus,
+        newStatus: status,
+        reason,
+        user: req.user,
+        timestamp: new Date().toISOString()
+      });
+      
+      res.json(position);
+    } catch (error) {
+      console.error("Error updating position status:", error);
+      res.status(500).json({ message: "Failed to update position status" });
+    }
+  });
+  
   return httpServer;
 }

@@ -17,9 +17,12 @@ import {
   TrendingUp,
   Clock,
   Navigation,
-  Filter
+  Filter,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import { Position, Ucp, Pallet } from "@shared/schema";
+import { useRealtimeWarehouse } from "@/hooks/useRealtimeWarehouse";
 
 interface UcpWithDetails extends Ucp {
   pallet?: Pallet;
@@ -83,6 +86,10 @@ export default function WarehouseMapEnhanced() {
   const [showUcpDetails, setShowUcpDetails] = useState(true);
   const [showMovements, setShowMovements] = useState(true);
   const [activeTab, setActiveTab] = useState("map");
+  const [realtimeUpdates, setRealtimeUpdates] = useState<any[]>([]);
+
+  // Real-time WebSocket connection
+  const { isConnected, lastUpdate, connectionError } = useRealtimeWarehouse();
 
   // Fetch positions with real-time updates
   const { data: positions, isLoading: positionsLoading, refetch: refetchPositions } = useQuery<Position[]>({
@@ -102,16 +109,30 @@ export default function WarehouseMapEnhanced() {
     refetchInterval: 5000 // Most frequent for movement tracking
   });
 
-  // Auto-refresh all data
+  // Handle real-time updates
+  useEffect(() => {
+    if (lastUpdate) {
+      setRealtimeUpdates(prev => [lastUpdate, ...prev.slice(0, 9)]); // Keep last 10 updates
+      
+      // Force refresh data when receiving updates
+      setTimeout(() => {
+        refetchPositions();
+        refetchUcps();
+        refetchMovements();
+      }, 500);
+    }
+  }, [lastUpdate, refetchPositions, refetchUcps, refetchMovements]);
+
+  // Auto-refresh all data (less frequent when WebSocket is connected)
   useEffect(() => {
     const interval = setInterval(() => {
       refetchPositions();
       refetchUcps();
       refetchMovements();
-    }, 15000);
+    }, isConnected ? 30000 : 15000); // 30s when connected, 15s when not
 
     return () => clearInterval(interval);
-  }, [refetchPositions, refetchUcps, refetchMovements]);
+  }, [refetchPositions, refetchUcps, refetchMovements, isConnected]);
 
   const handlePositionClick = (position: Position) => {
     setSelectedPosition(position);
