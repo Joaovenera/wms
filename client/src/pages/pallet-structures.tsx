@@ -283,29 +283,29 @@ export default function PalletStructures() {
                   />
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="rackType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo de Estrutura</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="conventional">Convencional</SelectItem>
-                          <SelectItem value="drive-in">Drive-in</SelectItem>
-                          <SelectItem value="push-back">Push-back</SelectItem>
-                          <SelectItem value="cantilever">Cantilever</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                                  <FormField
+                    control={form.control}
+                    name="rackType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de Estrutura</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="conventional">Convencional</SelectItem>
+                            <SelectItem value="drive-in">Drive-in</SelectItem>
+                            <SelectItem value="push-back">Push-back</SelectItem>
+                            <SelectItem value="cantilever">Cantilever</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                 <FormField
                   control={form.control}
@@ -470,7 +470,7 @@ export default function PalletStructures() {
         palletCode={qrCodeDialog.structure?.name || ""}
         palletData={qrCodeDialog.structure ? {
           code: qrCodeDialog.structure.name,
-          type: "Porta-Pallet",
+          type: "PORTA-PALLET",
           material: `Rua ${qrCodeDialog.structure.street} - Lado ${qrCodeDialog.structure.side === 'E' ? 'Esquerdo' : 'Direito'}`,
           dimensions: `${qrCodeDialog.structure.maxPositions} posições x ${qrCodeDialog.structure.maxLevels} níveis`,
           maxWeight: `${qrCodeDialog.structure.maxPositions * qrCodeDialog.structure.maxLevels} vagas totais`

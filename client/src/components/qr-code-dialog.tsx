@@ -33,12 +33,17 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
       let itemType = "PALLET";
       if (palletCode.startsWith('UCP-')) {
         itemType = "UCP";
-      } else if (palletCode.startsWith('PP-')) {
-        itemType = "PORTA-PALLET";
       } else if (palletCode.includes('Porta-Pallet')) {
         itemType = "PORTA-PALLET";
-      } else if (palletCode.startsWith('PLT')) {
+      }else if (palletCode.startsWith('PP-')) {
+        itemType = "PORTA-PALLET";
+      }  else if (palletCode.startsWith('PLT')) {
         itemType = "PALLET";
+      }
+      
+      // Se temos dados específicos do pallet, usar o tipo fornecido
+      if (palletData && palletData.type) {
+        itemType = palletData.type;
       }
       
       // Gerar QR code com dados do item

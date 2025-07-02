@@ -206,6 +206,12 @@ Core entities include:
   * Implemented real-time statistics dashboard with animated UI components
   * Added automatic data refresh system with 30-second polling intervals
   * Enhanced user interface with gradient cards, animations, and status indicators
+- June 24, 2025. Fixed UCP history viewer and changed server port:
+  * Resolved UCP history display issues with proper data formatting and null safety
+  * Fixed API endpoint for UCP history with simplified SQL queries and error handling
+  * Corrected frontend query key format for proper API communication
+  * Changed server port from 5000 to 5001 as requested by user
+  * All functionality working correctly on new port configuration
 
 ## User Preferences
 

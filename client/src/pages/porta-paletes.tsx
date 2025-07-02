@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -107,6 +107,41 @@ export default function PortaPaletes() {
     },
   });
 
+  // Mutation para atualizar estrutura
+  const updateMutation = useMutation({
+    mutationFn: async (data: { id: number; data: PortaPalletForm }) => {
+      if (!user || !(user as any).id) throw new Error("Usuário não autenticado");
+      
+      // Gerar nome automaticamente
+      const sideText = data.data.side === "E" ? "Esquerdo" : "Direito";
+      const structureData = {
+        ...data.data,
+        name: `Porta-Pallet Rua ${data.data.street} Lado ${sideText}`,
+        updatedBy: (user as any).id,
+      };
+      
+      const response = await apiRequest('PUT', `/api/pallet-structures/${data.id}`, structureData);
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/pallet-structures'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
+      toast({
+        title: "Sucesso",
+        description: "Porta-Pallet atualizado com sucesso.",
+      });
+      setEditingStructure(null);
+      form.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao atualizar porta-pallet",
+        variant: "destructive",
+      });
+    },
+  });
+
   const form = useForm<PortaPalletForm>({
     resolver: zodResolver(portaPalletFormSchema),
     defaultValues: {
@@ -120,8 +155,37 @@ export default function PortaPaletes() {
     },
   });
 
+  // Preencher formulário quando uma estrutura for selecionada para edição
+  useEffect(() => {
+    if (editingStructure) {
+      form.reset({
+        street: editingStructure.street,
+        side: editingStructure.side as "E" | "D",
+        maxPositions: editingStructure.maxPositions,
+        maxLevels: editingStructure.maxLevels,
+        rackType: editingStructure.rackType || "conventional",
+        status: editingStructure.status || "active",
+        observations: editingStructure.observations || "",
+      });
+    } else {
+      form.reset({
+        street: "",
+        side: "E" as const,
+        maxPositions: 10,
+        maxLevels: 5,
+        rackType: "conventional",
+        status: "active",
+        observations: "",
+      });
+    }
+  }, [editingStructure, form]);
+
   const onSubmit = (data: PortaPalletForm) => {
-    createMutation.mutate(data);
+    if (editingStructure) {
+      updateMutation.mutate({ id: editingStructure.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
   };
 
   const handleDelete = (structure: PalletStructure) => {
@@ -321,6 +385,169 @@ export default function PortaPaletes() {
         </div>
       </div>
 
+      {/* Dialog de Edição */}
+      <Dialog open={!!editingStructure} onOpenChange={(open) => !open && setEditingStructure(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Porta-Pallet</DialogTitle>
+            <DialogDescription>
+              Modifique as configurações da estrutura de porta-pallet.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="street"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rua</FormLabel>
+                      <FormControl>
+                        <Input placeholder="01" {...field} maxLength={2} />
+                      </FormControl>
+                      <FormDescription>
+                        Número da rua (2 dígitos, ex: 01, 02)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="side"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Lado</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o lado" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="E">E - Esquerdo (Ímpares)</SelectItem>
+                          <SelectItem value="D">D - Direito (Pares)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Lado da rua para posicionamento
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="maxPositions"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Número de Posições</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          max={20} 
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Posições horizontais na estrutura
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="maxLevels"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Número de Níveis</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          min={0} 
+                          max={10} 
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Níveis verticais (onde 0 = térreo)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="rackType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Rack</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o tipo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="conventional">Convencional</SelectItem>
+                        <SelectItem value="drive-in">Drive-in</SelectItem>
+                        <SelectItem value="push-back">Push-back</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="observations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observações</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Observações sobre a estrutura..." {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Separator />
+
+              <div className="flex justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditingStructure(null)}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={updateMutation.isPending}
+                >
+                  {updateMutation.isPending ? "Atualizando..." : "Atualizar Porta-Pallet"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
@@ -442,7 +669,7 @@ export default function PortaPaletes() {
         palletCode={qrCodeDialog.structure ? `STRUCTURE-${qrCodeDialog.structure.id}` : ""}
         palletData={qrCodeDialog.structure ? {
           code: `STRUCTURE-${qrCodeDialog.structure.id}`,
-          type: "Porta-Pallet",
+          type: "PORTA-PALLET",
           material: qrCodeDialog.structure.name,
           dimensions: `${qrCodeDialog.structure.maxPositions} posições x ${qrCodeDialog.structure.maxLevels + 1} níveis`,
           maxWeight: `Tipo: ${qrCodeDialog.structure.rackType || "Convencional"}`

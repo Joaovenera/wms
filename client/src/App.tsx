@@ -15,6 +15,7 @@ import PalletStructures from "@/pages/pallet-structures";
 import UCPs from "@/pages/ucps";
 import Products from "@/pages/products";
 import Users from "@/pages/users";
+import WarehouseTracking from "@/pages/warehouse-tracking";
 import MobileHome from "@/pages/mobile/home";
 import MobileScanner from "@/pages/mobile/scanner";
 import MobilePallets from "@/pages/mobile/pallets";
@@ -61,6 +62,7 @@ function Router() {
         <Route path="/ucps" component={UCPs} />
         <Route path="/products" component={Products} />
         <Route path="/users" component={Users} />
+        <Route path="/warehouse-tracking" component={WarehouseTracking} />
         <Route component={NotFound} />
       </Switch>
     </DesktopLayout>

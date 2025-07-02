@@ -14,7 +14,8 @@ import {
   FileText,
   Bell,
   Settings,
-  LogOut
+  LogOut,
+  Activity
 } from "lucide-react";
 
 interface DesktopLayoutProps {
@@ -33,6 +34,7 @@ export default function DesktopLayout({ children }: DesktopLayoutProps) {
     { name: "Estruturas", href: "/pallet-structures", icon: Building2 },
     { name: "UCPs", href: "/ucps", icon: Box },
     { name: "Produtos", href: "/products", icon: Package2 },
+    { name: "Rastreamento", href: "/warehouse-tracking", icon: Activity },
     { name: "Relatórios", href: "/reports", icon: FileText },
     { name: "Usuários", href: "/users", icon: Users },
   ];
