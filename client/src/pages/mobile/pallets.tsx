@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
   Search,
@@ -190,15 +189,22 @@ export default function MobilePallets() {
     queryKey: ["/api/pallets"],
   });
 
-  // Atualização automática quando filtros mudam
+  // Debounce otimizado para busca
   useEffect(() => {
-    const timer = setTimeout(() => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pallets"] });
-      refetch();
-    }, 300); // Debounce de 300ms
+    // Só faz busca se o termo tem pelo menos 2 caracteres ou está vazio
+    if (searchTerm.length >= 2 || searchTerm.length === 0) {
+      const timer = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/pallets"] });
+      }, 500); // Debounce de 500ms para reduzir chamadas
 
-    return () => clearTimeout(timer);
-  }, [searchTerm, statusFilter, refetch]);
+      return () => clearTimeout(timer);
+    }
+  }, [searchTerm]);
+
+  // Filtro de status separado sem debounce
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/pallets"] });
+  }, [statusFilter]);
 
   // Função para forçar atualização
   const forceRefresh = () => {
@@ -277,18 +283,21 @@ export default function MobilePallets() {
     },
   });
 
-  const filteredPallets =
-    pallets?.filter((pallet) => {
-      const matchesSearch =
+  // Filtros otimizados com useMemo para evitar re-renderizações desnecessárias
+  const filteredPallets = useMemo(() => {
+    if (!pallets) return [];
+    
+    return pallets.filter((pallet) => {
+      const matchesSearch = searchTerm.length < 2 || 
         pallet.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pallet.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pallet.material.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesStatus =
-        statusFilter === "all" || pallet.status === statusFilter;
+      const matchesStatus = statusFilter === "all" || pallet.status === statusFilter;
 
       return matchesSearch && matchesStatus;
-    }) || [];
+    });
+  }, [pallets, searchTerm, statusFilter]);
 
   const handleCameraCapture = (imageData: string) => {
     if (imageData && imageData !== "data:,") {
@@ -306,7 +315,7 @@ export default function MobilePallets() {
     }
   };
 
-  const handleEdit = (pallet: Pallet) => {
+  const handleEdit = useCallback((pallet: Pallet) => {
     setEditingPallet(pallet);
     form.reset({
       code: pallet.code,
@@ -323,21 +332,21 @@ export default function MobilePallets() {
     });
     setPhotoPreview(pallet.photoUrl);
     setIsCreateOpen(true);
-  };
+  }, [form]);
 
-  const handleDelete = (pallet: Pallet) => {
+  const handleDelete = useCallback((pallet: Pallet) => {
     if (confirm(`Tem certeza que deseja excluir o pallet ${pallet.code}?`)) {
       deleteMutation.mutate(pallet.id);
     }
-  };
+  }, [deleteMutation]);
 
-  const handleShowQRCode = (pallet: Pallet) => {
+  const handleShowQRCode = useCallback((pallet: Pallet) => {
     setQrCodeDialog({ isOpen: true, pallet });
-  };
+  }, []);
 
-  const handleCloseQRCode = () => {
+  const handleCloseQRCode = useCallback(() => {
     setQrCodeDialog({ isOpen: false, pallet: null });
-  };
+  }, []);
 
   return (
     <div className="p-4 space-y-4">
@@ -699,100 +708,88 @@ export default function MobilePallets() {
         </div>
       ) : (
         <div className="space-y-3">
-          <AnimatePresence>
-            {filteredPallets.map((pallet, index) => {
-              const statusInfo = getStatusInfo(pallet.status);
-              const StatusIcon = statusInfo.icon;
+          {filteredPallets.map((pallet, index) => {
+            const statusInfo = getStatusInfo(pallet.status);
+            const StatusIcon = statusInfo.icon;
 
-              return (
-                <motion.div
-                  key={pallet.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{
-                    duration: 0.3,
-                    delay: index * 0.1,
-                  }}
-                >
-                  <Card className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h3 className="font-semibold text-lg">
-                            {pallet.code}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {pallet.type} • {pallet.material}
-                          </p>
-                        </div>
-                        <Badge
-                          className={`${statusInfo.color} border text-xs px-2 py-1`}
-                        >
-                          <StatusIcon
-                            className={`h-3 w-3 mr-1 ${statusInfo.iconColor}`}
-                          />
-                          {statusInfo.label}
-                        </Badge>
-                      </div>
+            return (
+              <Card key={pallet.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold text-lg">
+                        {pallet.code}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {pallet.type} • {pallet.material}
+                      </p>
+                    </div>
+                    <Badge
+                      className={`${statusInfo.color} border text-xs px-2 py-1`}
+                    >
+                      <StatusIcon
+                        className={`h-3 w-3 mr-1 ${statusInfo.iconColor}`}
+                      />
+                      {statusInfo.label}
+                    </Badge>
+                  </div>
 
-                      <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
-                        <div>
-                          <span className="text-gray-500">Dimensões:</span>
-                          <p className="font-medium">
-                            {pallet.width}×{pallet.length}×{pallet.height}cm
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Peso Máx:</span>
-                          <p className="font-medium">{pallet.maxWeight}kg</p>
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+                    <div>
+                      <span className="text-gray-500">Dimensões:</span>
+                      <p className="font-medium">
+                        {pallet.width}×{pallet.length}×{pallet.height}cm
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Peso Máx:</span>
+                      <p className="font-medium">{pallet.maxWeight}kg</p>
+                    </div>
+                  </div>
 
-                      {pallet.photoUrl && (
-                        <div className="mb-3">
-                          <img
-                            src={pallet.photoUrl}
-                            alt={`Foto do pallet ${pallet.code}`}
-                            className="w-full h-24 object-cover rounded-lg cursor-pointer"
-                            onClick={() => setShowImageViewer(pallet.photoUrl!)}
-                          />
-                        </div>
-                      )}
+                  {pallet.photoUrl && (
+                    <div className="mb-3">
+                      <img
+                        src={pallet.photoUrl}
+                        alt={`Foto do pallet ${pallet.code}`}
+                        className="w-full h-24 object-cover rounded-lg cursor-pointer"
+                        onClick={() => setShowImageViewer(pallet.photoUrl!)}
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
 
-                      <div className="flex justify-end space-x-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleShowQRCode(pallet)}
-                          title="QR Code"
-                        >
-                          <QrCode className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEdit(pallet)}
-                          title="Editar"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDelete(pallet)}
-                          disabled={deleteMutation.isPending}
-                          title="Excluir"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                  <div className="flex justify-end space-x-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleShowQRCode(pallet)}
+                      title="QR Code"
+                    >
+                      <QrCode className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEdit(pallet)}
+                      title="Editar"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDelete(pallet)}
+                      disabled={deleteMutation.isPending}
+                      title="Excluir"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
 
           {filteredPallets.length === 0 && (
             <div className="text-center py-8 text-gray-500">

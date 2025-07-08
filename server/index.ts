@@ -1,10 +1,46 @@
 import express, { type Request, Response, NextFunction } from "express";
+import compression from "compression";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// Enable compression for all responses
+app.use(compression({
+  filter: (req, res) => {
+    // Compress all responses unless explicitly disabled
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6, // Balanced compression level
+  threshold: 1024, // Only compress responses larger than 1KB
+}));
+
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: false, limit: '100mb' }));
+
+// Cache optimization middleware
+app.use((req, res, next) => {
+  // Set cache headers for static assets
+  if (req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+    // Cache static assets for 1 year
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  } else if (req.path.startsWith('/api/')) {
+    // API responses - cache for 5 minutes with revalidation
+    res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+    res.setHeader('ETag', `W/"${Date.now()}"`);
+  } else {
+    // HTML and other dynamic content - cache for 1 hour with revalidation
+    res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+  }
+  
+  // Enable compression
+  res.setHeader('Vary', 'Accept-Encoding');
+  
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
