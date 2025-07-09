@@ -1,0 +1,2 @@
+# Ignora todos os arquivos .env, exceto o principal
+!.env

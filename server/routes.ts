@@ -1,8 +1,30 @@
+import { Router } from "express";
 import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
+import { z } from "zod";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
+import { isAuthenticated as replitAuth } from "./replitAuth";
+import { 
+  isAuthenticated as localAuth, 
+  requireAdmin, 
+  requireManagerOrAdmin, 
+  requireUser 
+} from "./middleware/auth.middleware";
+import { logError, logInfo, logWarn } from "./utils/logger";
+import { validateRequestBody, ValidationError } from "./utils/validation";
+import { 
+  insertPalletSchema, 
+  insertPositionSchema, 
+  insertProductSchema, 
+  insertUcpSchema, 
+  insertUcpItemSchema, 
+  insertMovementSchema, 
+  insertPalletStructureSchema, 
+  insertUserSchema 
+} from "@shared/schema";
+import { fromZodError } from "zod-validation-error";
+import { WebSocketServer } from "ws";
+import { createServer, type Server } from "http";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 
@@ -13,17 +35,6 @@ async function hashPassword(password: string): Promise<string> {
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;
   return `${buf.toString("hex")}.${salt}`;
 }
-import {
-  insertPalletSchema,
-  insertPositionSchema,
-  insertProductSchema,
-  insertUcpSchema,
-  insertUcpItemSchema,
-  insertMovementSchema,
-  insertUserSchema,
-  insertPalletStructureSchema,
-} from "@shared/schema";
-import { fromZodError } from "zod-validation-error";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware

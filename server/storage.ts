@@ -38,6 +38,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: number): Promise<boolean>;
+  upsertUser(user: Omit<InsertUser, 'id'>): Promise<User>;
 
   // Pallet operations
   getPallets(): Promise<Pallet[]>;
@@ -153,6 +154,28 @@ export class DatabaseStorage implements IStorage {
   async deleteUser(id: number): Promise<boolean> {
     const result = await db.delete(users).where(eq(users.id, id));
     return (result.rowCount || 0) > 0;
+  }
+
+  async upsertUser(user: Omit<InsertUser, 'id'>): Promise<User> {
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, user.email));
+
+    if (existingUser) {
+      const [updatedUser] = await db
+        .update(users)
+        .set({ ...user, updatedAt: new Date() })
+        .where(eq(users.id, existingUser.id))
+        .returning();
+      return updatedUser;
+    } else {
+      const [newUser] = await db
+        .insert(users)
+        .values(user)
+        .returning();
+      return newUser;
+    }
   }
 
   // Pallet operations
@@ -296,57 +319,285 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUcp(id: number): Promise<(Ucp & { pallet?: Pallet; position?: Position; items?: (UcpItem & { product?: Product })[] }) | undefined> {
-    const [ucpData] = await db
-      .select()
+    // Use a single query with JOINs to get all data at once
+    const result = await db
+      .select({
+        // UCP fields
+        ucpId: ucps.id,
+        ucpCode: ucps.code,
+        ucpStatus: ucps.status,
+        ucpPalletId: ucps.palletId,
+        ucpPositionId: ucps.positionId,
+        ucpCreatedBy: ucps.createdBy,
+        ucpCreatedAt: ucps.createdAt,
+        ucpUpdatedAt: ucps.updatedAt,
+        
+        // Pallet fields
+        palletId: pallets.id,
+        palletCode: pallets.code,
+        palletStatus: pallets.status,
+        palletType: pallets.type,
+        palletMaxWeight: pallets.maxWeight,
+        palletCurrentWeight: pallets.currentWeight,
+        palletCreatedAt: pallets.createdAt,
+        palletUpdatedAt: pallets.updatedAt,
+        
+        // Position fields
+        positionId: positions.id,
+        positionCode: positions.code,
+        positionStatus: positions.status,
+        positionStreet: positions.street,
+        positionSide: positions.side,
+        positionLevel: positions.level,
+        positionPosition: positions.position,
+        positionCreatedAt: positions.createdAt,
+        positionUpdatedAt: positions.updatedAt,
+        
+        // UCP Item fields
+        itemId: ucpItems.id,
+        itemQuantity: ucpItems.quantity,
+        itemIsActive: ucpItems.isActive,
+        itemAddedBy: ucpItems.addedBy,
+        itemAddedAt: ucpItems.addedAt,
+        itemRemovedBy: ucpItems.removedBy,
+        itemRemovedAt: ucpItems.removedAt,
+        itemRemovalReason: ucpItems.removalReason,
+        
+        // Product fields
+        productId: products.id,
+        productSku: products.sku,
+        productName: products.name,
+        productDescription: products.description,
+        productWeight: products.weight,
+        productIsActive: products.isActive,
+        productCreatedAt: products.createdAt,
+        productUpdatedAt: products.updatedAt,
+      })
       .from(ucps)
       .leftJoin(pallets, eq(ucps.palletId, pallets.id))
       .leftJoin(positions, eq(ucps.positionId, positions.id))
+      .leftJoin(ucpItems, eq(ucps.id, ucpItems.ucpId))
+      .leftJoin(products, eq(ucpItems.productId, products.id))
       .where(eq(ucps.id, id));
 
-    if (!ucpData) return undefined;
+    if (result.length === 0) return undefined;
 
-    const items = await db
-      .select()
-      .from(ucpItems)
-      .leftJoin(products, eq(ucpItems.productId, products.id))
-      .where(eq(ucpItems.ucpId, id))
-      .then(rows => rows.map(row => ({
-        ...row.ucp_items,
-        product: row.products || undefined,
-      })));
+    const firstRow = result[0];
+    
+    // Build the UCP object
+    const ucp: Ucp = {
+      id: firstRow.ucpId,
+      code: firstRow.ucpCode,
+      status: firstRow.ucpStatus,
+      palletId: firstRow.ucpPalletId,
+      positionId: firstRow.ucpPositionId,
+      createdBy: firstRow.ucpCreatedBy,
+      createdAt: firstRow.ucpCreatedAt,
+      updatedAt: firstRow.ucpUpdatedAt,
+    };
+
+    // Build the pallet object if exists
+    const pallet = firstRow.palletId ? {
+      id: firstRow.palletId,
+      code: firstRow.palletCode,
+      status: firstRow.palletStatus,
+      type: firstRow.palletType,
+      maxWeight: firstRow.palletMaxWeight,
+      currentWeight: firstRow.palletCurrentWeight,
+      createdAt: firstRow.palletCreatedAt,
+      updatedAt: firstRow.palletUpdatedAt,
+    } : undefined;
+
+    // Build the position object if exists
+    const position = firstRow.positionId ? {
+      id: firstRow.positionId,
+      code: firstRow.positionCode,
+      status: firstRow.positionStatus,
+      street: firstRow.positionStreet,
+      side: firstRow.positionSide,
+      level: firstRow.positionLevel,
+      position: firstRow.positionPosition,
+      createdAt: firstRow.positionCreatedAt,
+      updatedAt: firstRow.positionUpdatedAt,
+    } : undefined;
+
+    // Build the items array
+    const itemsMap = new Map();
+    result.forEach(row => {
+      if (row.itemId && !itemsMap.has(row.itemId)) {
+        itemsMap.set(row.itemId, {
+          id: row.itemId,
+          ucpId: row.ucpId,
+          productId: row.productId,
+          quantity: row.itemQuantity,
+          isActive: row.itemIsActive,
+          addedBy: row.itemAddedBy,
+          addedAt: row.itemAddedAt,
+          removedBy: row.itemRemovedBy,
+          removedAt: row.itemRemovedAt,
+          removalReason: row.itemRemovalReason,
+          product: row.productId ? {
+            id: row.productId,
+            sku: row.productSku,
+            name: row.productName,
+            description: row.productDescription,
+            weight: row.productWeight,
+            isActive: row.productIsActive,
+            createdAt: row.productCreatedAt,
+            updatedAt: row.productUpdatedAt,
+          } : undefined,
+        });
+      }
+    });
+
+    const items = Array.from(itemsMap.values());
 
     return {
-      ...ucpData.ucps,
-      pallet: ucpData.pallets || undefined,
-      position: ucpData.positions || undefined,
+      ...ucp,
+      pallet,
+      position,
       items,
     };
   }
 
   async getUcpByCode(code: string): Promise<(Ucp & { pallet?: Pallet; position?: Position; items?: (UcpItem & { product?: Product })[] }) | undefined> {
-    const [ucpData] = await db
-      .select()
+    // Use a single query with JOINs to get all data at once
+    const result = await db
+      .select({
+        // UCP fields
+        ucpId: ucps.id,
+        ucpCode: ucps.code,
+        ucpStatus: ucps.status,
+        ucpPalletId: ucps.palletId,
+        ucpPositionId: ucps.positionId,
+        ucpCreatedBy: ucps.createdBy,
+        ucpCreatedAt: ucps.createdAt,
+        ucpUpdatedAt: ucps.updatedAt,
+        
+        // Pallet fields
+        palletId: pallets.id,
+        palletCode: pallets.code,
+        palletStatus: pallets.status,
+        palletType: pallets.type,
+        palletMaxWeight: pallets.maxWeight,
+        palletCurrentWeight: pallets.currentWeight,
+        palletCreatedAt: pallets.createdAt,
+        palletUpdatedAt: pallets.updatedAt,
+        
+        // Position fields
+        positionId: positions.id,
+        positionCode: positions.code,
+        positionStatus: positions.status,
+        positionStreet: positions.street,
+        positionSide: positions.side,
+        positionLevel: positions.level,
+        positionPosition: positions.position,
+        positionCreatedAt: positions.createdAt,
+        positionUpdatedAt: positions.updatedAt,
+        
+        // UCP Item fields
+        itemId: ucpItems.id,
+        itemQuantity: ucpItems.quantity,
+        itemIsActive: ucpItems.isActive,
+        itemAddedBy: ucpItems.addedBy,
+        itemAddedAt: ucpItems.addedAt,
+        itemRemovedBy: ucpItems.removedBy,
+        itemRemovedAt: ucpItems.removedAt,
+        itemRemovalReason: ucpItems.removalReason,
+        
+        // Product fields
+        productId: products.id,
+        productSku: products.sku,
+        productName: products.name,
+        productDescription: products.description,
+        productWeight: products.weight,
+        productIsActive: products.isActive,
+        productCreatedAt: products.createdAt,
+        productUpdatedAt: products.updatedAt,
+      })
       .from(ucps)
       .leftJoin(pallets, eq(ucps.palletId, pallets.id))
       .leftJoin(positions, eq(ucps.positionId, positions.id))
+      .leftJoin(ucpItems, eq(ucps.id, ucpItems.ucpId))
+      .leftJoin(products, eq(ucpItems.productId, products.id))
       .where(eq(ucps.code, code));
 
-    if (!ucpData) return undefined;
+    if (result.length === 0) return undefined;
 
-    const items = await db
-      .select()
-      .from(ucpItems)
-      .leftJoin(products, eq(ucpItems.productId, products.id))
-      .where(eq(ucpItems.ucpId, ucpData.ucps.id))
-      .then(rows => rows.map(row => ({
-        ...row.ucp_items,
-        product: row.products || undefined,
-      })));
+    const firstRow = result[0];
+    
+    // Build the UCP object
+    const ucp: Ucp = {
+      id: firstRow.ucpId,
+      code: firstRow.ucpCode,
+      status: firstRow.ucpStatus,
+      palletId: firstRow.ucpPalletId,
+      positionId: firstRow.ucpPositionId,
+      createdBy: firstRow.ucpCreatedBy,
+      createdAt: firstRow.ucpCreatedAt,
+      updatedAt: firstRow.ucpUpdatedAt,
+    };
+
+    // Build the pallet object if exists
+    const pallet = firstRow.palletId ? {
+      id: firstRow.palletId,
+      code: firstRow.palletCode,
+      status: firstRow.palletStatus,
+      type: firstRow.palletType,
+      maxWeight: firstRow.palletMaxWeight,
+      currentWeight: firstRow.palletCurrentWeight,
+      createdAt: firstRow.palletCreatedAt,
+      updatedAt: firstRow.palletUpdatedAt,
+    } : undefined;
+
+    // Build the position object if exists
+    const position = firstRow.positionId ? {
+      id: firstRow.positionId,
+      code: firstRow.positionCode,
+      status: firstRow.positionStatus,
+      street: firstRow.positionStreet,
+      side: firstRow.positionSide,
+      level: firstRow.positionLevel,
+      position: firstRow.positionPosition,
+      createdAt: firstRow.positionCreatedAt,
+      updatedAt: firstRow.positionUpdatedAt,
+    } : undefined;
+
+    // Build the items array
+    const itemsMap = new Map();
+    result.forEach(row => {
+      if (row.itemId && !itemsMap.has(row.itemId)) {
+        itemsMap.set(row.itemId, {
+          id: row.itemId,
+          ucpId: row.ucpId,
+          productId: row.productId,
+          quantity: row.itemQuantity,
+          isActive: row.itemIsActive,
+          addedBy: row.itemAddedBy,
+          addedAt: row.itemAddedAt,
+          removedBy: row.itemRemovedBy,
+          removedAt: row.itemRemovedAt,
+          removalReason: row.itemRemovalReason,
+          product: row.productId ? {
+            id: row.productId,
+            sku: row.productSku,
+            name: row.productName,
+            description: row.productDescription,
+            weight: row.productWeight,
+            isActive: row.productIsActive,
+            createdAt: row.productCreatedAt,
+            updatedAt: row.productUpdatedAt,
+          } : undefined,
+        });
+      }
+    });
+
+    const items = Array.from(itemsMap.values());
 
     return {
-      ...ucpData.ucps,
-      pallet: ucpData.pallets || undefined,
-      position: ucpData.positions || undefined,
+      ...ucp,
+      pallet,
+      position,
       items,
     };
   }
@@ -372,121 +623,148 @@ export class DatabaseStorage implements IStorage {
 
   // Enhanced UCP operations for comprehensive lifecycle management
   async createUcpWithHistory(ucp: InsertUcp, userId: number): Promise<Ucp> {
-    const [newUcp] = await db.insert(ucps).values(ucp).returning();
-    
-    // Create initial history entry
-    await this.addUcpHistoryEntry({
-      ucpId: newUcp.id,
-      action: "created",
-      description: `UCP ${newUcp.code} criada`,
-      newValue: { status: newUcp.status, palletId: newUcp.palletId },
-      performedBy: userId,
+    return await db.transaction(async (tx) => {
+      // Create the UCP
+      const [newUcp] = await tx.insert(ucps).values(ucp).returning();
+      
+      // Create initial history entry
+      await tx.insert(ucpHistory).values({
+        ucpId: newUcp.id,
+        action: "created",
+        description: `UCP ${newUcp.code} criada`,
+        newValue: { status: newUcp.status, palletId: newUcp.palletId },
+        performedBy: userId,
+      });
+
+      // Update pallet status to "em_uso" if pallet is assigned
+      if (newUcp.palletId) {
+        await tx.update(pallets)
+          .set({ status: "em_uso", updatedAt: new Date() })
+          .where(eq(pallets.id, newUcp.palletId));
+      }
+
+      return newUcp;
     });
-
-    // Update pallet status to "em_uso" if pallet is assigned
-    if (newUcp.palletId) {
-      await db.update(pallets)
-        .set({ status: "em_uso", updatedAt: new Date() })
-        .where(eq(pallets.id, newUcp.palletId));
-    }
-
-    return newUcp;
   }
 
   async moveUcpToPosition(ucpId: number, newPositionId: number, userId: number, reason?: string): Promise<boolean> {
-    const currentUcp = await this.getUcp(ucpId);
-    if (!currentUcp) return false;
+    return await db.transaction(async (tx) => {
+      // Get current UCP data
+      const [currentUcp] = await tx.select().from(ucps).where(eq(ucps.id, ucpId));
+      if (!currentUcp) return false;
 
-    const oldPositionId = currentUcp.positionId;
-    
-    // Update UCP position
-    await db.update(ucps)
-      .set({ positionId: newPositionId, updatedAt: new Date() })
-      .where(eq(ucps.id, ucpId));
+      const oldPositionId = currentUcp.positionId;
+      
+      // Update UCP position
+      await tx.update(ucps)
+        .set({ positionId: newPositionId, updatedAt: new Date() })
+        .where(eq(ucps.id, ucpId));
 
-    // Update position statuses
-    if (oldPositionId) {
-      await db.update(positions)
-        .set({ status: "disponivel", updatedAt: new Date() })
-        .where(eq(positions.id, oldPositionId));
-    }
-    
-    await db.update(positions)
-      .set({ status: "ocupada", updatedAt: new Date() })
-      .where(eq(positions.id, newPositionId));
+      // Update old position status if it exists
+      if (oldPositionId) {
+        await tx.update(positions)
+          .set({ status: "disponivel", updatedAt: new Date() })
+          .where(eq(positions.id, oldPositionId));
+      }
+      
+      // Update new position status
+      await tx.update(positions)
+        .set({ status: "ocupada", updatedAt: new Date() })
+        .where(eq(positions.id, newPositionId));
 
-    // Create history entry
-    await this.addUcpHistoryEntry({
-      ucpId,
-      action: "moved",
-      description: `UCP movida ${reason ? `- ${reason}` : ''}`,
-      oldValue: { positionId: oldPositionId },
-      newValue: { positionId: newPositionId },
-      fromPositionId: oldPositionId || undefined,
-      toPositionId: newPositionId,
-      performedBy: userId,
+      // Create history entry
+      await tx.insert(ucpHistory).values({
+        ucpId,
+        action: "moved",
+        description: `UCP movida ${reason ? `- ${reason}` : ''}`,
+        oldValue: { positionId: oldPositionId },
+        newValue: { positionId: newPositionId },
+        fromPositionId: oldPositionId || undefined,
+        toPositionId: newPositionId,
+        performedBy: userId,
+      });
+
+      return true;
     });
-
-    return true;
   }
 
   async dismantleUcp(ucpId: number, userId: number, reason?: string): Promise<boolean> {
-    const currentUcp = await this.getUcp(ucpId);
-    if (!currentUcp) return false;
+    return await db.transaction(async (tx) => {
+      // Get current UCP data
+      const [currentUcp] = await tx.select().from(ucps).where(eq(ucps.id, ucpId));
+      if (!currentUcp) return false;
 
-    // Mark all active items as removed
-    await db.update(ucpItems)
-      .set({ 
-        isActive: false, 
-        removedBy: userId, 
-        removedAt: new Date(),
-        removalReason: reason || "UCP desmontada"
-      })
-      .where(and(eq(ucpItems.ucpId, ucpId), eq(ucpItems.isActive, true)));
+      // Mark all active items as removed
+      await tx.update(ucpItems)
+        .set({ 
+          isActive: false, 
+          removedBy: userId, 
+          removedAt: new Date(),
+          removalReason: reason || "UCP desmontada"
+        })
+        .where(and(eq(ucpItems.ucpId, ucpId), eq(ucpItems.isActive, true)));
 
-    // Update UCP status to archived
-    await db.update(ucps)
-      .set({ status: "archived", updatedAt: new Date() })
-      .where(eq(ucps.id, ucpId));
+      // Update UCP status to archived
+      await tx.update(ucps)
+        .set({ status: "archived", updatedAt: new Date() })
+        .where(eq(ucps.id, ucpId));
 
-    // Free the pallet
-    if (currentUcp.palletId) {
-      await db.update(pallets)
-        .set({ status: "disponivel", updatedAt: new Date() })
-        .where(eq(pallets.id, currentUcp.palletId));
-    }
+      // Free the pallet if assigned
+      if (currentUcp.palletId) {
+        await tx.update(pallets)
+          .set({ status: "disponivel", updatedAt: new Date() })
+          .where(eq(pallets.id, currentUcp.palletId));
+      }
 
-    // Free the position
-    if (currentUcp.positionId) {
-      await db.update(positions)
-        .set({ status: "disponivel", updatedAt: new Date() })
-        .where(eq(positions.id, currentUcp.positionId));
-    }
+      // Free the position if assigned
+      if (currentUcp.positionId) {
+        await tx.update(positions)
+          .set({ status: "disponivel", updatedAt: new Date() })
+          .where(eq(positions.id, currentUcp.positionId));
+      }
 
-    // Create history entry
-    await this.addUcpHistoryEntry({
-      ucpId,
-      action: "dismantled",
-      description: `UCP desmontada${reason ? ` - ${reason}` : ''}`,
-      oldValue: { status: currentUcp.status },
-      newValue: { status: "archived" },
-      performedBy: userId,
+      // Create history entry
+      await tx.insert(ucpHistory).values({
+        ucpId,
+        action: "dismantled",
+        description: `UCP desmontada${reason ? ` - ${reason}` : ''}`,
+        oldValue: { status: currentUcp.status },
+        newValue: { status: "archived" },
+        performedBy: userId,
+      });
+
+      return true;
     });
-
-    return true;
   }
 
   async reactivatePallet(palletId: number, userId: number): Promise<string> {
-    const newUcpCode = await this.getNextUcpCode();
-    
-    const newUcp = await this.createUcpWithHistory({
-      code: newUcpCode,
-      palletId,
-      status: "active",
-      createdBy: userId,
-    }, userId);
+    return await db.transaction(async (tx) => {
+      const newUcpCode = await this.getNextUcpCode();
+      
+      // Create new UCP
+      const [newUcp] = await tx.insert(ucps).values({
+        code: newUcpCode,
+        palletId,
+        status: "active",
+        createdBy: userId,
+      }).returning();
 
-    return newUcp.code;
+      // Create initial history entry
+      await tx.insert(ucpHistory).values({
+        ucpId: newUcp.id,
+        action: "created",
+        description: `UCP ${newUcp.code} criada por reativação de pallet`,
+        newValue: { status: newUcp.status, palletId: newUcp.palletId },
+        performedBy: userId,
+      });
+
+      // Update pallet status to "em_uso"
+      await tx.update(pallets)
+        .set({ status: "em_uso", updatedAt: new Date() })
+        .where(eq(pallets.id, palletId));
+
+      return newUcp.code;
+    });
   }
 
   async getArchivedUcps(): Promise<(Ucp & { pallet?: Pallet; position?: Position })[]> {
@@ -529,66 +807,75 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addUcpItem(item: InsertUcpItem, userId: number): Promise<UcpItem> {
-    const [newItem] = await db.insert(ucpItems).values({
-      ...item,
-      addedBy: userId,
-    }).returning();
+    return await db.transaction(async (tx) => {
+      const [newItem] = await tx.insert(ucpItems).values({
+        ...item,
+        addedBy: userId,
+      }).returning();
 
-    // Create history entry
-    await this.addUcpHistoryEntry({
-      ucpId: item.ucpId,
-      action: "item_added",
-      description: `Produto adicionado à UCP`,
-      newValue: { productId: item.productId, quantity: item.quantity },
-      itemId: newItem.id,
-      performedBy: userId,
+      // Create history entry
+      await tx.insert(ucpHistory).values({
+        ucpId: item.ucpId,
+        action: "item_added",
+        description: `Produto adicionado à UCP`,
+        newValue: { productId: item.productId, quantity: item.quantity },
+        itemId: newItem.id,
+        performedBy: userId,
+      });
+
+      return newItem;
     });
-
-    return newItem;
   }
 
   async removeUcpItem(itemId: number, userId: number, reason: string): Promise<boolean> {
-    const item = await db.select().from(ucpItems).where(eq(ucpItems.id, itemId)).then(rows => rows[0]);
-    if (!item) return false;
+    return await db.transaction(async (tx) => {
+      // Get the item data
+      const [item] = await tx.select().from(ucpItems).where(eq(ucpItems.id, itemId));
+      if (!item) return false;
 
-    // Mark item as removed instead of deleting
-    await db.update(ucpItems)
-      .set({ 
-        isActive: false, 
-        removedBy: userId, 
-        removedAt: new Date(),
-        removalReason: reason
-      })
-      .where(eq(ucpItems.id, itemId));
+      // Mark item as removed instead of deleting
+      await tx.update(ucpItems)
+        .set({ 
+          isActive: false, 
+          removedBy: userId, 
+          removedAt: new Date(),
+          removalReason: reason
+        })
+        .where(eq(ucpItems.id, itemId));
 
-    // Create history entry
-    await this.addUcpHistoryEntry({
-      ucpId: item.ucpId,
-      action: "item_removed",
-      description: `Produto removido da UCP - ${reason}`,
-      oldValue: { productId: item.productId, quantity: item.quantity },
-      itemId: itemId,
-      performedBy: userId,
-    });
-
-    // Check if UCP is now empty and update status
-    const remainingItems = await this.getUcpItems(item.ucpId, false);
-    if (remainingItems.length === 0) {
-      await db.update(ucps)
-        .set({ status: "empty", updatedAt: new Date() })
-        .where(eq(ucps.id, item.ucpId));
-
-      await this.addUcpHistoryEntry({
+      // Create history entry
+      await tx.insert(ucpHistory).values({
         ucpId: item.ucpId,
-        action: "status_changed",
-        description: "UCP marcada como vazia - último item removido",
-        oldValue: { status: "active" },
-        newValue: { status: "empty" },
+        action: "item_removed",
+        description: `Produto removido da UCP - ${reason}`,
+        oldValue: { productId: item.productId, quantity: item.quantity },
+        itemId: itemId,
         performedBy: userId,
       });
-    }
 
-    return true;
+      // Check if UCP is now empty and update status
+      const [remainingItemsCount] = await tx
+        .select({ count: sql<number>`count(*)` })
+        .from(ucpItems)
+        .where(and(eq(ucpItems.ucpId, item.ucpId), eq(ucpItems.isActive, true)));
+
+      if (remainingItemsCount.count === 0) {
+        await tx.update(ucps)
+          .set({ status: "empty", updatedAt: new Date() })
+          .where(eq(ucps.id, item.ucpId));
+
+        await tx.insert(ucpHistory).values({
+          ucpId: item.ucpId,
+          action: "status_changed",
+          description: "UCP marcada como vazia - último item removido",
+          oldValue: { status: "active" },
+          newValue: { status: "empty" },
+          performedBy: userId,
+        });
+      }
+
+      return true;
+    });
   }
 
   async getAvailableUcpsForProduct(productId?: number): Promise<(Ucp & { pallet?: Pallet; position?: Position; availableSpace?: number })[]> {
@@ -607,7 +894,7 @@ export class DatabaseStorage implements IStorage {
       })));
   }
 
-  async getUcpHistory(ucpId: number): Promise<any[]> {
+  async getUcpHistory(ucpId: number): Promise<(UcpHistory & { performedByUser?: User; item?: UcpItem & { product?: Product }; fromPosition?: Position; toPosition?: Position })[]> {
     try {
       const result = await db
         .select({
@@ -816,54 +1103,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPalletStructure(structureData: InsertPalletStructure): Promise<PalletStructure> {
-    // Criar a estrutura
-    const [structure] = await db
-      .insert(palletStructures)
-      .values(structureData)
-      .returning();
+    return await db.transaction(async (tx) => {
+      // Create the structure
+      const [structure] = await tx
+        .insert(palletStructures)
+        .values(structureData)
+        .returning();
 
-    // Gerar automaticamente todas as vagas com endereçamento PP-RUA-LADO-POSIÇÃO-NÍVEL
-    const positionsToInsert: InsertPosition[] = [];
-    
-    for (let level = 0; level <= structure.maxLevels; level++) {
-      for (let position = 1; position <= structure.maxPositions; position++) {
-        const positionCode = `PP-${structure.street}-${structure.side}-${position.toString().padStart(2, '0')}-${level}`;
-        
-        positionsToInsert.push({
-          code: positionCode,
-          street: structure.street,
-          side: structure.side,
-          position: position,
-          level: level,
-          status: 'available',
-          structureId: structure.id,
-          maxPallets: 1,
-          rackType: structure.rackType || 'conventional',
-          corridor: null,
-          restrictions: null,
-          createdBy: structureData.createdBy,
-          observations: `Vaga gerada automaticamente da estrutura ${structure.name}`,
-          hasDivision: false,
-          layoutConfig: null,
-        });
+      // Generate all positions automatically with addressing PP-STREET-SIDE-POSITION-LEVEL
+      const positionsToInsert: InsertPosition[] = [];
+      
+      for (let level = 0; level <= structure.maxLevels; level++) {
+        for (let position = 1; position <= structure.maxPositions; position++) {
+          const positionCode = `PP-${structure.street}-${structure.side}-${position.toString().padStart(2, '0')}-${level}`;
+          
+          positionsToInsert.push({
+            code: positionCode,
+            street: structure.street,
+            side: structure.side,
+            position: position,
+            level: level,
+            status: 'available',
+            structureId: structure.id,
+            maxPallets: 1,
+            rackType: structure.rackType || 'conventional',
+            corridor: null,
+            restrictions: null,
+            createdBy: structureData.createdBy,
+            observations: `Vaga gerada automaticamente da estrutura ${structure.name}`,
+            hasDivision: false,
+            layoutConfig: null,
+          });
+        }
       }
-    }
 
-    // Inserir todas as vagas em batch
-    if (positionsToInsert.length > 0) {
-      await db.insert(positions).values(positionsToInsert);
-    }
+      // Insert all positions in a single batch operation
+      if (positionsToInsert.length > 0) {
+        await tx.insert(positions).values(positionsToInsert);
+      }
 
-    return structure;
+      return structure;
+    });
   }
 
   async deletePalletStructure(id: number): Promise<boolean> {
-    // Primeiro, deletar todas as vagas associadas à estrutura
-    await db.delete(positions).where(eq(positions.structureId, id));
-    
-    // Depois, deletar a estrutura
-    const result = await db.delete(palletStructures).where(eq(palletStructures.id, id));
-    return (result.rowCount ?? 0) > 0;
+    return await db.transaction(async (tx) => {
+      // First, delete all positions associated with the structure
+      await tx.delete(positions).where(eq(positions.structureId, id));
+      
+      // Then, delete the structure
+      const result = await tx.delete(palletStructures).where(eq(palletStructures.id, id));
+      return (result.rowCount ?? 0) > 0;
+    });
   }
 }
 

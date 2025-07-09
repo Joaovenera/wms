@@ -5,8 +5,13 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
+import { fileURLToPath } from "url";
 
 const viteLogger = createLogger();
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -20,46 +25,63 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
-  const serverOptions = {
-    middlewareMode: true,
-    hmr: { server },
-    allowedHosts: true,
-  };
-
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
+    server: {
+      middlewareMode: true,
+      hmr: {
+        port: 24678, // Use a different port for HMR
+        server: server,
+      },
+    },
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
+        // Don't exit on error in development
+        if (process.env.NODE_ENV === "production") {
+          process.exit(1);
+        }
       },
     },
-    server: serverOptions,
-    appType: "custom",
+    appType: "spa", // Explicitly set as SPA
+    optimizeDeps: {
+      exclude: ['@tanstack/react-query'], // Prevent bundling issues
+    },
   });
 
   app.use(vite.middlewares);
+  
+  // Catch-all handler for SPA routing - serve index.html for all non-API routes
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
+    // Skip if this is an API route
+    if (url.startsWith('/api/')) {
+      return next();
+    }
+
     try {
       const clientTemplate = path.resolve(
-        import.meta.dirname,
+        __dirname,
         "..",
         "client",
         "index.html",
       );
 
-      // always reload the index.html file from disk incase it changes
+      // Always reload the index.html file from disk
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`,
-      );
+      
+      // Transform the HTML through Vite
       const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      
+      res.status(200).set({ 
+        "Content-Type": "text/html",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
@@ -68,7 +90,7 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  const distPath = path.resolve(__dirname, "public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
@@ -76,10 +98,19 @@ export function serveStatic(app: Express) {
     );
   }
 
+  // Serve static files
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  // Catch-all handler for SPA routing - serve index.html for all non-API routes
+  app.use("*", (req, res) => {
+    // Skip if this is an API route (should not happen due to middleware order, but safety check)
+    if (req.originalUrl.startsWith('/api/')) {
+      return res.status(404).json({ message: 'API route not found' });
+    }
+    
+    // Serve index.html for all other routes (SPA routing)
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
+
+
