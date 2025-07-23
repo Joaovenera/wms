@@ -44,7 +44,7 @@ export const pallets = pgTable("pallets", {
   length: integer("length").notNull(), // cm
   height: integer("height").notNull(), // cm
   maxWeight: decimal("max_weight", { precision: 10, scale: 2 }).notNull(), // kg
-  status: varchar("status").notNull().default("available"), // available, in_use, defective, maintenance, discard
+  status: varchar("status").notNull().default("disponivel"), // disponivel, em_uso, defeituoso, recuperacao, descarte
   photoUrl: varchar("photo_url"),
   observations: text("observations"),
   lastInspectionDate: date("last_inspection_date"),
@@ -82,7 +82,7 @@ export const positions = pgTable("positions", {
   rackType: varchar("rack_type"), // Tipo do rack
   maxPallets: integer("max_pallets").notNull().default(1), // Máximo de pallets por posição
   restrictions: text("restrictions"), // Restrições da posição
-  status: varchar("status").notNull().default("available"), // available, occupied, reserved, maintenance, blocked
+  status: varchar("status").notNull().default("disponivel"), // disponivel, ocupada, reservada, manutencao, bloqueada
   currentPalletId: integer("current_pallet_id").references(() => pallets.id),
   observations: text("observations"),
   createdBy: integer("created_by").references(() => users.id),
@@ -112,6 +112,39 @@ export const products = pgTable("products", {
   createdBy: integer("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Product Photos table
+export const productPhotos = pgTable("product_photos", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  filename: varchar("filename").notNull(), // Original filename
+  path: varchar("path").notNull(), // Storage path
+  url: varchar("url").notNull(), // Access URL
+  size: integer("size").notNull(), // File size in bytes
+  mimeType: varchar("mime_type").notNull(), // image/jpeg, image/png, etc.
+  width: integer("width"), // Image width in pixels
+  height: integer("height"), // Image height in pixels
+  isPrimary: boolean("is_primary").default(false), // Main product photo
+  uploadedBy: integer("uploaded_by").notNull().references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  isActive: boolean("is_active").default(true),
+}, (table) => ({
+  // Ensure only one primary photo per product
+  uniquePrimaryPhoto: index("unique_primary_photo_per_product").on(table.productId, table.isPrimary),
+}));
+
+// Product Photo History table - Track all photo changes
+export const productPhotoHistory = pgTable("product_photo_history", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  photoId: integer("photo_id").references(() => productPhotos.id), // null for deletions
+  action: varchar("action").notNull(), // 'added', 'removed', 'set_primary', 'unset_primary'
+  filename: varchar("filename"), // Store filename for history
+  isPrimary: boolean("is_primary"), // Store if it was primary at the time
+  performedBy: integer("performed_by").notNull().references(() => users.id),
+  performedAt: timestamp("performed_at").defaultNow(),
+  notes: text("notes"), // Optional notes about the change
 });
 
 // UCPs (Unidades de Carga Paletizada) table
@@ -157,6 +190,22 @@ export const ucpHistory = pgTable("ucp_history", {
   toPositionId: integer("to_position_id").references(() => positions.id),
   performedBy: integer("performed_by").notNull().references(() => users.id),
   timestamp: timestamp("timestamp").defaultNow(),
+});
+
+// Item Transfers table - Registro detalhado de transferências entre UCPs
+export const itemTransfers = pgTable("item_transfers", {
+  id: serial("id").primaryKey(),
+  sourceUcpId: integer("source_ucp_id").notNull().references(() => ucps.id),
+  targetUcpId: integer("target_ucp_id").notNull().references(() => ucps.id),
+  sourceItemId: integer("source_item_id").references(() => ucpItems.id), // Item original (pode ser null se removido)
+  targetItemId: integer("target_item_id").references(() => ucpItems.id), // Item criado/atualizado no destino
+  productId: integer("product_id").notNull().references(() => products.id),
+  quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
+  lot: varchar("lot"),
+  reason: text("reason").notNull(),
+  transferType: varchar("transfer_type").notNull(), // 'partial' | 'complete'
+  performedBy: integer("performed_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Movement history table
@@ -221,6 +270,34 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   }),
   ucpItems: many(ucpItems),
   movements: many(movements),
+  photos: many(productPhotos),
+  photoHistory: many(productPhotoHistory),
+}));
+
+export const productPhotosRelations = relations(productPhotos, ({ one }) => ({
+  product: one(products, {
+    fields: [productPhotos.productId],
+    references: [products.id],
+  }),
+  uploadedBy: one(users, {
+    fields: [productPhotos.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
+export const productPhotoHistoryRelations = relations(productPhotoHistory, ({ one }) => ({
+  product: one(products, {
+    fields: [productPhotoHistory.productId],
+    references: [products.id],
+  }),
+  photo: one(productPhotos, {
+    fields: [productPhotoHistory.photoId],
+    references: [productPhotos.id],
+  }),
+  performedBy: one(users, {
+    fields: [productPhotoHistory.performedBy],
+    references: [users.id],
+  }),
 }));
 
 export const ucpsRelations = relations(ucps, ({ one, many }) => ({
@@ -342,6 +419,16 @@ export const insertProductSchema = createInsertSchema(products).omit({
   updatedAt: true,
 });
 
+export const insertProductPhotoSchema = createInsertSchema(productPhotos).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertProductPhotoHistorySchema = createInsertSchema(productPhotoHistory).omit({
+  id: true,
+  performedAt: true,
+});
+
 export const insertUcpSchema = createInsertSchema(ucps).omit({
   id: true,
   createdAt: true,
@@ -358,6 +445,11 @@ export const insertUcpItemSchema = createInsertSchema(ucpItems).omit({
 export const insertUcpHistorySchema = createInsertSchema(ucpHistory).omit({
   id: true,
   timestamp: true,
+});
+
+export const insertItemTransferSchema = createInsertSchema(itemTransfers).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertMovementSchema = createInsertSchema(movements).omit({
@@ -396,12 +488,18 @@ export type InsertPosition = z.infer<typeof insertPositionSchema>;
 export type Position = typeof positions.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Product = typeof products.$inferSelect;
+export type InsertProductPhoto = z.infer<typeof insertProductPhotoSchema>;
+export type ProductPhoto = typeof productPhotos.$inferSelect;
+export type InsertProductPhotoHistory = z.infer<typeof insertProductPhotoHistorySchema>;
+export type ProductPhotoHistory = typeof productPhotoHistory.$inferSelect;
 export type InsertUcp = z.infer<typeof insertUcpSchema>;
 export type Ucp = typeof ucps.$inferSelect;
 export type InsertUcpItem = z.infer<typeof insertUcpItemSchema>;
 export type UcpItem = typeof ucpItems.$inferSelect;
 export type InsertUcpHistory = z.infer<typeof insertUcpHistorySchema>;
 export type UcpHistory = typeof ucpHistory.$inferSelect;
+export type InsertItemTransfer = z.infer<typeof insertItemTransferSchema>;
+export type ItemTransfer = typeof itemTransfers.$inferSelect;
 export type InsertMovement = z.infer<typeof insertMovementSchema>;
 export type Movement = typeof movements.$inferSelect;
 export type InsertPalletStructure = z.infer<typeof insertPalletStructureSchema>;

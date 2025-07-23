@@ -7,31 +7,31 @@ import { Package, MapPin, BarChart3, RefreshCw } from "lucide-react";
 import { Position } from "@/types/api";
 
 const statusConfig = {
-  available: {
+  disponivel: {
     color: "bg-green-100 hover:bg-green-200",
     textColor: "text-green-800",
     icon: "🟢",
     label: "Disponível"
   },
-  occupied: {
+  ocupada: {
     color: "bg-red-100 hover:bg-red-200", 
     textColor: "text-red-800",
     icon: "🔴",
     label: "Ocupado"
   },
-  reserved: {
+  reservada: {
     color: "bg-yellow-100 hover:bg-yellow-200",
     textColor: "text-yellow-800", 
     icon: "🟡",
     label: "Reservado"
   },
-  maintenance: {
+  manutencao: {
     color: "bg-orange-100 hover:bg-orange-200",
     textColor: "text-orange-800",
     icon: "🟠", 
     label: "Manutenção"
   },
-  blocked: {
+  bloqueada: {
     color: "bg-gray-100 hover:bg-gray-200",
     textColor: "text-gray-800",
     icon: "⚫",
@@ -57,7 +57,7 @@ export default function WarehouseMap() {
   }
 
   function getStatusInfo(status: string) {
-    return statusConfig[status as keyof typeof statusConfig] || statusConfig.available;
+    return statusConfig[status as keyof typeof statusConfig] || statusConfig.disponivel;
   }
 
   if (isLoading) {

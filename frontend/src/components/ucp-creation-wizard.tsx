@@ -174,7 +174,7 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
     setSelectedProducts(selectedProducts.filter((_, i) => i !== index));
   };
 
-  const availablePositions = positions?.filter(p => p.status === "available") || [];
+  const availablePositions = positions?.filter(p => p.status === "disponivel") || [];
 
   const canProceedToStep2 = selectedProducts.length > 0;
   const canProceedToStep3 = selectedPalletId !== null;

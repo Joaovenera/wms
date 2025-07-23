@@ -4,87 +4,185 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
+import { createServer as createHttpsServer } from "https";
+import { readFileSync } from "fs";
+import { join } from "path";
 import logger from "./utils/logger.js";
+import { connectRedis, disconnectRedis } from "./config/redis.js";
 
 const app = express();
 const server = createServer(app);
 
+// Configuração HTTPS
+const httpsOptions = {
+  key: readFileSync(join(process.cwd(), 'certs', 'key.pem')),
+  cert: readFileSync(join(process.cwd(), 'certs', 'cert.pem'))
+};
+
+const httpsServer = createHttpsServer(httpsOptions, app);
+
 const isDevelopment = process.env.NODE_ENV !== "production";
 
-// CORS desabilitado momentaneamente para testes
-// app.use(cors({
-//   origin: true, // Permitir qualquer origem em desenvolvimento
-//   credentials: true,
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-//   exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
-// }));
+// Trust proxy (movido para o topo para melhor performance)
+app.set('trust proxy', 1);
 
-// Configurações de segurança
+// Enhanced security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // Desabilitar CSP pois é uma API
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 
-// Rate limiting
+// Custom security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  next();
+});
+
+// Enhanced compression
+app.use(compression({
+  level: 6,
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
+
+// Optimized CORS configuration
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    
+    if (isDevelopment) {
+      if (origin.includes('localhost') || origin.includes('127.0.0.1') || 
+          origin.includes('replit') || origin.includes('69.62.95.146')) {
+        return callback(null, true);
+      }
+    }
+    
+    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
+      return callback(null, true);
+    }
+    
+    if (isDevelopment) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
+  maxAge: 86400, // Cache preflight for 24 hours
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
+
+// Enhanced rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDevelopment ? 1000 : 100,
-  message: { message: "Muitas requisições. Tente novamente em alguns minutos." },
+  message: { message: "Rate limit exceeded. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip || req.connection?.remoteAddress || 'unknown',
+  skip: (req) => isDevelopment && req.ip === '127.0.0.1'
+});
+
+// Stricter rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDevelopment ? 50 : 5,
+  message: { message: "Too many authentication attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
+app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 
-// Parsers
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: false, limit: '100mb' }));
-app.use(compression());
+// Optimized parsers with increased limits for image uploads
+app.use(express.json({ 
+  limit: '150mb', // Increased to handle 100MB images encoded as base64 (~133MB)
+  strict: true,
+  type: ['application/json', 'application/*+json']
+}));
+app.use(express.urlencoded({ 
+  extended: false, 
+  limit: '150mb', // Increased to handle large image uploads
+  parameterLimit: 1000
+}));
 
-// Request logging middleware
+// Optimized request logging with async processing
 app.use((req, res, next) => {
-  const start = Date.now();
-  
-  // Debug CORS em desenvolvimento
-  if (isDevelopment) {
-    const origin = req.get('Origin');
-    const method = req.method;
-    logger.info(`CORS Debug - Origin: ${origin}, Method: ${method}, Path: ${req.path}`);
-  }
+  const start = process.hrtime.bigint();
   
   res.on('finish', () => {
-    const duration = Date.now() - start;
-    const userAgent = req.get('User-Agent') || 'Unknown';
-    const ip = req.ip || req.connection.remoteAddress || 'Unknown';
-    
-    logger.http(`${req.method} ${req.path} ${res.statusCode} in ${duration}ms`, {
-      method: req.method,
-      path: req.path,
-      statusCode: res.statusCode,
-      duration,
-      userAgent,
-      ip
+    // Use setImmediate for non-blocking logging
+    setImmediate(() => {
+      const duration = Number(process.hrtime.bigint() - start) / 1000000; // Convert to ms
+      const logData = {
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        duration: Math.round(duration * 100) / 100,
+        userAgent: req.get('User-Agent')?.substring(0, 100) || 'Unknown',
+        ip: req.ip || 'Unknown',
+        contentLength: res.get('content-length') || '0'
+      };
+      
+      // Only log in development or for errors/slow requests
+      if (isDevelopment || res.statusCode >= 400 || logData.duration > 1000) {
+        logger.http(`${req.method} ${req.path} ${res.statusCode} in ${logData.duration}ms`, logData);
+      }
     });
   });
   
   next();
 });
 
-// Trust proxy
-app.set('trust proxy', 1);
-
-// Health check endpoint
+// Health check endpoint with performance headers
 app.get('/health', (req, res) => {
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV 
+    environment: process.env.NODE_ENV,
+    uptime: process.uptime()
   });
 });
 
+// Keep-alive configuration for better connection reuse
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
+httpsServer.keepAliveTimeout = 65000;
+httpsServer.headersTimeout = 66000;
+
 (async () => {
   try {
+    // Conectar ao Redis
+    await connectRedis();
+    
     // Registrar rotas da API
     const { registerRoutes } = await import("./routes/index.js");
     await registerRoutes(app);
@@ -94,20 +192,59 @@ app.get('/health', (req, res) => {
       res.status(404).json({ message: 'Endpoint não encontrado' });
     });
     
-    // Error handler
+    // Enhanced error handler with async logging
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      logger.error('Erro no servidor:', err);
+      // Async error logging to not block response
+      setImmediate(() => {
+        logger.error('Server error:', {
+          error: err.message,
+          stack: isDevelopment ? err.stack : undefined,
+          path: req.path,
+          method: req.method,
+          ip: req.ip
+        });
+      });
+      
       res.status(err.status || 500).json({
-        message: err.message || 'Erro interno do servidor',
+        message: err.message || 'Internal server error',
         ...(isDevelopment && { stack: err.stack })
       });
     });
     
-    const PORT = Number(process.env.PORT) || 5000;
-    server.listen(PORT, "0.0.0.0", () => {
-      logger.info(`Backend rodando na porta ${PORT}`);
-      console.log(`🚀 Backend API rodando em http://localhost:${PORT}`);
+    const HTTPS_PORT = Number(process.env.HTTPS_PORT) || 5000;
+    
+    // Servidor HTTPS
+    httpsServer.listen(HTTPS_PORT, "0.0.0.0", () => {
+      logger.info(`HTTPS Server running on port ${HTTPS_PORT}`);
+      console.log(`🔒 Servidor HTTPS rodando em https://localhost:${HTTPS_PORT}`);
     });
+    
+    // Enhanced graceful shutdown
+    const gracefulShutdown = async (signal: string) => {
+      logger.info(`${signal} received, shutting down gracefully...`);
+      
+      // Stop accepting new connections
+      httpsServer.close(async () => {
+        try {
+          await disconnectRedis();
+          logger.info('HTTPS Server closed');
+          process.exit(0);
+        } catch (error) {
+          logger.error('Error during shutdown:', error);
+          process.exit(1);
+        }
+      });
+      
+      // Force close after 30 seconds
+      setTimeout(() => {
+        logger.error('Forced shutdown');
+        process.exit(1);
+      }, 30000);
+    };
+    
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    
   } catch (error) {
     logger.error('Erro ao iniciar servidor:', error);
     process.exit(1);

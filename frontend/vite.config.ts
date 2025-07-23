@@ -1,6 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import fs from "fs";
+
+// Verificar se os certificados existem
+const certExists = fs.existsSync('./certs/cert.pem') && fs.existsSync('./certs/key.pem');
 
 export default defineConfig({
   plugins: [react()],
@@ -15,11 +19,19 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
     port: 5174,
+    ...(certExists && {
+      https: {
+        // Certificados auto-assinados para desenvolvimento
+        key: fs.readFileSync('./certs/key.pem'),
+        cert: fs.readFileSync('./certs/cert.pem'),
+      },
+    }),
     proxy: {
       // Proxy durante desenvolvimento
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://localhost:5000',
         changeOrigin: true,
         secure: false,
       }

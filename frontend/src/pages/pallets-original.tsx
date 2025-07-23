@@ -24,35 +24,35 @@ import QRCodeDialog from "@/components/qr-code-dialog";
 // Função para obter informações do status
 const getStatusInfo = (status: string) => {
   switch (status) {
-    case 'available':
+    case 'disponivel':
       return {
         label: 'Disponível',
         icon: CheckCircle,
         color: 'bg-green-100 text-green-800 border-green-200',
         iconColor: 'text-green-600',
       };
-    case 'in_use':
+    case 'em_uso':
       return {
         label: 'Em Uso',
         icon: Clock,
         color: 'bg-blue-100 text-blue-800 border-blue-200',
         iconColor: 'text-blue-600',
       };
-    case 'defective':
+    case 'defeituoso':
       return {
         label: 'Defeituoso',
         icon: XCircle,
         color: 'bg-red-100 text-red-800 border-red-200',
         iconColor: 'text-red-600',
       };
-    case 'maintenance':
+    case 'manutencao':
       return {
         label: 'Manutenção',
         icon: Wrench,
         color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
         iconColor: 'text-yellow-600',
       };
-    case 'discard':
+    case 'descarte':
       return {
         label: 'Descarte',
         icon: AlertCircle,
@@ -125,7 +125,7 @@ export default function Pallets() {
       length: 0,
       height: 0,
       maxWeight: "0",
-      status: "available",
+      status: "disponivel",
       photoUrl: "",
       observations: "",
     },
@@ -399,11 +399,11 @@ export default function Pallets() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="available">Disponível</SelectItem>
-                            <SelectItem value="in_use">Em Uso</SelectItem>
-                            <SelectItem value="defective">Defeituoso</SelectItem>
-                            <SelectItem value="maintenance">Recuperação</SelectItem>
-                            <SelectItem value="discard">Descarte</SelectItem>
+                            <SelectItem value="disponivel">Disponível</SelectItem>
+                            <SelectItem value="em_uso">Em Uso</SelectItem>
+                            <SelectItem value="defeituoso">Defeituoso</SelectItem>
+                            <SelectItem value="recuperacao">Recuperação</SelectItem>
+                            <SelectItem value="descarte">Descarte</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -600,11 +600,11 @@ export default function Pallets() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os Status</SelectItem>
-            <SelectItem value="available">Disponível</SelectItem>
-            <SelectItem value="in_use">Em Uso</SelectItem>
-            <SelectItem value="defective">Defeituoso</SelectItem>
-            <SelectItem value="maintenance">Manutenção</SelectItem>
-            <SelectItem value="discard">Descarte</SelectItem>
+            <SelectItem value="disponivel">Disponível</SelectItem>
+            <SelectItem value="em_uso">Em Uso</SelectItem>
+            <SelectItem value="defeituoso">Defeituoso</SelectItem>
+            <SelectItem value="recuperacao">Manutenção</SelectItem>
+            <SelectItem value="descarte">Descarte</SelectItem>
           </SelectContent>
         </Select>
       </div>

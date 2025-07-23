@@ -300,8 +300,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Product routes
   app.get('/api/products', isAuthenticated, async (req, res) => {
     try {
-      const products = await storage.getProducts();
-      res.json(products);
+      const includeStock = req.query.includeStock === 'true';
+      
+      if (includeStock) {
+        const products = await storage.getProductsWithStock();
+        res.json(products);
+      } else {
+        const products = await storage.getProducts();
+        res.json(products);
+      }
     } catch (error) {
       console.error("Error fetching products:", error);
       res.status(500).json({ message: "Failed to fetch products" });
@@ -390,6 +397,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Product Photo routes
+  app.get('/api/products/:id/photos', isAuthenticated, async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const photos = await storage.getProductPhotos(productId);
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching product photos:", error);
+      res.status(500).json({ message: "Failed to fetch product photos" });
+    }
+  });
+
+  app.get('/api/product-photos/:id', isAuthenticated, async (req, res) => {
+    try {
+      const photoId = parseInt(req.params.id);
+      const photo = await storage.getProductPhoto(photoId);
+      if (!photo) {
+        return res.status(404).json({ message: "Photo not found" });
+      }
+      res.json(photo);
+    } catch (error) {
+      console.error("Error fetching product photo:", error);
+      res.status(500).json({ message: "Failed to fetch product photo" });
+    }
+  });
+
+  app.post('/api/products/:id/photos', isAuthenticated, async (req: any, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const photoData = {
+        ...req.body,
+        productId,
+        uploadedBy: req.user.id,
+      };
+
+      console.log('📸 Adding product photo:', {
+        productId,
+        filename: photoData.filename,
+        userId: req.user.id,
+        isPrimary: photoData.isPrimary || false
+      });
+
+      const photo = await storage.addProductPhoto(photoData, req.user.id);
+      
+      res.status(201).json({
+        success: true,
+        message: "Photo uploaded successfully",
+        photo
+      });
+    } catch (error: any) {
+      console.error("Error adding product photo:", error);
+      res.status(500).json({ 
+        message: "Failed to add product photo",
+        detail: error?.message || "Unknown error"
+      });
+    }
+  });
+
+  app.delete('/api/product-photos/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const photoId = parseInt(req.params.id);
+      const notes = req.body.notes;
+
+      console.log('🗑️ Removing product photo:', {
+        photoId,
+        userId: req.user.id,
+        notes
+      });
+
+      const success = await storage.removeProductPhoto(photoId, req.user.id, notes);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Photo not found" });
+      }
+
+      res.json({
+        success: true,
+        message: "Photo removed successfully"
+      });
+    } catch (error: any) {
+      console.error("Error removing product photo:", error);
+      res.status(500).json({ 
+        message: "Failed to remove product photo",
+        detail: error?.message || "Unknown error"
+      });
+    }
+  });
+
+  app.put('/api/product-photos/:id/set-primary', isAuthenticated, async (req: any, res) => {
+    try {
+      const photoId = parseInt(req.params.id);
+
+      console.log('⭐ Setting primary photo:', {
+        photoId,
+        userId: req.user.id
+      });
+
+      const success = await storage.setPrimaryPhoto(photoId, req.user.id);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Photo not found" });
+      }
+
+      res.json({
+        success: true,
+        message: "Photo set as primary successfully"
+      });
+    } catch (error: any) {
+      console.error("Error setting primary photo:", error);
+      res.status(500).json({ 
+        message: "Failed to set primary photo",
+        detail: error?.message || "Unknown error"
+      });
+    }
+  });
+
+  app.get('/api/products/:id/photo-history', isAuthenticated, async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const history = await storage.getProductPhotoHistory(productId);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching product photo history:", error);
+      res.status(500).json({ message: "Failed to fetch photo history" });
+    }
+  });
+
   // Enhanced UCP routes for comprehensive lifecycle management
   app.get('/api/ucps', isAuthenticated, async (req, res) => {
     try {
@@ -442,6 +576,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint para buscar UCPs disponíveis para transferência
+  app.get('/api/ucps/available-for-transfer', isAuthenticated, async (req, res) => {
+    try {
+      console.log('DEBUG: Fetching available UCPs for transfer');
+      
+      // Usar método específico para UCPs ativas apenas
+      const activeUcps = await storage.getAvailableUcpsForProduct();
+      console.log('DEBUG: Found active UCPs:', activeUcps.length);
+      console.log('DEBUG: Sample active UCP:', activeUcps[0]);
+      
+      // Filtrar apenas status "active" (não "empty")
+      const availableUcps = activeUcps.filter(ucp => ucp.status === 'active').map(ucp => ({
+        id: ucp.id,
+        code: ucp.code,
+        status: ucp.status,
+        pallet: ucp.pallet ? { code: ucp.pallet.code } : undefined,
+        position: ucp.position ? { code: ucp.position.code } : undefined,
+      }));
+      
+      console.log('DEBUG: Filtered UCPs for transfer:', availableUcps.length);
+      res.json(availableUcps);
+    } catch (error) {
+      console.error("Error fetching available UCPs for transfer:", error);
+      res.status(500).json({ message: "Failed to fetch available UCPs" });
+    }
+  });
+
   app.get('/api/ucps/:id', isAuthenticated, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -474,12 +635,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { ucp, items } = req.body;
       
+      console.log('DEBUG: Comprehensive UCP creation request');
+      console.log('DEBUG: UCP data:', ucp);
+      console.log('DEBUG: Items data:', items);
+      console.log('DEBUG: Items count:', items?.length || 0);
+      
       const ucpResult = insertUcpSchema.safeParse({
         ...ucp,
         createdBy: req.user.id,
       });
       
       if (!ucpResult.success) {
+        console.log('DEBUG: UCP validation failed:', ucpResult.error);
         const validationError = fromZodError(ucpResult.error);
         return res.status(400).json({ message: validationError.message });
       }
@@ -490,20 +657,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create UCP with full history tracking
+      console.log('DEBUG: Creating UCP with data:', ucpResult.data);
       const newUcp = await storage.createUcpWithHistory(ucpResult.data, req.user.id);
+      console.log('DEBUG: UCP created with ID:', newUcp.id);
       
       // Add items if provided
       if (items && items.length > 0) {
+        console.log('DEBUG: Processing items...');
         for (const item of items) {
-          const itemResult = insertUcpItemSchema.safeParse({
-            ...item,
+          console.log('DEBUG: Processing item:', item);
+          const itemData = {
             ucpId: newUcp.id,
-          });
+            productId: item.productId,
+            quantity: item.quantity.toString(), // Convert number to string for decimal field
+            lot: item.lot || null,
+            expiryDate: item.expiryDate || null,
+            internalCode: item.internalCode || null,
+            addedBy: req.user.id,
+          };
+          
+          console.log('DEBUG: Prepared item data:', itemData);
+          const itemResult = insertUcpItemSchema.safeParse(itemData);
+          
+          console.log('DEBUG: Item validation result:', itemResult.success ? 'SUCCESS' : 'FAILED');
+          if (!itemResult.success) {
+            console.log('DEBUG: Item validation errors:', itemResult.error);
+          }
           
           if (itemResult.success) {
-            await storage.addUcpItem(itemResult.data, req.user.id);
+            console.log('DEBUG: Adding item to storage:', itemResult.data);
+            const addedItem = await storage.addUcpItem(itemResult.data, req.user.id);
+            console.log('DEBUG: Item added successfully:', addedItem.id);
           }
         }
+      } else {
+        console.log('DEBUG: No items to process');
       }
 
       res.status(201).json(newUcp);
@@ -633,6 +821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/ucps/:id/items', isAuthenticated, async (req: any, res) => {
     try {
       const ucpId = parseInt(req.params.id);
+      const { fromPositionId } = req.body;
       const result = insertUcpItemSchema.safeParse({
         ...req.body,
         ucpId,
@@ -643,7 +832,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: validationError.message });
       }
 
-      const item = await storage.addUcpItem(result.data, req.user.id);
+      const item = await storage.addUcpItem({ ...result.data, fromPositionId }, req.user.id);
       res.status(201).json(item);
     } catch (error) {
       console.error("Error adding UCP item:", error);
@@ -654,13 +843,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/ucp-items/:id', isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { reason } = req.body;
+      const { reason, toPositionId } = req.body;
       
       if (!reason) {
         return res.status(400).json({ message: "Removal reason is required" });
       }
 
-      const success = await storage.removeUcpItem(id, req.user.id, reason);
+      const success = await storage.removeUcpItem(id, req.user.id, reason, toPositionId);
       if (!success) {
         return res.status(404).json({ message: "UCP item not found" });
       }
@@ -957,7 +1146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
   // Store connected clients
-  const clients = new Set<WebSocket>();
+  const clients = new Set<any>();
   
   wss.on('connection', (ws) => {
     clients.add(ws);
@@ -1086,7 +1275,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  
-  
+  // Endpoint para transferir item entre UCPs
+  app.post('/api/ucps/transfer-item', isAuthenticated, async (req: any, res) => {
+    try {
+      const { sourceItemId, targetUcpId, quantity, reason } = req.body;
+      
+      console.log('🚀 API: Recebida solicitação de transferência:', {
+        sourceItemId,
+        targetUcpId,
+        quantity,
+        reason,
+        userId: req.user.id,
+        userEmail: req.user.email,
+        timestamp: new Date().toISOString()
+      });
+
+      // Validações básicas de entrada
+      if (!sourceItemId || !targetUcpId || !quantity || !reason) {
+        console.log('❌ API: Campos obrigatórios ausentes');
+        return res.status(400).json({ 
+          message: "Campos obrigatórios: sourceItemId, targetUcpId, quantity, reason" 
+        });
+      }
+
+      if (typeof quantity !== 'number' || quantity <= 0) {
+        console.log('❌ API: Quantidade inválida:', quantity);
+        return res.status(400).json({ 
+          message: "Quantidade deve ser um número positivo" 
+        });
+      }
+
+      if (typeof reason !== 'string' || reason.trim().length === 0) {
+        console.log('❌ API: Motivo inválido:', reason);
+        return res.status(400).json({ 
+          message: "Motivo da transferência é obrigatório" 
+        });
+      }
+
+      // Executar a transferência através do storage
+      // Todo o processamento e validação é feito no backend
+      console.log('✅ API: Dados validados, executando transferência...');
+      
+      const result = await storage.transferUcpItem({
+        sourceItemId: parseInt(sourceItemId),
+        targetUcpId: parseInt(targetUcpId),
+        quantity: parseInt(quantity.toString()),
+        reason: reason.trim(),
+        userId: req.user.id
+      });
+
+      console.log('✅ API: Transferência executada com sucesso:', {
+        transferId: result.transferId,
+        sourceUcpId: result.sourceUcpId,
+        targetUcpId: result.targetUcpId,
+        timestamp: result.timestamp
+      });
+
+      res.json({ 
+        success: true,
+        message: "Item transferido com sucesso",
+        transfer: {
+          id: result.transferId,
+          sourceUcpId: result.sourceUcpId,
+          targetUcpId: result.targetUcpId,
+          sourceUpdated: result.sourceUpdated,
+          targetCreated: result.targetCreated,
+          timestamp: result.timestamp,
+          performedBy: {
+            id: req.user.id,
+            email: req.user.email,
+            name: `${req.user.firstName} ${req.user.lastName}`
+          }
+        }
+      });
+
+          } catch (error: any) {
+        console.error('❌ API: Erro na transferência:', error);
+        
+        // Retornar erro mais específico baseado na mensagem
+        if (error?.message?.includes('não encontrado')) {
+          return res.status(404).json({ message: error.message });
+        }
+        
+        if (error?.message?.includes('inválida') || 
+            error?.message?.includes('excede') || 
+            error?.message?.includes('deve ser')) {
+          return res.status(400).json({ message: error.message });
+        }
+        
+        res.status(500).json({ 
+          message: "Erro interno na transferência",
+          detail: error?.message || "Erro desconhecido"
+        });
+      }
+  });
+
+  // TEST ENDPOINT - Criar dados de teste para UCP 7
+  app.post('/api/test/create-ucp-items', isAuthenticated, async (req: any, res) => {
+    try {
+      console.log('Creating test data for UCP items...');
+      
+      // Verificar se a UCP 7 existe
+      const ucp = await storage.getUcp(7);
+      if (!ucp) {
+        return res.status(404).json({ message: "UCP 7 not found" });
+      }
+      
+      // Buscar produtos existentes
+      const products = await storage.getProducts();
+      if (products.length === 0) {
+        return res.status(400).json({ message: "No products found. Create products first." });
+      }
+      
+      // Adicionar 3 itens de teste à UCP 7
+      const testItems = [];
+      for (let i = 0; i < Math.min(3, products.length); i++) {
+        const product = products[i];
+        const itemData = {
+          ucpId: 7,
+          productId: product.id,
+          quantity: (Math.floor(Math.random() * 10) + 1).toString(),
+          lot: `LOTE${Date.now()}${i}`,
+          internalCode: `CI${Date.now()}${i}`,
+          addedBy: req.user.id
+        };
+        
+        try {
+          const item = await storage.addUcpItem(itemData, req.user.id);
+          testItems.push(item);
+          console.log(`Test item added: ${product.name} (${product.sku})`);
+        } catch (error) {
+          console.error(`Error adding item ${product.name}:`, error);
+        }
+      }
+      
+      res.json({ 
+        message: `${testItems.length} test items added to UCP 7`,
+        items: testItems 
+      });
+      
+    } catch (error) {
+      console.error("Error creating test UCP items:", error);
+      res.status(500).json({ message: "Failed to create test data" });
+    }
+  });
+
   return httpServer;
 }

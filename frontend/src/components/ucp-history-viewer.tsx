@@ -54,6 +54,10 @@ export default function UcpHistoryViewer({ ucpId, isOpen, onClose }: UcpHistoryV
     enabled: isOpen && ucpId > 0,
   });
 
+  // Debug log to check if data is coming correctly
+  console.log('UcpHistoryViewer - History data:', history);
+  console.log('UcpHistoryViewer - UCP ID:', ucpId, 'Is Open:', isOpen);
+
   const getActionIcon = (action: string | undefined) => {
     if (!action) {
       return <AlertCircle className="h-4 w-4 text-gray-500" />;
@@ -204,13 +208,33 @@ export default function UcpHistoryViewer({ ucpId, isOpen, onClose }: UcpHistoryV
                         
                         {/* Additional details for specific actions */}
                         {entry.action === 'item_added' && entry.item && (
-                          <div className="mt-2 p-2 bg-background rounded border text-xs">
+                          <div className="mt-2 p-2 bg-background rounded border text-xs space-y-1">
                             <div className="font-medium">Detalhes do produto:</div>
                             <div>SKU: {entry.item.product?.sku}</div>
                             <div>Quantidade: {entry.item.quantity}</div>
+                            {entry.fromPosition && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Adicionado de:</span>
+                                <Badge variant="outline">{entry.fromPosition.code}</Badge>
+                                <span className="text-muted-foreground">({entry.fromPosition.street})</span>
+                              </div>
+                            )}
                           </div>
                         )}
-                        
+                        {entry.action === 'item_removed' && entry.item && (
+                          <div className="mt-2 p-2 bg-background rounded border text-xs space-y-1">
+                            <div className="font-medium">Detalhes do produto:</div>
+                            <div>SKU: {entry.item.product?.sku}</div>
+                            <div>Quantidade: {entry.item.quantity}</div>
+                            {entry.toPosition && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Removido para:</span>
+                                <Badge variant="outline">{entry.toPosition.code}</Badge>
+                                <span className="text-muted-foreground">({entry.toPosition.street})</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {entry.action === 'moved' && (entry.fromPosition || entry.toPosition) && (
                           <div className="mt-2 p-2 bg-background rounded border text-xs">
                             <div className="font-medium">Movimentação:</div>

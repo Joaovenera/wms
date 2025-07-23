@@ -16,16 +16,304 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Product, type InsertProduct } from "@/types/api";
 import { insertProductSchema } from "@/types/schemas";
-import { Plus, Search, Edit, Trash2, Package2, Barcode } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Package2, Barcode, ImageIcon, Eye } from "lucide-react";
+import ProductPhotoManager from "@/components/product-photo-manager";
+import ProductDetailsModal from "@/components/product-details-modal";
+
+// Dados das categorias
+const categoriesData = [
+  {
+    "name": "Alimentadores e Puxadores"
+  },
+  {
+    "name": "Aparelhos"
+  },
+  {
+    "name": "Aviamentos & Patchwork",
+    "subcategories": [
+      { "name": "Acessórios" },
+      { "name": "Alicates e Aplicadores" },
+      { "name": "Base de Corte" },
+      { "name": "Cabides Manequim" },
+      { "name": "Canetas" },
+      { "name": "Colas" },
+      { "name": "Cortadores" },
+      { "name": "Crochê e Tricô" },
+      { "name": "Enfeites" },
+      { "name": "Ferramentas Couro" },
+      { "name": "Quilting e Quiling" },
+      { "name": "Réguas" },
+      { "name": "Strass" },
+      { "name": "Tesouras" }
+    ]
+  },
+  {
+    "name": "Divisão Digital"
+  },
+  {
+    "name": "Kansai acessórios"
+  },
+  {
+    "name": "Kansai máquinas"
+  },
+  {
+    "name": "Lazer"
+  },
+  {
+    "name": "Maquinas",
+    "subcategories": [
+      {
+        "name": "Bordado",
+        "subcategories": [
+          { "name": "Bordado 1 Cabeça" },
+          { "name": "Bordado 12 Cabeças" },
+          { "name": "Bordado 2 Cabeças" },
+          { "name": "Bordado 4 Cabeças" },
+          { "name": "Bordado 6 Cabeças" },
+          { "name": "Bordado 8 Cabeças" },
+          { "name": "Produtos Bordado" }
+        ]
+      },
+      { "name": "Dobradeiras" },
+      {
+        "name": "Máquinas de Corte",
+        "subcategories": [
+          { "name": "Corte a Laser" },
+          { "name": "Corte Automático" },
+          { "name": "Corte Disco" },
+          { "name": "Corte Faca" },
+          { "name": "Corte Manual" },
+          { "name": "Enfestadeira" },
+          { "name": "Enfesto" },
+          { "name": "Furadora de Tecido" },
+          { "name": "Plotters" },
+          { "name": "Revisadeira de Tecido" }
+        ]
+      },
+      {
+        "name": "Máquinas de Costura",
+        "subcategories": [
+          { "name": "Automação" },
+          { "name": "Bainha" },
+          { "name": "Botoneira" },
+          { "name": "Braço" },
+          { "name": "Caseadeira" },
+          { "name": "Coluna" },
+          { "name": "Conicaleira" },
+          { "name": "Elastiqueira" },
+          { "name": "Fechadeira" },
+          { "name": "Filigrana" },
+          { "name": "Fusionadeira" },
+          { "name": "Galoneira" },
+          { "name": "Guilhotina" },
+          { "name": "Interloque" },
+          { "name": "Máquina de Cordão" },
+          { "name": "Máquinas Domésticas" },
+          { "name": "Máquinas Ultrassônicas" },
+          { "name": "Overloque" },
+          { "name": "Passantes" },
+          { "name": "Peitilho" },
+          { "name": "Pespontadeira" },
+          { "name": "Ponto Corrente" },
+          { "name": "Ponto Invisível" },
+          { "name": "Reta" },
+          { "name": "Travete" },
+          { "name": "Zig Zag" }
+        ]
+      },
+      { "name": "Para Bolso" },
+      {
+        "name": "Prensas Térmicas",
+        "subcategories": [
+          { "name": "Prensas Bandeja Móvel" },
+          { "name": "Prensas Giratória 1 Bandeja" },
+          {
+            "name": "Prensas Manuais",
+            "subcategories": [
+              { "name": "1 Bandeja Manual" },
+              { "name": "2 Bandejas Manual" }
+            ]
+          },
+          { "name": "Prensas Multifuncionais" },
+          {
+            "name": "Prensas Pneumáticas",
+            "subcategories": [
+              { "name": "1 Bandeja" },
+              { "name": "2 Bandejas" },
+              { "name": "Prensas Pneumáticas Sublimáticas" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Marcas",
+    "subcategories": [
+      { "name": "Eastman" },
+      { "name": "H Strong" },
+      { "name": "Kansai Especial" },
+      { "name": "Kobest" },
+      {
+        "name": "Orange",
+        "subcategories": [
+          { "name": "10 Unidades" },
+          { "name": "100 Unidades" },
+          { "name": "500 Unidades" }
+        ]
+      },
+      { "name": "Silter" },
+      { "name": "Silverstar" },
+      { "name": "We‑R" },
+      { "name": "Westman" },
+      {
+        "name": "Westpress",
+        "subcategories": [
+          { "name": "Westpress Ferrinho" },
+          { "name": "Westpress Máquinas" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Miçanga"
+  },
+  {
+    "name": "OpenTex acessórios"
+  },
+  {
+    "name": "OpenTex fixação"
+  },
+  {
+    "name": "Outlet"
+  },
+  {
+    "name": "Passadoria e Embalo",
+    "subcategories": [
+      { "name": "Aplicadores de Tag" },
+      { "name": "Calandras" },
+      { "name": "Caldeiras" },
+      { "name": "Dispensadores" },
+      {
+        "name": "Etiquetadoras e Acessórios",
+        "subcategories": [
+          { "name": "Peças Rolos E Catracas" }
+        ]
+      },
+      { "name": "Ferros de Passar" },
+      { "name": "Grampeadores" },
+      { "name": "Lacra Sacola" },
+      { "name": "Lavadora a Vapor" },
+      { "name": "Mesas de Passar" },
+      { "name": "Outros" },
+      { "name": "Passadeira" },
+      {
+        "name": "Peças para Passadoria",
+        "subcategories": [
+          { "name": "Antena" },
+          { "name": "Balancim" },
+          { "name": "Bocal" },
+          { "name": "Bóia" },
+          { "name": "Cabo de Manuseio" },
+          { "name": "Capacitador" },
+          { "name": "Caracol" },
+          { "name": "Dijuntor" },
+          { "name": "Gatilho" },
+          { "name": "Mangueira" },
+          { "name": "Manometro" },
+          { "name": "Micro Swift" },
+          { "name": "Nippo" },
+          { "name": "Pedal/Feltro e Capa" },
+          { "name": "Preçostato" },
+          { "name": "Reservatorio de Água" },
+          { "name": "Resistencia" },
+          { "name": "Sapatas" },
+          { "name": "Tampa/Plugg" },
+          { "name": "Termostato" },
+          { "name": "Troller" },
+          { "name": "Válvula de Solenoide" },
+          { "name": "Ventuinha" }
+        ]
+      },
+      { "name": "Peças Passadoria & Acessórios" },
+      { "name": "Steamers - Vaporizador" },
+      { "name": "Vincador" }
+    ]
+  },
+  {
+    "name": "Peças Bordadeiras"
+  },
+  {
+    "name": "Peças Para Máquina de Costura"
+  },
+  {
+    "name": "Peças, Motores e Mesas",
+    "subcategories": [
+      { "name": "Looper" },
+      { "name": "Mesas" },
+      { "name": "Motores" },
+      { "name": "Peças Corte a Laser" },
+      {
+        "name": "Peças de Maquinas de Costura",
+        "subcategories": [
+          { "name": "Agulhas" },
+          { "name": "Bitola" },
+          { "name": "Bobina" },
+          { "name": "Calcadores" },
+          { "name": "Campo. Eletro" },
+          { "name": "Carretilhas" },
+          { "name": "Chapa" },
+          { "name": "Dente" },
+          { "name": "Disco de Corte" },
+          { "name": "Faca" },
+          { "name": "Lançadeir" },
+          { "name": "Porta Cones" },
+          { "name": "Rolamento" }
+        ]
+      },
+      { "name": "Peças Sublimação e Prensas" },
+      { "name": "Placas" }
+    ]
+  },
+  { "name": "Silverstar automação" },
+  { "name": "Silverstar corte" },
+  { "name": "Silverstar costura" },
+  { "name": "Silverstar fixação" },
+  { "name": "Silverstar passadoria" },
+  { "name": "Sublimação" },
+  { "name": "Tampografia" },
+  { "name": "Westman automação" },
+  { "name": "Westman bordado" },
+  { "name": "Westman corte" },
+  { "name": "Westman costura" },
+  { "name": "Westman doméstico" },
+  { "name": "Westman Fixação" },
+  { "name": "Westman laser" },
+  { "name": "Westman passadoria" },
+  { "name": "Westpress acessórios" },
+  { "name": "Westpress alicate" },
+  { "name": "Westpress base de corte" },
+  { "name": "Westpress calcadores" },
+  { "name": "Westpress colas" },
+  { "name": "Westpress cortadores" },
+  { "name": "Westpress crochê" },
+  { "name": "Westpress quilting" },
+  { "name": "Westpress réguas" },
+  { "name": "Westpress tesouras" }
+];
 
 export default function Products() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedSubCategory, setSelectedSubCategory] = useState("");
+  const [photoProduct, setPhotoProduct] = useState<Product | null>(null);
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const { toast } = useToast();
 
-  const { data: products, isLoading } = useQuery<Product[]>({
-    queryKey: ['/api/products'],
+  const { data: products, isLoading } = useQuery<any[]>({
+    queryKey: ['/api/products?includeStock=true'],
   });
 
   const form = useForm<InsertProduct>({
@@ -38,7 +326,7 @@ export default function Products() {
       brand: "",
       unit: "un",
       weight: undefined,
-      dimensions: null,
+      dimensions: { length: 0, width: 0, height: 0 },
       barcode: "",
       requiresLot: false,
       requiresExpiry: false,
@@ -129,6 +417,15 @@ export default function Products() {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
+    
+    // Extrair categoria e subcategoria do campo category
+    const categoryParts = product.category?.split(" > ") || [];
+    const mainCategory = categoryParts[0] || "";
+    const subCategory = categoryParts.slice(1).join(" > ") || "";
+    
+    setSelectedCategory(mainCategory);
+    setSelectedSubCategory(subCategory);
+    
     form.reset({
       sku: product.sku,
       name: product.name,
@@ -137,7 +434,7 @@ export default function Products() {
       brand: product.brand || "",
       unit: product.unit,
       weight: product.weight || undefined,
-      dimensions: product.dimensions,
+      dimensions: product.dimensions || { length: 0, width: 0, height: 0 },
       barcode: product.barcode || "",
       requiresLot: product.requiresLot || false,
       requiresExpiry: product.requiresExpiry || false,
@@ -152,6 +449,25 @@ export default function Products() {
     if (confirm(`Tem certeza que deseja desativar o produto ${product.name}?`)) {
       deleteMutation.mutate(product.id);
     }
+  };
+
+  // Função para obter subcategorias da categoria selecionada
+  const getSubCategories = (categoryName: string) => {
+    const category = categoriesData.find(cat => cat.name === categoryName);
+    return category?.subcategories || [];
+  };
+
+  // Função para obter sub-subcategorias
+  const getSubSubCategories = (categoryName: string, subCategoryName: string) => {
+    const category = categoriesData.find(cat => cat.name === categoryName);
+    const subCategory = category?.subcategories?.find(sub => sub.name === subCategoryName);
+    return subCategory?.subcategories || [];
+  };
+
+  // Função para atualizar categoria e subcategoria no formulário
+  const updateCategoryField = (category: string, subCategory: string) => {
+    const fullCategory = subCategory ? `${category} > ${subCategory}` : category;
+    form.setValue("category", fullCategory);
   };
 
   return (
@@ -188,7 +504,7 @@ export default function Products() {
                     name="sku"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>SKU</FormLabel>
+                        <FormLabel>ID</FormLabel>
                         <FormControl>
                           <Input placeholder="PRD-001" {...field} />
                         </FormControl>
@@ -232,13 +548,60 @@ export default function Products() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Categoria</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Eletrônicos" {...field} />
-                        </FormControl>
+                        <Select 
+                          onValueChange={(value) => {
+                            setSelectedCategory(value);
+                            setSelectedSubCategory("");
+                            updateCategoryField(value, "");
+                          }} 
+                          value={selectedCategory}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione uma categoria" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {categoriesData.map((category: any) => (
+                              <SelectItem key={category.name} value={category.name}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  <div className="space-y-2">
+                    <FormLabel>Sub Categoria</FormLabel>
+                    <Select 
+                      onValueChange={(value) => {
+                        setSelectedSubCategory(value);
+                        updateCategoryField(selectedCategory, value);
+                      }} 
+                      value={selectedSubCategory}
+                      disabled={!selectedCategory}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma subcategoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getSubCategories(selectedCategory).map((subcategory: any) => (
+                          <div key={subcategory.name}>
+                            <SelectItem value={subcategory.name}>
+                              {subcategory.name}
+                            </SelectItem>
+                            {getSubSubCategories(selectedCategory, subcategory.name).map((subsubcategory: any) => (
+                              <SelectItem key={subsubcategory.name} value={`${subcategory.name} {'>'} ${subsubcategory.name}`}>
+                                {subcategory.name} {'>'} {subsubcategory.name}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <FormField
                     control={form.control}
                     name="brand"
@@ -252,13 +615,16 @@ export default function Products() {
                       </FormItem>
                     )}
                   />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
                   <FormField
                     control={form.control}
                     name="unit"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Unidade</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione a unidade" />
@@ -309,6 +675,67 @@ export default function Products() {
                         <FormLabel>Código de Barras</FormLabel>
                         <FormControl>
                           <Input placeholder="1234567890123" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Dimensões da caixa */}
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="dimensions.length"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Comprimento (cm)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            value={field.value ?? 0}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="dimensions.width"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Largura (cm)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            value={field.value ?? 0}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="dimensions.height"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Altura (cm)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...field}
+                            value={field.value ?? 0}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -485,7 +912,7 @@ export default function Products() {
               <CardContent>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">SKU:</span>
+                    <span className="text-gray-600">ID:</span>
                     <span className="font-medium font-mono">{product.sku}</span>
                   </div>
                   
@@ -543,13 +970,40 @@ export default function Products() {
                       {product.description}
                     </div>
                   )}
+
+                  {/* Stock Information - Only Total */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between p-2 bg-blue-50 rounded">
+                      <span className="text-sm font-medium text-blue-800">Estoque Total:</span>
+                      <span className="text-lg font-bold text-blue-900">
+                        {product.totalStock || 0} {product.unit}
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="flex justify-end space-x-2 mt-4">
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => setDetailProduct(product)}
+                    title="Ver detalhes"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPhotoProduct(product)}
+                    title="Gerenciar fotos"
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => handleEdit(product)}
+                    title="Editar produto"
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -558,6 +1012,7 @@ export default function Products() {
                     variant="outline"
                     onClick={() => handleDelete(product)}
                     disabled={deleteMutation.isPending}
+                    title="Desativar produto"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -577,6 +1032,26 @@ export default function Products() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Photo Manager Dialog */}
+      {photoProduct && (
+        <ProductPhotoManager
+          isOpen={!!photoProduct}
+          onClose={() => setPhotoProduct(null)}
+          productId={photoProduct.id}
+          productName={photoProduct.name}
+        />
+      )}
+
+      {/* Product Details Modal */}
+      {detailProduct && (
+        <ProductDetailsModal
+          isOpen={!!detailProduct}
+          onClose={() => setDetailProduct(null)}
+          productId={detailProduct.id}
+          productName={detailProduct.name}
+        />
       )}
     </div>
   );

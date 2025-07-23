@@ -13,7 +13,7 @@ interface PalletSlot {
   col: number;
   width: number;
   height: number;
-  occupied: boolean;
+  ocupada: boolean;
   palletType?: string;
 }
 
@@ -51,7 +51,7 @@ export default function PalletLayoutConfigurator({
         col: i % 3,
         width: 1,
         height: 1,
-        occupied: false
+        ocupada: false
       }))
     },
     {
@@ -61,12 +61,12 @@ export default function PalletLayoutConfigurator({
       description: "Layout misto com slots duplos e simples",
       slots: [
         // Slots duplos (2x1)
-        { id: "slot-0", row: 0, col: 0, width: 2, height: 1, occupied: false },
-        { id: "slot-1", row: 0, col: 2, width: 2, height: 1, occupied: false },
-        { id: "slot-2", row: 1, col: 0, width: 2, height: 1, occupied: false },
-        { id: "slot-3", row: 1, col: 2, width: 2, height: 1, occupied: false },
-        { id: "slot-4", row: 2, col: 0, width: 2, height: 1, occupied: false },
-        { id: "slot-5", row: 2, col: 2, width: 2, height: 1, occupied: false },
+        { id: "slot-0", row: 0, col: 0, width: 2, height: 1, ocupada: false },
+        { id: "slot-1", row: 0, col: 2, width: 2, height: 1, ocupada: false },
+        { id: "slot-2", row: 1, col: 0, width: 2, height: 1, ocupada: false },
+        { id: "slot-3", row: 1, col: 2, width: 2, height: 1, ocupada: false },
+        { id: "slot-4", row: 2, col: 0, width: 2, height: 1, ocupada: false },
+        { id: "slot-5", row: 2, col: 2, width: 2, height: 1, ocupada: false },
       ]
     },
     {
@@ -80,7 +80,7 @@ export default function PalletLayoutConfigurator({
         col: i % 6,
         width: 1,
         height: 1,
-        occupied: false
+        ocupada: false
       }))
     },
     {
@@ -90,17 +90,17 @@ export default function PalletLayoutConfigurator({
       description: "Layout com slots de diferentes tamanhos",
       slots: [
         // Primeira linha: 2 slots duplos + 1 simples
-        { id: "slot-0", row: 0, col: 0, width: 2, height: 1, occupied: false },
-        { id: "slot-1", row: 0, col: 2, width: 2, height: 1, occupied: false },
-        { id: "slot-2", row: 0, col: 4, width: 1, height: 1, occupied: false },
+        { id: "slot-0", row: 0, col: 0, width: 2, height: 1, ocupada: false },
+        { id: "slot-1", row: 0, col: 2, width: 2, height: 1, ocupada: false },
+        { id: "slot-2", row: 0, col: 4, width: 1, height: 1, ocupada: false },
         // Segunda linha igual
-        { id: "slot-3", row: 1, col: 0, width: 2, height: 1, occupied: false },
-        { id: "slot-4", row: 1, col: 2, width: 2, height: 1, occupied: false },
-        { id: "slot-5", row: 1, col: 4, width: 1, height: 1, occupied: false },
+        { id: "slot-3", row: 1, col: 0, width: 2, height: 1, ocupada: false },
+        { id: "slot-4", row: 1, col: 2, width: 2, height: 1, ocupada: false },
+        { id: "slot-5", row: 1, col: 4, width: 1, height: 1, ocupada: false },
         // Terceira linha igual
-        { id: "slot-6", row: 2, col: 0, width: 2, height: 1, occupied: false },
-        { id: "slot-7", row: 2, col: 2, width: 2, height: 1, occupied: false },
-        { id: "slot-8", row: 2, col: 4, width: 1, height: 1, occupied: false },
+        { id: "slot-6", row: 2, col: 0, width: 2, height: 1, ocupada: false },
+        { id: "slot-7", row: 2, col: 2, width: 2, height: 1, ocupada: false },
+        { id: "slot-8", row: 2, col: 4, width: 1, height: 1, ocupada: false },
       ]
     }
   ];
@@ -119,7 +119,7 @@ export default function PalletLayoutConfigurator({
           col: c,
           width: 1,
           height: 1,
-          occupied: false
+          ocupada: false
         });
       }
     }
@@ -148,7 +148,7 @@ export default function PalletLayoutConfigurator({
     if (readonly) return;
     
     const newSlots = config.slots.map(slot => 
-      slot.id === slotId ? { ...slot, occupied: !slot.occupied } : slot
+      slot.id === slotId ? { ...slot, ocupada: !slot.occupied } : slot
     );
 
     onChange({

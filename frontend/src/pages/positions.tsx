@@ -41,7 +41,7 @@ export default function Positions() {
       level: 1,
       side: "E",
       rackType: "convencional",
-      status: "available",
+      status: "disponivel",
       maxPallets: 1,
       hasDivision: false,
       restrictions: "",
@@ -199,13 +199,13 @@ export default function Positions() {
 
   const getStatusIcon = (position: Position) => {
     switch (position.status) {
-      case 'available':
+      case 'disponivel':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'occupied':
         return <XCircle className="h-4 w-4 text-red-500" />;
       case 'reserved':
         return <Clock className="h-4 w-4 text-yellow-500" />;
-      case 'maintenance':
+      case 'manutencao':
         return <AlertTriangle className="h-4 w-4 text-orange-500" />;
       default:
         return <XCircle className="h-4 w-4 text-gray-500" />;
@@ -214,14 +214,14 @@ export default function Positions() {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      available: { label: "Disponível", variant: "default" as const },
-      occupied: { label: "Ocupada", variant: "destructive" as const },
-      reserved: { label: "Reservada", variant: "secondary" as const },
-      maintenance: { label: "Manutenção", variant: "outline" as const },
-      blocked: { label: "Bloqueada", variant: "destructive" as const }
+      disponivel: { label: "Disponível", variant: "default" as const },
+      ocupada: { label: "Ocupada", variant: "destructive" as const },
+      reservada: { label: "Reservada", variant: "secondary" as const },
+      manutencao: { label: "Manutenção", variant: "outline" as const },
+      bloqueada: { label: "Bloqueada", variant: "destructive" as const }
     };
     
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.blocked;
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.bloqueada;
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
@@ -417,13 +417,13 @@ export default function Positions() {
                                 <SelectValue placeholder="Selecione o status" />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
-                              <SelectItem value="available">Disponível</SelectItem>
-                              <SelectItem value="occupied">Ocupada</SelectItem>
-                              <SelectItem value="reserved">Reservada</SelectItem>
-                              <SelectItem value="maintenance">Em Manutenção</SelectItem>
-                              <SelectItem value="blocked">Bloqueada</SelectItem>
-                            </SelectContent>
+                                                        <SelectContent>
+                <SelectItem value="disponivel">Disponível</SelectItem>
+                <SelectItem value="ocupada">Ocupada</SelectItem>
+                <SelectItem value="reservada">Reservada</SelectItem>
+                <SelectItem value="manutencao">Em Manutenção</SelectItem>
+                <SelectItem value="bloqueada">Bloqueada</SelectItem>
+              </SelectContent>
                           </Select>
                           <FormMessage />
                         </FormItem>
@@ -526,14 +526,14 @@ export default function Positions() {
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value="available">Disponível</SelectItem>
-                  <SelectItem value="occupied">Ocupada</SelectItem>
-                  <SelectItem value="reserved">Reservada</SelectItem>
-                  <SelectItem value="maintenance">Em Manutenção</SelectItem>
-                  <SelectItem value="blocked">Bloqueada</SelectItem>
-                </SelectContent>
+                            <SelectContent>
+              <SelectItem value="all">Todos os Status</SelectItem>
+              <SelectItem value="disponivel">Disponível</SelectItem>
+              <SelectItem value="ocupada">Ocupada</SelectItem>
+              <SelectItem value="reservada">Reservada</SelectItem>
+              <SelectItem value="manutencao">Em Manutenção</SelectItem>
+              <SelectItem value="bloqueada">Bloqueada</SelectItem>
+            </SelectContent>
               </Select>
 
               <Select value={streetFilter} onValueChange={setStreetFilter}>

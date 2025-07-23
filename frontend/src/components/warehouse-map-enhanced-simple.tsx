@@ -50,7 +50,7 @@ export function WarehouseMapEnhanced({
   // Utility functions
   const getStatusInfo = (status: string) => {
     switch (status) {
-      case 'available':
+      case 'disponivel':
         return { 
           label: 'Disponível', 
           color: 'bg-green-200 border-green-400', 
@@ -62,7 +62,7 @@ export function WarehouseMapEnhanced({
           color: 'bg-orange-200 border-orange-400', 
           iconColor: 'text-orange-600' 
         };
-      case 'maintenance':
+      case 'manutencao':
         return { 
           label: 'Manutenção', 
           color: 'bg-red-200 border-red-400', 

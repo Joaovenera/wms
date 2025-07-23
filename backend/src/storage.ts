@@ -3,9 +3,12 @@ import {
   pallets,
   positions,
   products,
+  productPhotos,
+  productPhotoHistory,
   ucps,
   ucpItems,
   ucpHistory,
+  itemTransfers,
   movements,
   palletStructures,
   type User,
@@ -16,12 +19,18 @@ import {
   type InsertPosition,
   type Product,
   type InsertProduct,
+  type ProductPhoto,
+  type InsertProductPhoto,
+  type ProductPhotoHistory,
+  type InsertProductPhotoHistory,
   type Ucp,
   type InsertUcp,
   type UcpItem,
   type InsertUcpItem,
   type UcpHistory,
   type InsertUcpHistory,
+  type ItemTransfer,
+  type InsertItemTransfer,
   type Movement,
   type InsertMovement,
   type PalletStructure,
@@ -60,9 +69,18 @@ export interface IStorage {
   getProducts(): Promise<Product[]>;
   getProduct(id: number): Promise<Product | undefined>;
   getProductBySku(sku: string): Promise<Product | undefined>;
+  getProductsWithStock(): Promise<any[]>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, product: Partial<InsertProduct>): Promise<Product | undefined>;
   deleteProduct(id: number): Promise<boolean>;
+
+  // Product Photo operations
+  getProductPhotos(productId: number): Promise<any[]>;
+  getProductPhoto(photoId: number): Promise<any>;
+  addProductPhoto(photo: InsertProductPhoto, userId: number): Promise<ProductPhoto>;
+  removeProductPhoto(photoId: number, userId: number, notes?: string): Promise<boolean>;
+  setPrimaryPhoto(photoId: number, userId: number): Promise<boolean>;
+  getProductPhotoHistory(productId: number): Promise<any[]>;
 
   // UCP operations - Enhanced for lifecycle management
   getUcps(includeArchived?: boolean): Promise<(Ucp & { pallet?: Pallet; position?: Position })[]>;
@@ -265,6 +283,48 @@ export class DatabaseStorage implements IStorage {
     return product;
   }
 
+  async getProductsWithStock(): Promise<any[]> {
+    const query = sql`
+      SELECT 
+        p.*,
+        COALESCE(SUM(ui.quantity)::decimal, 0) as total_stock,
+        jsonb_agg(
+          DISTINCT 
+          CASE 
+            WHEN ui.id IS NOT NULL THEN 
+              jsonb_build_object(
+                'ucp_id', u.id,
+                'ucp_code', u.code,
+                'ucp_type', COALESCE(pal.type, 'N/A'),
+                'position_code', pos.code,
+                'quantity', ui.quantity,
+                'lot', ui.lot,
+                'expiry_date', ui.expiry_date,
+                'internal_code', ui.internal_code
+              )
+            ELSE NULL
+          END
+        ) FILTER (WHERE ui.id IS NOT NULL) as ucp_stock
+      FROM products p
+      LEFT JOIN ucp_items ui ON p.id = ui.product_id AND ui.is_active = true
+      LEFT JOIN ucps u ON ui.ucp_id = u.id
+      LEFT JOIN pallets pal ON u.pallet_id = pal.id
+      LEFT JOIN positions pos ON u.position_id = pos.id
+      WHERE p.is_active = true
+      GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.unit, p.weight, 
+               p.dimensions, p.barcode, p.requires_lot, p.requires_expiry, p.min_stock, 
+               p.max_stock, p.is_active, p.created_by, p.created_at, p.updated_at
+      ORDER BY p.name
+    `;
+    
+    const result = await db.execute(query);
+    return result.rows.map((row: any) => ({
+      ...row,
+      totalStock: parseFloat(row.total_stock) || 0,
+      ucpStock: row.ucp_stock || []
+    }));
+  }
+
   async createProduct(product: InsertProduct): Promise<Product> {
     const [newProduct] = await db.insert(products).values(product).returning();
     return newProduct;
@@ -286,6 +346,237 @@ export class DatabaseStorage implements IStorage {
       .where(eq(products.id, id))
       .returning();
     return !!updatedProduct;
+  }
+
+  // Product Photo operations
+  async getProductPhotos(productId: number): Promise<any[]> {
+    const result = await db
+      .select()
+      .from(productPhotos)
+      .leftJoin(users, eq(productPhotos.uploadedBy, users.id))
+      .where(and(eq(productPhotos.productId, productId), eq(productPhotos.isActive, true)))
+      .orderBy(desc(productPhotos.isPrimary), desc(productPhotos.uploadedAt));
+
+    return result.map(row => {
+      const photo = row.product_photos;
+      const user = row.users;
+      return {
+        ...photo,
+        uploadedBy: user || undefined,
+      };
+    });
+  }
+
+  async getProductPhoto(photoId: number): Promise<any> {
+    const result = await db
+      .select()
+      .from(productPhotos)
+      .leftJoin(users, eq(productPhotos.uploadedBy, users.id))
+      .where(and(eq(productPhotos.id, photoId), eq(productPhotos.isActive, true)))
+      .limit(1);
+
+    if (result.length === 0) return undefined;
+
+    const row = result[0];
+    const photo = row.product_photos;
+    const user = row.users;
+    return {
+      ...photo,
+      uploadedBy: user || undefined,
+    };
+  }
+
+  async addProductPhoto(photo: InsertProductPhoto, userId: number): Promise<ProductPhoto> {
+    return await db.transaction(async (tx) => {
+      // If this is being set as primary, unset all other primary photos for this product
+      if (photo.isPrimary) {
+        await tx
+          .update(productPhotos)
+          .set({ isPrimary: false })
+          .where(and(eq(productPhotos.productId, photo.productId), eq(productPhotos.isPrimary, true)));
+      }
+
+      // Insert the new photo
+      const [newPhoto] = await tx
+        .insert(productPhotos)
+        .values(photo)
+        .returning();
+
+      // Add history entry
+      await tx.insert(productPhotoHistory).values({
+        productId: photo.productId,
+        photoId: newPhoto.id,
+        action: 'added',
+        filename: photo.filename,
+        isPrimary: photo.isPrimary || false,
+        performedBy: userId,
+        notes: `Photo uploaded: ${photo.filename}`,
+      });
+
+      // If this is the first photo for the product, set it as primary
+      if (!photo.isPrimary) {
+        const photoCount = await tx
+          .select({ count: sql<number>`count(*)` })
+          .from(productPhotos)
+          .where(and(eq(productPhotos.productId, photo.productId), eq(productPhotos.isActive, true)));
+
+        if (photoCount[0].count === 1) {
+          await tx
+            .update(productPhotos)
+            .set({ isPrimary: true })
+            .where(eq(productPhotos.id, newPhoto.id));
+
+          await tx.insert(productPhotoHistory).values({
+            productId: photo.productId,
+            photoId: newPhoto.id,
+            action: 'set_primary',
+            filename: photo.filename,
+            isPrimary: true,
+            performedBy: userId,
+            notes: 'Automatically set as primary (first photo)',
+          });
+
+          newPhoto.isPrimary = true;
+        }
+      }
+
+      return newPhoto;
+    });
+  }
+
+  async removeProductPhoto(photoId: number, userId: number, notes?: string): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      const [photo] = await tx
+        .select()
+        .from(productPhotos)
+        .where(and(eq(productPhotos.id, photoId), eq(productPhotos.isActive, true)))
+        .limit(1);
+
+      if (!photo) return false;
+
+      // Mark photo as inactive
+      await tx
+        .update(productPhotos)
+        .set({ isActive: false })
+        .where(eq(productPhotos.id, photoId));
+
+      // Add history entry
+      await tx.insert(productPhotoHistory).values({
+        productId: photo.productId,
+        photoId: photoId,
+        action: 'removed',
+        filename: photo.filename,
+        isPrimary: photo.isPrimary,
+        performedBy: userId,
+        notes: notes || `Photo removed: ${photo.filename}`,
+      });
+
+      // If this was the primary photo, set another photo as primary
+      if (photo.isPrimary) {
+        const [nextPhoto] = await tx
+          .select()
+          .from(productPhotos)
+          .where(and(eq(productPhotos.productId, photo.productId), eq(productPhotos.isActive, true)))
+          .orderBy(desc(productPhotos.uploadedAt))
+          .limit(1);
+
+        if (nextPhoto) {
+          await tx
+            .update(productPhotos)
+            .set({ isPrimary: true })
+            .where(eq(productPhotos.id, nextPhoto.id));
+
+          await tx.insert(productPhotoHistory).values({
+            productId: photo.productId,
+            photoId: nextPhoto.id,
+            action: 'set_primary',
+            filename: nextPhoto.filename,
+            isPrimary: true,
+            performedBy: userId,
+            notes: 'Automatically set as primary (previous primary was removed)',
+          });
+        }
+      }
+
+      return true;
+    });
+  }
+
+  async setPrimaryPhoto(photoId: number, userId: number): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      const [photo] = await tx
+        .select()
+        .from(productPhotos)
+        .where(and(eq(productPhotos.id, photoId), eq(productPhotos.isActive, true)))
+        .limit(1);
+
+      if (!photo) return false;
+      if (photo.isPrimary) return true; // Already primary
+
+      // Unset current primary photo
+      const [currentPrimary] = await tx
+        .select()
+        .from(productPhotos)
+        .where(and(
+          eq(productPhotos.productId, photo.productId), 
+          eq(productPhotos.isPrimary, true),
+          eq(productPhotos.isActive, true)
+        ))
+        .limit(1);
+
+      if (currentPrimary) {
+        await tx
+          .update(productPhotos)
+          .set({ isPrimary: false })
+          .where(eq(productPhotos.id, currentPrimary.id));
+
+        await tx.insert(productPhotoHistory).values({
+          productId: photo.productId,
+          photoId: currentPrimary.id,
+          action: 'unset_primary',
+          filename: currentPrimary.filename,
+          isPrimary: false,
+          performedBy: userId,
+          notes: 'Unset as primary photo',
+        });
+      }
+
+      // Set new primary photo
+      await tx
+        .update(productPhotos)
+        .set({ isPrimary: true })
+        .where(eq(productPhotos.id, photoId));
+
+      await tx.insert(productPhotoHistory).values({
+        productId: photo.productId,
+        photoId: photoId,
+        action: 'set_primary',
+        filename: photo.filename,
+        isPrimary: true,
+        performedBy: userId,
+        notes: 'Set as primary photo',
+      });
+
+      return true;
+    });
+  }
+
+  async getProductPhotoHistory(productId: number): Promise<any[]> {
+    const result = await db
+      .select()
+      .from(productPhotoHistory)
+      .leftJoin(users, eq(productPhotoHistory.performedBy, users.id))
+      .where(eq(productPhotoHistory.productId, productId))
+      .orderBy(desc(productPhotoHistory.performedAt));
+
+    return result.map(row => {
+      const history = row.product_photo_history;
+      const user = row.users;
+      return {
+        ...history,
+        performedBy: user || undefined,
+      };
+    });
   }
 
   // UCP operations - Enhanced for lifecycle management
@@ -319,285 +610,87 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUcp(id: number): Promise<(Ucp & { pallet?: Pallet; position?: Position; items?: (UcpItem & { product?: Product })[] }) | undefined> {
-    // Use a single query with JOINs to get all data at once
-    const result = await db
-      .select({
-        // UCP fields
-        ucpId: ucps.id,
-        ucpCode: ucps.code,
-        ucpStatus: ucps.status,
-        ucpPalletId: ucps.palletId,
-        ucpPositionId: ucps.positionId,
-        ucpCreatedBy: ucps.createdBy,
-        ucpCreatedAt: ucps.createdAt,
-        ucpUpdatedAt: ucps.updatedAt,
-        
-        // Pallet fields
-        palletId: pallets.id,
-        palletCode: pallets.code,
-        palletStatus: pallets.status,
-        palletType: pallets.type,
-        palletMaxWeight: pallets.maxWeight,
-        palletCurrentWeight: pallets.currentWeight,
-        palletCreatedAt: pallets.createdAt,
-        palletUpdatedAt: pallets.updatedAt,
-        
-        // Position fields
-        positionId: positions.id,
-        positionCode: positions.code,
-        positionStatus: positions.status,
-        positionStreet: positions.street,
-        positionSide: positions.side,
-        positionLevel: positions.level,
-        positionPosition: positions.position,
-        positionCreatedAt: positions.createdAt,
-        positionUpdatedAt: positions.updatedAt,
-        
-        // UCP Item fields
-        itemId: ucpItems.id,
-        itemQuantity: ucpItems.quantity,
-        itemIsActive: ucpItems.isActive,
-        itemAddedBy: ucpItems.addedBy,
-        itemAddedAt: ucpItems.addedAt,
-        itemRemovedBy: ucpItems.removedBy,
-        itemRemovedAt: ucpItems.removedAt,
-        itemRemovalReason: ucpItems.removalReason,
-        
-        // Product fields
-        productId: products.id,
-        productSku: products.sku,
-        productName: products.name,
-        productDescription: products.description,
-        productWeight: products.weight,
-        productIsActive: products.isActive,
-        productCreatedAt: products.createdAt,
-        productUpdatedAt: products.updatedAt,
-      })
+    // First get the UCP with basic relations
+    const ucpResult = await db
+      .select()
       .from(ucps)
       .leftJoin(pallets, eq(ucps.palletId, pallets.id))
       .leftJoin(positions, eq(ucps.positionId, positions.id))
-      .leftJoin(ucpItems, eq(ucps.id, ucpItems.ucpId))
-      .leftJoin(products, eq(ucpItems.productId, products.id))
-      .where(eq(ucps.id, id));
+      .where(eq(ucps.id, id))
+      .limit(1);
 
-    if (result.length === 0) return undefined;
+    if (ucpResult.length === 0) return undefined;
 
-    const firstRow = result[0];
-    
-    // Build the UCP object
-    const ucp: Ucp = {
-      id: firstRow.ucpId,
-      code: firstRow.ucpCode,
-      status: firstRow.ucpStatus,
-      palletId: firstRow.ucpPalletId,
-      positionId: firstRow.ucpPositionId,
-      createdBy: firstRow.ucpCreatedBy,
-      createdAt: firstRow.ucpCreatedAt,
-      updatedAt: firstRow.ucpUpdatedAt,
+    const ucpRow = ucpResult[0];
+    const baseUcp = {
+      ...ucpRow.ucps,
+      pallet: ucpRow.pallets || undefined,
+      position: ucpRow.positions || undefined,
     };
 
-    // Build the pallet object if exists
-    const pallet = firstRow.palletId ? {
-      id: firstRow.palletId,
-      code: firstRow.palletCode,
-      status: firstRow.palletStatus,
-      type: firstRow.palletType,
-      maxWeight: firstRow.palletMaxWeight,
-      currentWeight: firstRow.palletCurrentWeight,
-      createdAt: firstRow.palletCreatedAt,
-      updatedAt: firstRow.palletUpdatedAt,
-    } : undefined;
+    // Then get the items separately (only active items)
+    console.log(`DEBUG: Fetching active items for UCP ID: ${id}`);
+    const itemsResult = await db
+      .select()
+      .from(ucpItems)
+      .leftJoin(products, eq(ucpItems.productId, products.id))
+      .where(and(eq(ucpItems.ucpId, id), eq(ucpItems.isActive, true)));
 
-    // Build the position object if exists
-    const position = firstRow.positionId ? {
-      id: firstRow.positionId,
-      code: firstRow.positionCode,
-      status: firstRow.positionStatus,
-      street: firstRow.positionStreet,
-      side: firstRow.positionSide,
-      level: firstRow.positionLevel,
-      position: firstRow.positionPosition,
-      createdAt: firstRow.positionCreatedAt,
-      updatedAt: firstRow.positionUpdatedAt,
-    } : undefined;
+    console.log(`DEBUG: Found ${itemsResult.length} active items for UCP ${id}`);
+    console.log('DEBUG: Items result:', itemsResult);
 
-    // Build the items array
-    const itemsMap = new Map();
-    result.forEach(row => {
-      if (row.itemId && !itemsMap.has(row.itemId)) {
-        itemsMap.set(row.itemId, {
-          id: row.itemId,
-          ucpId: row.ucpId,
-          productId: row.productId,
-          quantity: row.itemQuantity,
-          isActive: row.itemIsActive,
-          addedBy: row.itemAddedBy,
-          addedAt: row.itemAddedAt,
-          removedBy: row.itemRemovedBy,
-          removedAt: row.itemRemovedAt,
-          removalReason: row.itemRemovalReason,
-          product: row.productId ? {
-            id: row.productId,
-            sku: row.productSku,
-            name: row.productName,
-            description: row.productDescription,
-            weight: row.productWeight,
-            isActive: row.productIsActive,
-            createdAt: row.productCreatedAt,
-            updatedAt: row.productUpdatedAt,
-          } : undefined,
-        });
-      }
-    });
+    const items = itemsResult.map(row => ({
+      ...row.ucp_items,
+      product: row.products || undefined,
+    }));
 
-    const items = Array.from(itemsMap.values());
+    console.log(`DEBUG: Processed items for UCP ${id}:`, items.map(item => ({
+      id: item.id,
+      productId: item.productId,
+      quantity: item.quantity,
+      isActive: item.isActive,
+      lot: item.lot
+    })));
 
     return {
-      ...ucp,
-      pallet,
-      position,
+      ...baseUcp,
       items,
     };
   }
 
   async getUcpByCode(code: string): Promise<(Ucp & { pallet?: Pallet; position?: Position; items?: (UcpItem & { product?: Product })[] }) | undefined> {
-    // Use a single query with JOINs to get all data at once
-    const result = await db
-      .select({
-        // UCP fields
-        ucpId: ucps.id,
-        ucpCode: ucps.code,
-        ucpStatus: ucps.status,
-        ucpPalletId: ucps.palletId,
-        ucpPositionId: ucps.positionId,
-        ucpCreatedBy: ucps.createdBy,
-        ucpCreatedAt: ucps.createdAt,
-        ucpUpdatedAt: ucps.updatedAt,
-        
-        // Pallet fields
-        palletId: pallets.id,
-        palletCode: pallets.code,
-        palletStatus: pallets.status,
-        palletType: pallets.type,
-        palletMaxWeight: pallets.maxWeight,
-        palletCurrentWeight: pallets.currentWeight,
-        palletCreatedAt: pallets.createdAt,
-        palletUpdatedAt: pallets.updatedAt,
-        
-        // Position fields
-        positionId: positions.id,
-        positionCode: positions.code,
-        positionStatus: positions.status,
-        positionStreet: positions.street,
-        positionSide: positions.side,
-        positionLevel: positions.level,
-        positionPosition: positions.position,
-        positionCreatedAt: positions.createdAt,
-        positionUpdatedAt: positions.updatedAt,
-        
-        // UCP Item fields
-        itemId: ucpItems.id,
-        itemQuantity: ucpItems.quantity,
-        itemIsActive: ucpItems.isActive,
-        itemAddedBy: ucpItems.addedBy,
-        itemAddedAt: ucpItems.addedAt,
-        itemRemovedBy: ucpItems.removedBy,
-        itemRemovedAt: ucpItems.removedAt,
-        itemRemovalReason: ucpItems.removalReason,
-        
-        // Product fields
-        productId: products.id,
-        productSku: products.sku,
-        productName: products.name,
-        productDescription: products.description,
-        productWeight: products.weight,
-        productIsActive: products.isActive,
-        productCreatedAt: products.createdAt,
-        productUpdatedAt: products.updatedAt,
-      })
+    // First get the UCP with basic relations
+    const ucpResult = await db
+      .select()
       .from(ucps)
       .leftJoin(pallets, eq(ucps.palletId, pallets.id))
       .leftJoin(positions, eq(ucps.positionId, positions.id))
-      .leftJoin(ucpItems, eq(ucps.id, ucpItems.ucpId))
-      .leftJoin(products, eq(ucpItems.productId, products.id))
-      .where(eq(ucps.code, code));
+      .where(eq(ucps.code, code))
+      .limit(1);
 
-    if (result.length === 0) return undefined;
+    if (ucpResult.length === 0) return undefined;
 
-    const firstRow = result[0];
-    
-    // Build the UCP object
-    const ucp: Ucp = {
-      id: firstRow.ucpId,
-      code: firstRow.ucpCode,
-      status: firstRow.ucpStatus,
-      palletId: firstRow.ucpPalletId,
-      positionId: firstRow.ucpPositionId,
-      createdBy: firstRow.ucpCreatedBy,
-      createdAt: firstRow.ucpCreatedAt,
-      updatedAt: firstRow.ucpUpdatedAt,
+    const ucpRow = ucpResult[0];
+    const baseUcp = {
+      ...ucpRow.ucps,
+      pallet: ucpRow.pallets || undefined,
+      position: ucpRow.positions || undefined,
     };
 
-    // Build the pallet object if exists
-    const pallet = firstRow.palletId ? {
-      id: firstRow.palletId,
-      code: firstRow.palletCode,
-      status: firstRow.palletStatus,
-      type: firstRow.palletType,
-      maxWeight: firstRow.palletMaxWeight,
-      currentWeight: firstRow.palletCurrentWeight,
-      createdAt: firstRow.palletCreatedAt,
-      updatedAt: firstRow.palletUpdatedAt,
-    } : undefined;
+    // Then get the items separately
+    const itemsResult = await db
+      .select()
+      .from(ucpItems)
+      .leftJoin(products, eq(ucpItems.productId, products.id))
+      .where(and(eq(ucpItems.ucpId, baseUcp.id), eq(ucpItems.isActive, true)));
 
-    // Build the position object if exists
-    const position = firstRow.positionId ? {
-      id: firstRow.positionId,
-      code: firstRow.positionCode,
-      status: firstRow.positionStatus,
-      street: firstRow.positionStreet,
-      side: firstRow.positionSide,
-      level: firstRow.positionLevel,
-      position: firstRow.positionPosition,
-      createdAt: firstRow.positionCreatedAt,
-      updatedAt: firstRow.positionUpdatedAt,
-    } : undefined;
-
-    // Build the items array
-    const itemsMap = new Map();
-    result.forEach(row => {
-      if (row.itemId && !itemsMap.has(row.itemId)) {
-        itemsMap.set(row.itemId, {
-          id: row.itemId,
-          ucpId: row.ucpId,
-          productId: row.productId,
-          quantity: row.itemQuantity,
-          isActive: row.itemIsActive,
-          addedBy: row.itemAddedBy,
-          addedAt: row.itemAddedAt,
-          removedBy: row.itemRemovedBy,
-          removedAt: row.itemRemovedAt,
-          removalReason: row.itemRemovalReason,
-          product: row.productId ? {
-            id: row.productId,
-            sku: row.productSku,
-            name: row.productName,
-            description: row.productDescription,
-            weight: row.productWeight,
-            isActive: row.productIsActive,
-            createdAt: row.productCreatedAt,
-            updatedAt: row.productUpdatedAt,
-          } : undefined,
-        });
-      }
-    });
-
-    const items = Array.from(itemsMap.values());
+    const items = itemsResult.map(row => ({
+      ...row.ucp_items,
+      product: row.products || undefined,
+    }));
 
     return {
-      ...ucp,
-      pallet,
-      position,
+      ...baseUcp,
       items,
     };
   }
@@ -806,14 +899,329 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async addUcpItem(item: InsertUcpItem, userId: number): Promise<UcpItem> {
+  async getUcpItemById(itemId: number): Promise<(UcpItem & { product?: Product }) | undefined> {
+    const result = await db
+      .select()
+      .from(ucpItems)
+      .leftJoin(products, eq(ucpItems.productId, products.id))
+      .where(eq(ucpItems.id, itemId))
+      .limit(1);
+
+    if (result.length === 0) return undefined;
+
+    const row = result[0];
+    return {
+      ...row.ucp_items,
+      product: row.products || undefined,
+    };
+  }
+
+  async transferUcpItem(data: {
+    sourceItemId: number;
+    targetUcpId: number;
+    quantity: number;
+    reason: string;
+    userId: number;
+  }): Promise<{ 
+    success: boolean; 
+    transferId: number;
+    sourceUpdated: boolean; 
+    targetCreated: boolean;
+    sourceUcpId: number;
+    targetUcpId: number;
+    timestamp: Date;
+  }> {
+    const transferTimestamp = new Date();
+    
     return await db.transaction(async (tx) => {
+      console.log('=== INICIANDO TRANSFERÊNCIA DE ITEM ===');
+      console.log('Dados da transferência:', {
+        sourceItemId: data.sourceItemId,
+        targetUcpId: data.targetUcpId,
+        quantity: data.quantity,
+        reason: data.reason,
+        userId: data.userId,
+        timestamp: transferTimestamp.toISOString()
+      });
+
+      // 1. VALIDAÇÕES INICIAIS
+      // Buscar item de origem
+      const [sourceItem] = await tx
+        .select()
+        .from(ucpItems)
+        .where(and(eq(ucpItems.id, data.sourceItemId), eq(ucpItems.isActive, true)));
+
+      if (!sourceItem) {
+        throw new Error('Item de origem não encontrado ou inativo');
+      }
+
+      // Buscar UCP de destino
+      const [targetUcp] = await tx
+        .select()
+        .from(ucps)
+        .where(eq(ucps.id, data.targetUcpId));
+
+      if (!targetUcp) {
+        throw new Error('UCP de destino não encontrada');
+      }
+
+      if (targetUcp.status !== 'active') {
+        throw new Error('UCP de destino não está ativa');
+      }
+
+      // Validar quantidades
+      const sourceQuantity = parseInt(sourceItem.quantity);
+      const transferQuantity = data.quantity;
+      const remainingQuantity = sourceQuantity - transferQuantity;
+
+      if (transferQuantity <= 0) {
+        throw new Error('Quantidade de transferência deve ser positiva');
+      }
+
+      if (transferQuantity > sourceQuantity) {
+        throw new Error('Quantidade de transferência excede quantidade disponível');
+      }
+
+      console.log('✅ Validações aprovadas:', {
+        sourceItemId: sourceItem.id,
+        sourceUcpId: sourceItem.ucpId,
+        sourceQuantity,
+        transferQuantity,
+        remainingQuantity,
+        transferType: remainingQuantity === 0 ? 'complete' : 'partial'
+      });
+
+      // 2. PROCESSAMENTO DA ORIGEM
+      let sourceUpdated = false;
+      // let sourceItemAfterUpdate = null; // Removed unused variable
+
+      if (remainingQuantity === 0) {
+        // Transferência total - marcar item como inativo
+        console.log('📤 Transferência TOTAL - removendo item da origem');
+        
+        const [updatedSourceItem] = await tx
+          .update(ucpItems)
+          .set({
+            isActive: false,
+            removedBy: data.userId,
+            removedAt: transferTimestamp,
+            removalReason: `Transferido completamente para UCP ${targetUcp.code}: ${data.reason}`
+          })
+          .where(eq(ucpItems.id, data.sourceItemId))
+          .returning();
+        
+        // sourceItemAfterUpdate = updatedSourceItem; // Removed unused variable assignment
+        sourceUpdated = true;
+        console.log('✅ Item removido da origem:', updatedSourceItem.id);
+      } else {
+        // Transferência parcial - atualizar quantidade
+        console.log('📤 Transferência PARCIAL - atualizando quantidade na origem');
+        
+        const [updatedSourceItem] = await tx
+          .update(ucpItems)
+          .set({
+            quantity: remainingQuantity.toString()
+          })
+          .where(eq(ucpItems.id, data.sourceItemId))
+          .returning();
+        
+        // sourceItemAfterUpdate = updatedSourceItem; // Removed unused variable assignment
+        sourceUpdated = true;
+        console.log('✅ Quantidade atualizada na origem:', {
+          itemId: updatedSourceItem.id,
+          novaQuantidade: updatedSourceItem.quantity
+        });
+      }
+
+      // 3. PROCESSAMENTO DO DESTINO
+      let targetCreated = false;
+      let targetItemId = null;
+
+      // Verificar se já existe o mesmo produto na UCP de destino (com mesmo lote)
+      console.log('🔍 Verificando item existente no destino...');
+      
+      const [existingTargetItem] = await tx
+        .select()
+        .from(ucpItems)
+        .where(
+          and(
+            eq(ucpItems.ucpId, data.targetUcpId),
+            eq(ucpItems.productId, sourceItem.productId),
+            eq(ucpItems.isActive, true),
+            sourceItem.lot ? eq(ucpItems.lot, sourceItem.lot) : isNull(ucpItems.lot)
+          )
+        );
+
+      if (existingTargetItem) {
+        // Somar à quantidade existente
+        const newTargetQuantity = parseInt(existingTargetItem.quantity) + transferQuantity;
+        console.log('📥 Item EXISTENTE no destino - somando quantidades:', {
+          existingQuantity: existingTargetItem.quantity,
+          transferQuantity,
+          newQuantity: newTargetQuantity
+        });
+
+        const [updatedTargetItem] = await tx
+          .update(ucpItems)
+          .set({
+            quantity: newTargetQuantity.toString()
+          })
+          .where(eq(ucpItems.id, existingTargetItem.id))
+          .returning();
+
+        targetItemId = updatedTargetItem.id;
+        targetCreated = false;
+        console.log('✅ Quantidade atualizada no destino:', updatedTargetItem.id);
+      } else {
+        // Criar novo item no destino
+        console.log('📥 NOVO item no destino - criando...');
+        
+        const [newTargetItem] = await tx
+          .insert(ucpItems)
+          .values({
+            ucpId: data.targetUcpId,
+            productId: sourceItem.productId,
+            quantity: transferQuantity.toString(),
+            lot: sourceItem.lot,
+            expiryDate: sourceItem.expiryDate,
+            internalCode: sourceItem.internalCode,
+            addedBy: data.userId,
+            isActive: true,
+          })
+          .returning();
+
+        targetItemId = newTargetItem.id;
+        targetCreated = true;
+        console.log('✅ Novo item criado no destino:', newTargetItem.id);
+      }
+
+      // 4. REGISTRO DA TRANSFERÊNCIA
+      console.log('📝 Registrando transferência...');
+      
+      const [transferRecord] = await tx
+        .insert(itemTransfers)
+        .values({
+          sourceUcpId: sourceItem.ucpId,
+          targetUcpId: data.targetUcpId,
+          sourceItemId: data.sourceItemId,
+          targetItemId,
+          productId: sourceItem.productId,
+          quantity: transferQuantity.toString(),
+          lot: sourceItem.lot,
+          reason: data.reason,
+          transferType: remainingQuantity === 0 ? 'complete' : 'partial',
+          performedBy: data.userId,
+        })
+        .returning();
+
+      console.log('✅ Transferência registrada:', transferRecord.id);
+
+      // 4.5. VERIFICAÇÃO FINAL - DEBUG
+      console.log('🔍 VERIFICAÇÃO FINAL - Estado dos itens após transferência:');
+      
+      // Verificar item de origem
+      const [finalSourceItem] = await tx
+        .select()
+        .from(ucpItems)
+        .where(eq(ucpItems.id, data.sourceItemId));
+      
+      console.log('📤 Estado final do item de origem:', {
+        id: finalSourceItem.id,
+        ucpId: finalSourceItem.ucpId,
+        quantity: finalSourceItem.quantity,
+        isActive: finalSourceItem.isActive,
+        removalReason: finalSourceItem.removalReason
+      });
+
+      // Verificar item de destino
+      if (targetItemId) {
+        const [finalTargetItem] = await tx
+          .select()
+          .from(ucpItems)
+          .where(eq(ucpItems.id, targetItemId));
+        
+        console.log('📥 Estado final do item de destino:', {
+          id: finalTargetItem.id,
+          ucpId: finalTargetItem.ucpId,
+          quantity: finalTargetItem.quantity,
+          isActive: finalTargetItem.isActive,
+          productId: finalTargetItem.productId
+        });
+      }
+
+      // Verificar todos os itens ativos na UCP de destino
+      const allTargetItems = await tx
+        .select()
+        .from(ucpItems)
+        .where(and(eq(ucpItems.ucpId, data.targetUcpId), eq(ucpItems.isActive, true)));
+      
+      console.log('📦 TODOS os itens ativos na UCP de destino:', allTargetItems.map(item => ({
+        id: item.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        lot: item.lot
+      })));
+
+      // 5. HISTÓRICO DAS UCPs
+      // Histórico UCP origem
+      await tx.insert(ucpHistory).values({
+        ucpId: sourceItem.ucpId,
+        action: 'item_transferred_out',
+        description: `${transferQuantity} unidades de ${sourceItem.productId} transferidas para UCP ${targetUcp.code}`,
+        performedBy: data.userId,
+        itemId: data.sourceItemId,
+        oldValue: { 
+          quantity: sourceQuantity,
+          targetUcp: targetUcp.code,
+          transferId: transferRecord.id
+        },
+        newValue: { 
+          quantity: remainingQuantity,
+          reason: data.reason,
+          transferType: remainingQuantity === 0 ? 'complete' : 'partial'
+        },
+      });
+
+      // Histórico UCP destino
+      await tx.insert(ucpHistory).values({
+        ucpId: data.targetUcpId,
+        action: 'item_transferred_in',
+        description: `${transferQuantity} unidades de ${sourceItem.productId} recebidas da UCP ${sourceItem.ucpId}`,
+        performedBy: data.userId,
+        itemId: targetItemId,
+        oldValue: null,
+        newValue: { 
+          quantity: transferQuantity,
+          reason: data.reason,
+          sourceUcp: sourceItem.ucpId,
+          transferId: transferRecord.id
+        },
+      });
+
+      console.log('✅ Histórico registrado para ambas as UCPs');
+      console.log('=== TRANSFERÊNCIA CONCLUÍDA COM SUCESSO ===');
+
+      return {
+        success: true,
+        transferId: transferRecord.id,
+        sourceUpdated,
+        targetCreated,
+        sourceUcpId: sourceItem.ucpId,
+        targetUcpId: data.targetUcpId,
+        timestamp: transferTimestamp
+      };
+    });
+  }
+
+  async addUcpItem(item: InsertUcpItem & { fromPositionId?: number }, userId: number): Promise<UcpItem> {
+    return await db.transaction(async (tx) => {
+      const { fromPositionId, ...itemData } = item;
       const [newItem] = await tx.insert(ucpItems).values({
-        ...item,
+        ...itemData,
         addedBy: userId,
       }).returning();
 
-      // Create history entry
+      // Create history entry (registrando origem se fornecida)
       await tx.insert(ucpHistory).values({
         ucpId: item.ucpId,
         action: "item_added",
@@ -821,13 +1229,14 @@ export class DatabaseStorage implements IStorage {
         newValue: { productId: item.productId, quantity: item.quantity },
         itemId: newItem.id,
         performedBy: userId,
+        fromPositionId: fromPositionId,
       });
 
       return newItem;
     });
   }
 
-  async removeUcpItem(itemId: number, userId: number, reason: string): Promise<boolean> {
+  async removeUcpItem(itemId: number, userId: number, reason: string, toPositionId?: number): Promise<boolean> {
     return await db.transaction(async (tx) => {
       // Get the item data
       const [item] = await tx.select().from(ucpItems).where(eq(ucpItems.id, itemId));
@@ -843,7 +1252,7 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(ucpItems.id, itemId));
 
-      // Create history entry
+      // Create history entry (registrando destino se fornecido)
       await tx.insert(ucpHistory).values({
         ucpId: item.ucpId,
         action: "item_removed",
@@ -851,6 +1260,7 @@ export class DatabaseStorage implements IStorage {
         oldValue: { productId: item.productId, quantity: item.quantity },
         itemId: itemId,
         performedBy: userId,
+        toPositionId: toPositionId,
       });
 
       // Check if UCP is now empty and update status
@@ -878,7 +1288,7 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async getAvailableUcpsForProduct(productId?: number): Promise<(Ucp & { pallet?: Pallet; position?: Position; availableSpace?: number })[]> {
+  async getAvailableUcpsForProduct(): Promise<(Ucp & { pallet?: Pallet; position?: Position; availableSpace?: number })[]> {
     return await db
       .select()
       .from(ucps)
@@ -920,25 +1330,121 @@ export class DatabaseStorage implements IStorage {
 
       console.log(`DEBUG: Raw query result for UCP ${ucpId}:`, result);
 
-      return result.map(row => ({
-        id: row.id,
-        ucpId: row.ucpId,
-        action: row.action,
-        description: row.description,
-        oldValue: row.oldValue,
-        newValue: row.newValue,
-        itemId: row.itemId,
-        fromPositionId: row.fromPositionId,
-        toPositionId: row.toPositionId,
-        performedBy: row.performedBy,
-        timestamp: row.timestamp?.toISOString() || null,
-        performedByUser: row.userFirstName ? {
-          id: row.performedBy,
-          firstName: row.userFirstName,
-          lastName: row.userLastName,
-          email: row.userEmail || '',
-        } : undefined,
-      }));
+      // Process each history entry and fetch related data
+      const processedHistory = await Promise.all(
+        result.map(async (row) => {
+          let item: (UcpItem & { product?: Product }) | undefined;
+          let fromPosition: Position | undefined;
+          let toPosition: Position | undefined;
+
+          // Fetch item data if this is an item-related action
+          if (row.itemId && (row.action === 'item_added' || row.action === 'item_removed')) {
+            const [itemData] = await db
+              .select({
+                id: ucpItems.id,
+                ucpId: ucpItems.ucpId,
+                productId: ucpItems.productId,
+                quantity: ucpItems.quantity,
+                lot: ucpItems.lot,
+                expiryDate: ucpItems.expiryDate,
+                internalCode: ucpItems.internalCode,
+                addedAt: ucpItems.addedAt,
+                productSku: products.sku,
+                productName: products.name,
+                productDescription: products.description,
+              })
+              .from(ucpItems)
+              .leftJoin(products, eq(ucpItems.productId, products.id))
+              .where(eq(ucpItems.id, row.itemId));
+
+            if (itemData) {
+              item = {
+                id: itemData.id,
+                ucpId: itemData.ucpId,
+                productId: itemData.productId,
+                quantity: itemData.quantity,
+                lot: itemData.lot,
+                expiryDate: itemData.expiryDate,
+                internalCode: itemData.internalCode,
+                addedAt: itemData.addedAt,
+                isActive: true,
+                addedBy: 0,
+                removedBy: null,
+                removedAt: null,
+                removalReason: null,
+                product: itemData.productId ? {
+                  id: itemData.productId,
+                  sku: itemData.productSku || '',
+                  name: itemData.productName || '',
+                  description: itemData.productDescription || null,
+                  brand: null,
+                  createdAt: null,
+                  updatedAt: null,
+                  createdBy: 0,
+                  category: null,
+                  unit: null,
+                  unitPrice: null,
+                  supplier: null,
+                  supplierCode: null,
+                  barcode: null,
+                  minStock: null,
+                  maxStock: null,
+                  isActive: null,
+                } as any : undefined,
+              };
+            }
+          }
+
+          // Fetch from position data
+          if (row.fromPositionId) {
+            const [positionData] = await db
+              .select()
+              .from(positions)
+              .where(eq(positions.id, row.fromPositionId));
+            
+            if (positionData) {
+              fromPosition = positionData;
+            }
+          }
+
+          // Fetch to position data
+          if (row.toPositionId) {
+            const [positionData] = await db
+              .select()
+              .from(positions)
+              .where(eq(positions.id, row.toPositionId));
+            
+            if (positionData) {
+              toPosition = positionData;
+            }
+          }
+
+          return {
+            id: row.id,
+            ucpId: row.ucpId,
+            action: row.action,
+            description: row.description,
+            oldValue: row.oldValue,
+            newValue: row.newValue,
+            itemId: row.itemId,
+            fromPositionId: row.fromPositionId,
+            toPositionId: row.toPositionId,
+            performedBy: row.performedBy,
+            timestamp: row.timestamp?.toISOString() || null,
+            performedByUser: row.userFirstName ? {
+              id: row.performedBy,
+              firstName: row.userFirstName,
+              lastName: row.userLastName,
+              email: row.userEmail || '',
+            } : undefined,
+            item,
+            fromPosition,
+            toPosition,
+          };
+        })
+      );
+
+      return processedHistory as any;
     } catch (error) {
       console.error('Error in getUcpHistory:', error);
       throw error;
@@ -1056,10 +1562,10 @@ export class DatabaseStorage implements IStorage {
     const allAvailablePallets = await db
       .select()
       .from(pallets)
-      .where(eq(pallets.status, 'available'))
+              .where(eq(pallets.status, 'disponivel'))
       .orderBy(desc(pallets.createdAt));
 
-    // Para UCPs, consideramos todos os pallets com status 'available' como disponíveis
+            // Para UCPs, consideramos todos os pallets com status 'disponivel' como disponíveis
     // já que o status do pallet é gerenciado automaticamente pelo sistema
     return allAvailablePallets;
   }
@@ -1123,7 +1629,7 @@ export class DatabaseStorage implements IStorage {
             side: structure.side,
             position: position,
             level: level,
-            status: 'available',
+            status: 'disponivel',
             structureId: structure.id,
             maxPallets: 1,
             rackType: structure.rackType || 'conventional',

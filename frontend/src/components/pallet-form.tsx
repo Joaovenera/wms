@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/select";
 import { Camera, RefreshCw } from "lucide-react";
 import {
-  insertPalletSchema,
   type InsertPallet,
   type Pallet,
 } from "@/types/api";
@@ -77,7 +76,7 @@ export default function PalletForm({ editingPallet, onSubmit, isLoading }: Palle
       height: 0,
       maxWeight: "0",
       createdBy: 1,
-      status: "available",
+      status: "disponivel",
       photoUrl: "",
       observations: "",
     },
@@ -310,11 +309,11 @@ export default function PalletForm({ editingPallet, onSubmit, isLoading }: Palle
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="available">Disponível</SelectItem>
-                    <SelectItem value="in_use">Em Uso</SelectItem>
-                    <SelectItem value="defective">Defeituoso</SelectItem>
-                    <SelectItem value="maintenance">Manutenção</SelectItem>
-                    <SelectItem value="discard">Descarte</SelectItem>
+                                    <SelectItem value="disponivel">Disponível</SelectItem>
+                <SelectItem value="em_uso">Em Uso</SelectItem>
+                <SelectItem value="defeituoso">Defeituoso</SelectItem>
+                <SelectItem value="recuperacao">Manutenção</SelectItem>
+                <SelectItem value="descarte">Descarte</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

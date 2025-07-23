@@ -135,12 +135,12 @@ export default function MobileScanner() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'available': return 'bg-success';
-      case 'in_use': 
+      case 'disponivel': return 'bg-success';
+      case 'em_uso': 
       case 'occupied': return 'bg-destructive';
       case 'active': return 'bg-success';
-      case 'defective': return 'bg-warning';
-      case 'maintenance': return 'bg-primary';
+      case 'defeituoso': return 'bg-warning';
+      case 'manutencao': return 'bg-primary';
       case 'reserved': return 'bg-warning';
       case 'blocked': return 'bg-gray-500';
       default: return 'bg-gray-400';
@@ -149,12 +149,12 @@ export default function MobileScanner() {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'available': return 'Disponível';
-      case 'in_use': return 'Em Uso';
+      case 'disponivel': return 'Disponível';
+      case 'em_uso': return 'Em Uso';
       case 'occupied': return 'Ocupada';
       case 'active': return 'Ativa';
-      case 'defective': return 'Defeituoso';
-      case 'maintenance': return 'Manutenção';
+      case 'defeituoso': return 'Defeituoso';
+      case 'manutencao': return 'Manutenção';
       case 'reserved': return 'Reservada';
       case 'blocked': return 'Bloqueada';
       default: return status;

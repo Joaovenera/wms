@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --env-file=.env  src/index.ts",
     "build": "tsc && esbuild src/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
@@ -30,6 +30,8 @@
     "openid-client": "^6.6.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
+    "rate-limit-redis": "^4.2.1",
+    "redis": "^4.7.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.17.0",
@@ -61,4 +63,4 @@
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
   }
-} 
+}

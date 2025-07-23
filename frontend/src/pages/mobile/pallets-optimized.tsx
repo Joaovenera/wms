@@ -52,31 +52,31 @@ import QRCodeDialog from "@/components/qr-code-dialog";
 // Optimized status info with memoization
 const getStatusInfo = (status: string) => {
   const statusMap = {
-    available: {
+    disponivel: {
       label: "Disponível",
       icon: CheckCircle,
       color: "bg-green-100 text-green-800 border-green-200",
       iconColor: "text-green-600",
     },
-    in_use: {
+    em_uso: {
       label: "Em Uso",
       icon: Clock,
       color: "bg-blue-100 text-blue-800 border-blue-200",
       iconColor: "text-blue-600",
     },
-    defective: {
+    defeituoso: {
       label: "Defeituoso",
       icon: XCircle,
       color: "bg-red-100 text-red-800 border-red-200",
       iconColor: "text-red-600",
     },
-    maintenance: {
+    manutencao: {
       label: "Manutenção",
       icon: Wrench,
       color: "bg-yellow-100 text-yellow-800 border-yellow-200",
       iconColor: "text-yellow-600",
     },
-    discard: {
+    descarte: {
       label: "Descarte",
       icon: AlertCircle,
       color: "bg-gray-100 text-gray-800 border-gray-200",
@@ -363,11 +363,11 @@ export default function OptimizedMobilePallets() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os Status</SelectItem>
-            <SelectItem value="available">Disponível</SelectItem>
-            <SelectItem value="in_use">Em Uso</SelectItem>
-            <SelectItem value="defective">Defeituoso</SelectItem>
-            <SelectItem value="maintenance">Manutenção</SelectItem>
-            <SelectItem value="discard">Descarte</SelectItem>
+            <SelectItem value="disponivel">Disponível</SelectItem>
+            <SelectItem value="em_uso">Em Uso</SelectItem>
+            <SelectItem value="defeituoso">Defeituoso</SelectItem>
+            <SelectItem value="recuperacao">Manutenção</SelectItem>
+            <SelectItem value="descarte">Descarte</SelectItem>
           </SelectContent>
         </Select>
       </div>

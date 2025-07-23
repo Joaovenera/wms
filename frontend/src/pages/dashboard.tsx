@@ -49,22 +49,22 @@ export default function Dashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'available': return 'text-success';
-      case 'in_use': return 'text-destructive';
-      case 'defective': return 'text-warning';
-      case 'maintenance': return 'text-primary';
-      case 'discard': return 'text-gray-500';
+      case 'disponivel': return 'text-success';
+      case 'em_uso': return 'text-destructive';
+      case 'defeituoso': return 'text-warning';
+      case 'manutencao': return 'text-primary';
+      case 'descarte': return 'text-gray-500';
       default: return 'text-gray-600';
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'available': return 'Disponível';
-      case 'in_use': return 'Em Uso';
-      case 'defective': return 'Defeituoso';
-      case 'maintenance': return 'Recuperação';
-      case 'discard': return 'Descarte';
+      case 'disponivel': return 'Disponível';
+      case 'em_uso': return 'Em Uso';
+      case 'defeituoso': return 'Defeituoso';
+      case 'manutencao': return 'Recuperação';
+      case 'descarte': return 'Descarte';
       default: return status;
     }
   };
@@ -184,11 +184,11 @@ export default function Dashboard() {
               {stats?.palletsByStatus.map((item, index) => {
                 const percentage = stats.totalPallets > 0 ? (item.count / stats.totalPallets) * 100 : 0;
                 const statusConfig = {
-                  available: { color: 'bg-emerald-500', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50', icon: '✓' },
-                  in_use: { color: 'bg-red-500', textColor: 'text-red-700', bgColor: 'bg-red-50', icon: '🔥' },
-                  defective: { color: 'bg-yellow-500', textColor: 'text-yellow-700', bgColor: 'bg-yellow-50', icon: '⚠️' },
-                  maintenance: { color: 'bg-blue-500', textColor: 'text-blue-700', bgColor: 'bg-blue-50', icon: '🔧' },
-                  discard: { color: 'bg-gray-500', textColor: 'text-gray-700', bgColor: 'bg-gray-50', icon: '🗑️' }
+                  disponivel: { color: 'bg-emerald-500', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50', icon: '✓' },
+                  em_uso: { color: 'bg-red-500', textColor: 'text-red-700', bgColor: 'bg-red-50', icon: '🔥' },
+                  defeituoso: { color: 'bg-yellow-500', textColor: 'text-yellow-700', bgColor: 'bg-yellow-50', icon: '⚠️' },
+                  manutencao: { color: 'bg-blue-500', textColor: 'text-blue-700', bgColor: 'bg-blue-50', icon: '🔧' },
+                  descarte: { color: 'bg-gray-500', textColor: 'text-gray-700', bgColor: 'bg-gray-50', icon: '🗑️' }
                 };
                 const config = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.available;
                 

@@ -42,35 +42,35 @@ interface Movement {
 }
 
 const statusConfig = {
-  available: {
+  disponivel: {
     color: "bg-green-100 hover:bg-green-200 border-green-300",
     textColor: "text-green-800",
     icon: "🟢",
     label: "Disponível",
     bgColor: "bg-green-50"
   },
-  occupied: {
+  ocupada: {
     color: "bg-red-100 hover:bg-red-200 border-red-300", 
     textColor: "text-red-800",
     icon: "🔴",
     label: "Ocupado",
     bgColor: "bg-red-50"
   },
-  reserved: {
+  reservada: {
     color: "bg-yellow-100 hover:bg-yellow-200 border-yellow-300",
     textColor: "text-yellow-800", 
     icon: "🟡",
     label: "Reservado",
     bgColor: "bg-yellow-50"
   },
-  maintenance: {
+  manutencao: {
     color: "bg-orange-100 hover:bg-orange-200 border-orange-300",
     textColor: "text-orange-800",
     icon: "🟠", 
     label: "Manutenção",
     bgColor: "bg-orange-50"
   },
-  blocked: {
+  bloqueada: {
     color: "bg-gray-100 hover:bg-gray-200 border-gray-300",
     textColor: "text-gray-800",
     icon: "⚫",
@@ -139,7 +139,7 @@ export default function WarehouseMapEnhanced() {
   };
 
   function getStatusInfo(status: string) {
-    return statusConfig[status as keyof typeof statusConfig] || statusConfig.available;
+    return statusConfig[status as keyof typeof statusConfig] || statusConfig.disponivel;
   }
 
   // Get UCPs for a specific position

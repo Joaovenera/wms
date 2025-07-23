@@ -6,7 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Camera, X, RotateCw, Check } from "lucide-react";
+import { Camera, X, RotateCw, Check, Upload, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface CameraCaptureProps {
   onCapture: (imageData: string) => void;
@@ -26,10 +27,22 @@ export default function CameraCapture({
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showFileUpload, setShowFileUpload] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Verificar se estamos em HTTPS ou localhost
+  const isSecureContext = window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   const startCamera = useCallback(async () => {
+    // Verificar se o contexto é seguro
+    if (!isSecureContext) {
+      setError("A câmera requer HTTPS para funcionar. Use a opção de upload de arquivo.");
+      setShowFileUpload(true);
+      return;
+    }
+
     // Para completamente todas as tracks antes de iniciar uma nova
     if (stream) {
       stream.getTracks().forEach((track) => {
@@ -45,6 +58,7 @@ export default function CameraCapture({
 
     setIsLoading(true);
     setError(null);
+    setShowFileUpload(false);
 
     try {
       // Pequeno delay para garantir que as tracks anteriores foram liberadas
@@ -96,10 +110,26 @@ export default function CameraCapture({
       }
     } catch (error) {
       console.error("Erro ao acessar a câmera:", error);
-      setError("Não foi possível acessar a câmera. Verifique as permissões.");
+      
+      // Verificar se é um erro de permissão
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          setError("Permissão de câmera negada. Verifique as configurações do navegador.");
+        } else if (error.name === 'NotFoundError') {
+          setError("Nenhuma câmera encontrada no dispositivo.");
+        } else if (error.name === 'NotSupportedError') {
+          setError("Câmera não suportada neste dispositivo.");
+        } else {
+          setError("Não foi possível acessar a câmera. Verifique as permissões.");
+        }
+      } else {
+        setError("Erro desconhecido ao acessar a câmera.");
+      }
+      
+      setShowFileUpload(true);
       setIsLoading(false);
     }
-  }, [facingMode]);
+  }, [facingMode, isSecureContext]);
 
   const stopCamera = useCallback(() => {
     if (stream) {
@@ -246,8 +276,30 @@ export default function CameraCapture({
   const handleClose = useCallback(() => {
     setCapturedImage(null);
     stopCamera();
+    setShowFileUpload(false);
     onClose();
   }, [stopCamera, onClose]);
+
+  // Função para lidar com upload de arquivo
+  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        if (result) {
+          setCapturedImage(result);
+          setShowFileUpload(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  // Função para abrir o seletor de arquivo
+  const openFileSelector = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   // Iniciar câmera quando o diálogo abre
   const handleDialogOpen = useCallback(() => {
@@ -274,65 +326,111 @@ export default function CameraCapture({
         <div className="space-y-4">
           {!capturedImage ? (
             <>
-              <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
-                {isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                    <div className="text-white text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                      <p>Iniciando câmera...</p>
-                    </div>
-                  </div>
-                )}
-
-                {error && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-red-900/50 z-10">
-                    <div className="text-white text-center p-4">
-                      <p className="mb-2">{error}</p>
-                      <Button onClick={startCamera} variant="outline" size="sm">
-                        Tentar novamente
+              {showFileUpload ? (
+                // Interface de upload de arquivo quando a câmera não está disponível
+                <div className="space-y-4">
+                  <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 flex items-center justify-center">
+                    <div className="text-center p-6">
+                      <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+                      <p className="text-gray-600 mb-4">{error}</p>
+                      <Button onClick={openFileSelector} className="w-full">
+                        <Upload className="h-4 w-4 mr-2" />
+                        Selecionar Foto
                       </Button>
                     </div>
                   </div>
-                )}
+                  
+                  <div className="flex justify-center gap-4">
+                    <Button
+                      variant="outline"
+                      onClick={startCamera}
+                      disabled={!isSecureContext}
+                    >
+                      <Camera className="h-4 w-4 mr-2" />
+                      Tentar Câmera
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleClose}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancelar
+                    </Button>
+                  </div>
+                  
+                  {!isSecureContext && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-blue-800">
+                        <strong>Nota:</strong> A câmera requer HTTPS para funcionar. 
+                        Para usar a câmera, acesse o sistema via HTTPS ou use a opção de upload de arquivo.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Interface da câmera
+                <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
+                  {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                      <div className="text-white text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                        <p>Iniciando câmera...</p>
+                      </div>
+                    </div>
+                  )}
 
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`w-full h-full object-cover ${
-                    facingMode === "user" ? "scale-x-[-1]" : ""
-                  }`}
-                />
-                <canvas ref={canvasRef} className="hidden" />
-              </div>
+                  {error && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-red-900/50 z-10">
+                      <div className="text-white text-center p-4">
+                        <p className="mb-2">{error}</p>
+                        <Button onClick={startCamera} variant="outline" size="sm">
+                          Tentar novamente
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
-              <div className="flex justify-center gap-4">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={switchCamera}
-                  className="h-12 w-12 rounded-full"
-                  disabled={isLoading || !!error}
-                >
-                  <RotateCw className="h-5 w-5" />
-                </Button>
-                <Button
-                  onClick={capturePhoto}
-                  className="h-12 w-12 rounded-full bg-white border-4 border-gray-300 hover:bg-gray-100"
-                  disabled={isLoading || !!error}
-                >
-                  <Camera className="h-6 w-6 text-black" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleClose}
-                  className="h-12 w-12 rounded-full"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${
+                      facingMode === "user" ? "scale-x-[-1]" : ""
+                    }`}
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+              )}
+
+              {!showFileUpload && (
+                <div className="flex justify-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={switchCamera}
+                    className="h-12 w-12 rounded-full"
+                    disabled={isLoading || !!error}
+                  >
+                    <RotateCw className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    onClick={capturePhoto}
+                    className="h-12 w-12 rounded-full bg-white border-4 border-gray-300 hover:bg-gray-100"
+                    disabled={isLoading || !!error}
+                  >
+                    <Camera className="h-6 w-6 text-black" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleClose}
+                    className="h-12 w-12 rounded-full"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -359,6 +457,16 @@ export default function CameraCapture({
             </>
           )}
         </div>
+        
+        {/* Input de arquivo oculto */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
       </DialogContent>
     </Dialog>
   );
