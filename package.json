@@ -1,0 +1,17 @@
+{
+  "name": "warehouse-management-system",
+  "version": "1.0.0",
+  "description": "Sistema de Gerenciamento de Estoque",
+  "scripts": {
+    "dev": "docker compose up",
+    "dev:build": "docker compose up --build",
+    "dev:down": "docker compose down",
+    "dev:logs": "docker compose logs -f",
+    "dev:clean": "docker compose down -v && docker system prune -f",
+    "docker:backend": "docker compose logs -f backend",
+    "docker:frontend": "docker compose logs -f frontend",
+    "docker:db": "docker compose exec postgres psql -U postgres -d warehouse",
+    "docker:redis": "docker compose exec redis redis-cli"
+  },
+  "private": true
+} 

@@ -30,8 +30,8 @@ export const isAuthenticated = (req: Request, res: Response, next: NextFunction)
 
 // Role-based authorization middleware
 export const requireRole = (allowedRoles: string | string[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const user = req.user;
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as User;
     
     if (!user) {
       logWarn('No user found in authenticated request', { 
@@ -77,8 +77,8 @@ export const optionalAuth = (req: Request, res: Response, next: NextFunction) =>
 
 // Check if user owns resource or has admin rights
 export const requireOwnershipOrAdmin = (getUserId: (req: Request) => number) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const user = req.user;
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as User;
     const resourceUserId = getUserId(req);
     
     if (user.role === 'admin' || user.id === resourceUserId) {

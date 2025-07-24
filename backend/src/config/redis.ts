@@ -147,8 +147,11 @@ export async function getRedisStats() {
     }
     
     const info = await redisClient.info();
-    const memory = await redisClient.memoryUsage();
     const dbsize = await redisClient.dbSize();
+
+    // Extrai a informação de memória do comando INFO
+    const memoryLine = info.split('\r\n').find(line => line.includes('used_memory_human'));
+    const memory = memoryLine ? memoryLine.split(':')[1] : 'N/A';
     
     return {
       info: info.split('\r\n').filter(line => line && !line.startsWith('#')),

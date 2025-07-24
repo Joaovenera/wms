@@ -89,6 +89,7 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/ucps'] });
       queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/pallets/available-for-ucp'] });
       queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
       toast({

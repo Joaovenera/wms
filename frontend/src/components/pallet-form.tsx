@@ -102,24 +102,8 @@ export default function PalletForm({ editingPallet, onSubmit, isLoading }: Palle
     } else {
       form.reset();
       setPhotoPreview(null);
-      generateNextCode();
     }
   }, [editingPallet, form]);
-
-  // Generate next code
-  const generateNextCode = async () => {
-    if (!editingPallet) {
-      try {
-        const response = await fetch('/api/pallets/next-code');
-        if (response.ok) {
-          const data = await response.json();
-          form.setValue('code', data.code);
-        }
-      } catch (error) {
-        console.error('Erro ao gerar próximo código:', error);
-      }
-    }
-  };
 
   const handleCameraCapture = (imageData: string) => {
     if (imageData && imageData !== "data:,") {
@@ -144,18 +128,7 @@ export default function PalletForm({ editingPallet, onSubmit, isLoading }: Palle
               <FormItem>
                 <FormLabel>Código</FormLabel>
                 <FormControl>
-                  <div className="flex space-x-2">
-                    <Input placeholder="PLT0001" {...field} className="flex-1" />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={generateNextCode}
-                      title="Gerar código automático"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input placeholder="PLT0001" {...field} className="flex-1" />
                 </FormControl>
                 <FormMessage />
               </FormItem>

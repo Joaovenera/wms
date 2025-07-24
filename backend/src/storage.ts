@@ -37,6 +37,7 @@ import {
   type InsertPalletStructure,
 } from "./db/schema.js";
 import { db } from "./db";
+import { imageService } from "./services/image.service";
 import { eq, desc, sql, and, like, or, isNull } from "drizzle-orm";
 
 export interface IStorage {
@@ -69,7 +70,7 @@ export interface IStorage {
   getProducts(): Promise<Product[]>;
   getProduct(id: number): Promise<Product | undefined>;
   getProductBySku(sku: string): Promise<Product | undefined>;
-  getProductsWithStock(): Promise<any[]>;
+  getProductsWithStock(id?: number): Promise<any[]>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, product: Partial<InsertProduct>): Promise<Product | undefined>;
   deleteProduct(id: number): Promise<boolean>;
@@ -198,11 +199,17 @@ export class DatabaseStorage implements IStorage {
 
   // Pallet operations
   async getPallets(): Promise<Pallet[]> {
-    console.log('DEBUG: Executando consulta getPallets()');
     const result = await db.select().from(pallets).orderBy(desc(pallets.createdAt));
-    console.log('DEBUG: Resultado da consulta getPallets():', result.length, 'pallets encontrados');
-    console.log('DEBUG: Primeiros 3 pallets:', result.slice(0, 3));
-    return result;
+    return result.map((row: any) => ({
+      ...row,
+      // Ensure proper camelCase conversion for fields that may come as snake_case
+      maxWeight: row.max_weight !== undefined ? row.max_weight : row.maxWeight,
+      photoUrl: row.photo_url !== undefined ? row.photo_url : row.photoUrl,
+      lastInspectionDate: row.last_inspection_date !== undefined ? row.last_inspection_date : row.lastInspectionDate,
+      createdBy: row.created_by !== undefined ? row.created_by : row.createdBy,
+      createdAt: row.created_at !== undefined ? row.created_at : row.createdAt,
+      updatedAt: row.updated_at !== undefined ? row.updated_at : row.updatedAt
+    }));
   }
 
   async getPallet(id: number): Promise<Pallet | undefined> {
@@ -236,7 +243,20 @@ export class DatabaseStorage implements IStorage {
 
   // Position operations
   async getPositions(): Promise<Position[]> {
-    return await db.select().from(positions).orderBy(positions.code);
+    const result = await db.select().from(positions).orderBy(positions.code);
+    return result.map((row: any) => ({
+      ...row,
+      // Ensure proper camelCase conversion for fields that may come as snake_case
+      structureId: row.structure_id !== undefined ? row.structure_id : row.structureId,
+      currentPalletId: row.current_pallet_id !== undefined ? row.current_pallet_id : row.currentPalletId,
+      createdBy: row.created_by !== undefined ? row.created_by : row.createdBy,
+      createdAt: row.created_at !== undefined ? row.created_at : row.createdAt,
+      updatedAt: row.updated_at !== undefined ? row.updated_at : row.updatedAt,
+      hasDivision: row.has_division !== undefined ? row.has_division : row.hasDivision,
+      layoutConfig: row.layout_config !== undefined ? row.layout_config : row.layoutConfig,
+      rackType: row.rack_type !== undefined ? row.rack_type : row.rackType,
+      maxPallets: row.max_pallets !== undefined ? row.max_pallets : row.maxPallets
+    }));
   }
 
   async getPosition(id: number): Promise<Position | undefined> {
@@ -283,7 +303,8 @@ export class DatabaseStorage implements IStorage {
     return product;
   }
 
-  async getProductsWithStock(): Promise<any[]> {
+  async getProductsWithStock(id?: number): Promise<any[]> {
+    const whereId = id ? sql`AND p.id = ${id}` : sql``;
     const query = sql`
       SELECT 
         p.*,
@@ -310,7 +331,7 @@ export class DatabaseStorage implements IStorage {
       LEFT JOIN ucps u ON ui.ucp_id = u.id
       LEFT JOIN pallets pal ON u.pallet_id = pal.id
       LEFT JOIN positions pos ON u.position_id = pos.id
-      WHERE p.is_active = true
+      WHERE p.is_active = true ${whereId}
       GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.unit, p.weight, 
                p.dimensions, p.barcode, p.requires_lot, p.requires_expiry, p.min_stock, 
                p.max_stock, p.is_active, p.created_by, p.created_at, p.updated_at
@@ -321,7 +342,16 @@ export class DatabaseStorage implements IStorage {
     return result.rows.map((row: any) => ({
       ...row,
       totalStock: parseFloat(row.total_stock) || 0,
-      ucpStock: row.ucp_stock || []
+      ucpStock: row.ucp_stock || [],
+      // Ensure proper camelCase conversion for fields that may come as snake_case
+      isActive: row.is_active !== undefined ? row.is_active : row.isActive,
+      createdBy: row.created_by !== undefined ? row.created_by : row.createdBy,
+      createdAt: row.created_at !== undefined ? row.created_at : row.createdAt,
+      updatedAt: row.updated_at !== undefined ? row.updated_at : row.updatedAt,
+      requiresLot: row.requires_lot !== undefined ? row.requires_lot : row.requiresLot,
+      requiresExpiry: row.requires_expiry !== undefined ? row.requires_expiry : row.requiresExpiry,
+      minStock: row.min_stock !== undefined ? row.min_stock : row.minStock,
+      maxStock: row.max_stock !== undefined ? row.max_stock : row.maxStock
     }));
   }
 
@@ -388,18 +418,40 @@ export class DatabaseStorage implements IStorage {
 
   async addProductPhoto(photo: InsertProductPhoto, userId: number): Promise<ProductPhoto> {
     return await db.transaction(async (tx) => {
+      // Process image to generate thumbnail if URL contains base64 data
+      let processedPhoto = { ...photo };
+      
+      try {
+        // Check if URL contains base64 data (starts with data:image)
+        if (photo.url && photo.url.startsWith('data:image')) {
+          const processed = await imageService.processImage(photo.url);
+          
+          processedPhoto = {
+            ...photo,
+            url: processed.original,
+            thumbnailUrl: processed.thumbnail,
+            width: processed.width || photo.width,
+            height: processed.height || photo.height,
+            size: processed.size
+          };
+        }
+      } catch (error) {
+        console.error('Error processing image for thumbnail:', error);
+        // Continue with original photo if processing fails
+      }
+
       // If this is being set as primary, unset all other primary photos for this product
-      if (photo.isPrimary) {
+      if (processedPhoto.isPrimary) {
         await tx
           .update(productPhotos)
           .set({ isPrimary: false })
-          .where(and(eq(productPhotos.productId, photo.productId), eq(productPhotos.isPrimary, true)));
+          .where(and(eq(productPhotos.productId, processedPhoto.productId), eq(productPhotos.isPrimary, true)));
       }
 
       // Insert the new photo
       const [newPhoto] = await tx
         .insert(productPhotos)
-        .values(photo)
+        .values(processedPhoto)
         .returning();
 
       // Add history entry
@@ -701,12 +753,69 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUcp(id: number, ucp: Partial<InsertUcp>): Promise<Ucp | undefined> {
-    const [updatedUcp] = await db
-      .update(ucps)
-      .set({ ...ucp, updatedAt: new Date() })
-      .where(eq(ucps.id, id))
-      .returning();
-    return updatedUcp;
+    return await db.transaction(async (tx) => {
+      // Get current UCP data to compare positions
+      const [currentUcp] = await tx.select().from(ucps).where(eq(ucps.id, id));
+      if (!currentUcp) {
+        throw new Error(`UCP with ID ${id} not found`);
+      }
+
+      // Check if position is being changed
+      if (ucp.positionId !== undefined && ucp.positionId !== currentUcp.positionId) {
+        // Validate new position if provided
+        if (ucp.positionId) {
+          const [newPosition] = await tx
+            .select()
+            .from(positions)
+            .where(eq(positions.id, ucp.positionId));
+
+          if (!newPosition) {
+            throw new Error(`Position with ID ${ucp.positionId} not found`);
+          }
+
+          if (newPosition.status !== 'disponivel') {
+            throw new Error(`Position ${newPosition.code} is not available (current status: ${newPosition.status})`);
+          }
+
+          // Check if position is already occupied by another active UCP
+          const [existingUcpInPosition] = await tx
+            .select()
+            .from(ucps)
+            .where(and(
+              eq(ucps.positionId, ucp.positionId),
+              eq(ucps.status, 'active'),
+              ne(ucps.id, id) // Exclude current UCP
+            ));
+
+          if (existingUcpInPosition) {
+            throw new Error(`Position ${newPosition.code} is already occupied by UCP ${existingUcpInPosition.code}`);
+          }
+        }
+
+        // Update old position status to "disponivel" if it exists
+        if (currentUcp.positionId) {
+          await tx.update(positions)
+            .set({ status: "disponivel", updatedAt: new Date() })
+            .where(eq(positions.id, currentUcp.positionId));
+        }
+
+        // Update new position status to "ocupada" if provided
+        if (ucp.positionId) {
+          await tx.update(positions)
+            .set({ status: "ocupada", updatedAt: new Date() })
+            .where(eq(positions.id, ucp.positionId));
+        }
+      }
+
+      // Update the UCP
+      const [updatedUcp] = await tx
+        .update(ucps)
+        .set({ ...ucp, updatedAt: new Date() })
+        .where(eq(ucps.id, id))
+        .returning();
+
+      return updatedUcp;
+    });
   }
 
   async deleteUcp(id: number): Promise<boolean> {
@@ -717,6 +826,65 @@ export class DatabaseStorage implements IStorage {
   // Enhanced UCP operations for comprehensive lifecycle management
   async createUcpWithHistory(ucp: InsertUcp, userId: number): Promise<Ucp> {
     return await db.transaction(async (tx) => {
+      // CRITICAL VALIDATION: Check if pallet is already in use
+      if (ucp.palletId) {
+        // Check if pallet exists and is available
+        const [pallet] = await tx
+          .select()
+          .from(pallets)
+          .where(eq(pallets.id, ucp.palletId));
+
+        if (!pallet) {
+          throw new Error(`Pallet with ID ${ucp.palletId} not found`);
+        }
+
+        if (pallet.status !== 'disponivel') {
+          throw new Error(`Pallet ${pallet.code} is not available (current status: ${pallet.status})`);
+        }
+
+        // Check if pallet is already being used in an active UCP
+        const [existingUcp] = await tx
+          .select()
+          .from(ucps)
+          .where(and(
+            eq(ucps.palletId, ucp.palletId),
+            eq(ucps.status, 'active')
+          ));
+
+        if (existingUcp) {
+          throw new Error(`Pallet ${pallet.code} is already being used in UCP ${existingUcp.code}`);
+        }
+      }
+
+      // CRITICAL VALIDATION: Check if position is available
+      if (ucp.positionId) {
+        const [position] = await tx
+          .select()
+          .from(positions)
+          .where(eq(positions.id, ucp.positionId));
+
+        if (!position) {
+          throw new Error(`Position with ID ${ucp.positionId} not found`);
+        }
+
+        if (position.status !== 'disponivel') {
+          throw new Error(`Position ${position.code} is not available (current status: ${position.status})`);
+        }
+
+        // Check if position is already occupied by another active UCP
+        const [existingUcpInPosition] = await tx
+          .select()
+          .from(ucps)
+          .where(and(
+            eq(ucps.positionId, ucp.positionId),
+            eq(ucps.status, 'active')
+          ));
+
+        if (existingUcpInPosition) {
+          throw new Error(`Position ${position.code} is already occupied by UCP ${existingUcpInPosition.code}`);
+        }
+      }
+
       // Create the UCP
       const [newUcp] = await tx.insert(ucps).values(ucp).returning();
       
@@ -725,7 +893,7 @@ export class DatabaseStorage implements IStorage {
         ucpId: newUcp.id,
         action: "created",
         description: `UCP ${newUcp.code} criada`,
-        newValue: { status: newUcp.status, palletId: newUcp.palletId },
+        newValue: { status: newUcp.status, palletId: newUcp.palletId, positionId: newUcp.positionId },
         performedBy: userId,
       });
 
@@ -734,6 +902,13 @@ export class DatabaseStorage implements IStorage {
         await tx.update(pallets)
           .set({ status: "em_uso", updatedAt: new Date() })
           .where(eq(pallets.id, newUcp.palletId));
+      }
+
+      // CRITICAL FIX: Update position status to "ocupada" if position is assigned
+      if (newUcp.positionId) {
+        await tx.update(positions)
+          .set({ status: "ocupada", updatedAt: new Date() })
+          .where(eq(positions.id, newUcp.positionId));
       }
 
       return newUcp;
@@ -1288,26 +1463,123 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async getAvailableUcpsForProduct(): Promise<(Ucp & { pallet?: Pallet; position?: Position; availableSpace?: number })[]> {
-    return await db
-      .select()
-      .from(ucps)
-      .leftJoin(pallets, eq(ucps.palletId, pallets.id))
-      .leftJoin(positions, eq(ucps.positionId, positions.id))
-      .where(eq(ucps.status, "active"))
-      .orderBy(desc(ucps.createdAt))
-      .then(rows => rows.map(row => ({
-        ...row.ucps,
-        pallet: row.pallets || undefined,
-        position: row.positions || undefined,
-        availableSpace: 100, // TODO: Calculate based on pallet capacity and current items
-      })));
+  async getAvailableUcpsForProduct(productId?: number): Promise<(Ucp & { pallet?: Pallet; position?: Position; availableSpace?: number })[]> {
+    // Optimized query that calculates available space and filters at database level
+    const query = sql`
+      SELECT 
+        u.*,
+        p.*,
+        pos.*,
+        COALESCE(pallet_capacity.capacity, 1000) - COALESCE(current_weight.total_weight, 0) as available_space
+      FROM ucps u
+      LEFT JOIN pallets p ON u.pallet_id = p.id
+      LEFT JOIN positions pos ON u.position_id = pos.id
+      LEFT JOIN (
+        -- Calculate pallet capacity based on type
+        SELECT 
+          id,
+          CASE 
+            WHEN type = 'PBR' THEN 1000
+            WHEN type = 'Europeu' THEN 800
+            WHEN type = 'Chep' THEN 1200
+            ELSE 1000
+          END as capacity
+        FROM pallets
+      ) pallet_capacity ON p.id = pallet_capacity.id
+      LEFT JOIN (
+        -- Calculate current weight of items in UCP
+        SELECT 
+          ui.ucp_id,
+          SUM(CAST(ui.quantity AS INTEGER) * COALESCE(CAST(pr.weight AS DECIMAL), 1)) as total_weight
+        FROM ucp_items ui
+        LEFT JOIN products pr ON ui.product_id = pr.id
+        WHERE ui.is_active = true
+        GROUP BY ui.ucp_id
+      ) current_weight ON u.id = current_weight.ucp_id
+      WHERE u.status = 'active'
+        AND (${productId ? sql`${productId} IS NOT NULL` : sql`true`})
+        AND (
+          -- If productId specified, check if UCP can accommodate the product
+          ${productId ? sql`
+            NOT EXISTS (
+              SELECT 1 FROM ucp_items ui2 
+              WHERE ui2.ucp_id = u.id 
+                AND ui2.product_id != ${productId}
+                AND ui2.is_active = true
+            )
+          ` : sql`true`}
+        )
+        AND COALESCE(pallet_capacity.capacity, 1000) - COALESCE(current_weight.total_weight, 0) > 0
+      ORDER BY 
+        -- Prioritize UCPs with more available space
+        available_space DESC,
+        u.created_at DESC
+    `;
+
+    const result = await db.execute(query);
+    
+    return result.rows.map((row: any) => ({
+      // UCP fields
+      id: row.id,
+      code: row.code,
+      palletId: row.pallet_id,
+      positionId: row.position_id,
+      status: row.status,
+      observations: row.observations,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      // Pallet fields (if exists)
+      pallet: row.pallet_id ? {
+        id: row.pallet_id,
+        code: row.code_1, // Second code field from pallets table
+        type: row.type,
+        material: row.material,
+        width: row.width,
+        length: row.length,
+        height: row.height,
+        maxWeight: row.max_weight,
+        status: row.status_1, // Second status field from pallets table
+        photoUrl: row.photo_url,
+        observations: row.observations_1,
+        lastInspectionDate: row.last_inspection_date,
+        createdBy: row.created_by_1,
+        createdAt: row.created_at_1,
+        updatedAt: row.updated_at_1
+      } : undefined,
+      // Position fields (if exists)
+      position: row.position_id ? {
+        id: row.position_id,
+        code: row.code_2, // Third code field from positions table
+        structureId: row.structure_id,
+        street: row.street,
+        side: row.side,
+        corridor: row.corridor,
+        position: row.position,
+        level: row.level,
+        rackType: row.rack_type,
+        maxPallets: row.max_pallets,
+        restrictions: row.restrictions,
+        status: row.status_2, // Third status field from positions table
+        currentPalletId: row.current_pallet_id,
+        observations: row.observations_2,
+        createdBy: row.created_by_2,
+        createdAt: row.created_at_2,
+        updatedAt: row.updated_at_2,
+        hasDivision: row.has_division,
+        layoutConfig: row.layout_config
+      } : undefined,
+      // Available space calculated by database
+      availableSpace: Math.max(0, Number(row.available_space) || 0)
+    }));
   }
 
   async getUcpHistory(ucpId: number): Promise<(UcpHistory & { performedByUser?: User; item?: UcpItem & { product?: Product }; fromPosition?: Position; toPosition?: Position })[]> {
     try {
+      // Single optimized query with all JOINs to avoid N+1 problem
       const result = await db
         .select({
+          // History fields
           id: ucpHistory.id,
           ucpId: ucpHistory.ucpId,
           action: ucpHistory.action,
@@ -1319,132 +1591,211 @@ export class DatabaseStorage implements IStorage {
           toPositionId: ucpHistory.toPositionId,
           performedBy: ucpHistory.performedBy,
           timestamp: ucpHistory.timestamp,
+          // User fields
           userFirstName: users.firstName,
           userLastName: users.lastName,
           userEmail: users.email,
+          // Item fields
+          itemUcpId: ucpItems.ucpId,
+          itemProductId: ucpItems.productId,
+          itemQuantity: ucpItems.quantity,
+          itemLot: ucpItems.lot,
+          itemExpiryDate: ucpItems.expiryDate,
+          itemInternalCode: ucpItems.internalCode,
+          itemAddedAt: ucpItems.addedAt,
+          itemIsActive: ucpItems.isActive,
+          itemAddedBy: ucpItems.addedBy,
+          itemRemovedBy: ucpItems.removedBy,
+          itemRemovedAt: ucpItems.removedAt,
+          itemRemovalReason: ucpItems.removalReason,
+          // Product fields
+          productSku: products.sku,
+          productName: products.name,
+          productDescription: products.description,
+          productBrand: products.brand,
+          productCategory: products.category,
+          productUnit: products.unit,
+          productWeight: products.weight,
+          productDimensions: products.dimensions,
+          productBarcode: products.barcode,
+          productRequiresLot: products.requiresLot,
+          productRequiresExpiry: products.requiresExpiry,
+          productMinStock: products.minStock,
+          productMaxStock: products.maxStock,
+          productIsActive: products.isActive,
+          productCreatedAt: products.createdAt,
+          productUpdatedAt: products.updatedAt,
+          productCreatedBy: products.createdBy,
+          // From position fields
+          fromPositionCode: sql<string>`from_pos.code`,
+          fromPositionStreet: sql<string>`from_pos.street`,
+          fromPositionSide: sql<string>`from_pos.side`,
+          fromPositionPosition: sql<number>`from_pos.position`,
+          fromPositionLevel: sql<number>`from_pos.level`,
+          fromPositionStatus: sql<string>`from_pos.status`,
+          fromPositionMaxPallets: sql<number>`from_pos.max_pallets`,
+          fromPositionRackType: sql<string>`from_pos.rack_type`,
+          fromPositionCorridor: sql<string>`from_pos.corridor`,
+          fromPositionRestrictions: sql<string>`from_pos.restrictions`,
+          fromPositionObservations: sql<string>`from_pos.observations`,
+          fromPositionHasDivision: sql<boolean>`from_pos.has_division`,
+          fromPositionLayoutConfig: sql<any>`from_pos.layout_config`,
+          fromPositionStructureId: sql<number>`from_pos.structure_id`,
+          fromPositionCurrentPalletId: sql<number>`from_pos.current_pallet_id`,
+          fromPositionCreatedBy: sql<number>`from_pos.created_by`,
+          fromPositionCreatedAt: sql<Date>`from_pos.created_at`,
+          fromPositionUpdatedAt: sql<Date>`from_pos.updated_at`,
+          // To position fields
+          toPositionCode: sql<string>`to_pos.code`,
+          toPositionStreet: sql<string>`to_pos.street`,
+          toPositionSide: sql<string>`to_pos.side`,
+          toPositionPosition: sql<number>`to_pos.position`,
+          toPositionLevel: sql<number>`to_pos.level`,
+          toPositionStatus: sql<string>`to_pos.status`,
+          toPositionMaxPallets: sql<number>`to_pos.max_pallets`,
+          toPositionRackType: sql<string>`to_pos.rack_type`,
+          toPositionCorridor: sql<string>`to_pos.corridor`,
+          toPositionRestrictions: sql<string>`to_pos.restrictions`,
+          toPositionObservations: sql<string>`to_pos.observations`,
+          toPositionHasDivision: sql<boolean>`to_pos.has_division`,
+          toPositionLayoutConfig: sql<any>`to_pos.layout_config`,
+          toPositionStructureId: sql<number>`to_pos.structure_id`,
+          toPositionCurrentPalletId: sql<number>`to_pos.current_pallet_id`,
+          toPositionCreatedBy: sql<number>`to_pos.created_by`,
+          toPositionCreatedAt: sql<Date>`to_pos.created_at`,
+          toPositionUpdatedAt: sql<Date>`to_pos.updated_at`,
         })
         .from(ucpHistory)
         .leftJoin(users, eq(ucpHistory.performedBy, users.id))
+        .leftJoin(ucpItems, eq(ucpHistory.itemId, ucpItems.id))
+        .leftJoin(products, eq(ucpItems.productId, products.id))
+        .leftJoin(sql`positions as from_pos`, sql`${ucpHistory.fromPositionId} = from_pos.id`)
+        .leftJoin(sql`positions as to_pos`, sql`${ucpHistory.toPositionId} = to_pos.id`)
         .where(eq(ucpHistory.ucpId, ucpId))
         .orderBy(desc(ucpHistory.timestamp));
 
-      console.log(`DEBUG: Raw query result for UCP ${ucpId}:`, result);
+      console.log(`DEBUG: Optimized query result for UCP ${ucpId}:`, result.length, 'entries');
 
-      // Process each history entry and fetch related data
-      const processedHistory = await Promise.all(
-        result.map(async (row) => {
-          let item: (UcpItem & { product?: Product }) | undefined;
-          let fromPosition: Position | undefined;
-          let toPosition: Position | undefined;
+      // Transform the flattened result into the expected structure
+      const processedHistory = result.map((row) => {
+        let item: (UcpItem & { product?: Product }) | undefined;
+        let fromPosition: Position | undefined;
+        let toPosition: Position | undefined;
 
-          // Fetch item data if this is an item-related action
-          if (row.itemId && (row.action === 'item_added' || row.action === 'item_removed')) {
-            const [itemData] = await db
-              .select({
-                id: ucpItems.id,
-                ucpId: ucpItems.ucpId,
-                productId: ucpItems.productId,
-                quantity: ucpItems.quantity,
-                lot: ucpItems.lot,
-                expiryDate: ucpItems.expiryDate,
-                internalCode: ucpItems.internalCode,
-                addedAt: ucpItems.addedAt,
-                productSku: products.sku,
-                productName: products.name,
-                productDescription: products.description,
-              })
-              .from(ucpItems)
-              .leftJoin(products, eq(ucpItems.productId, products.id))
-              .where(eq(ucpItems.id, row.itemId));
-
-            if (itemData) {
-              item = {
-                id: itemData.id,
-                ucpId: itemData.ucpId,
-                productId: itemData.productId,
-                quantity: itemData.quantity,
-                lot: itemData.lot,
-                expiryDate: itemData.expiryDate,
-                internalCode: itemData.internalCode,
-                addedAt: itemData.addedAt,
-                isActive: true,
-                addedBy: 0,
-                removedBy: null,
-                removedAt: null,
-                removalReason: null,
-                product: itemData.productId ? {
-                  id: itemData.productId,
-                  sku: itemData.productSku || '',
-                  name: itemData.productName || '',
-                  description: itemData.productDescription || null,
-                  brand: null,
-                  createdAt: null,
-                  updatedAt: null,
-                  createdBy: 0,
-                  category: null,
-                  unit: null,
-                  unitPrice: null,
-                  supplier: null,
-                  supplierCode: null,
-                  barcode: null,
-                  minStock: null,
-                  maxStock: null,
-                  isActive: null,
-                } as any : undefined,
-              };
-            }
-          }
-
-          // Fetch from position data
-          if (row.fromPositionId) {
-            const [positionData] = await db
-              .select()
-              .from(positions)
-              .where(eq(positions.id, row.fromPositionId));
-            
-            if (positionData) {
-              fromPosition = positionData;
-            }
-          }
-
-          // Fetch to position data
-          if (row.toPositionId) {
-            const [positionData] = await db
-              .select()
-              .from(positions)
-              .where(eq(positions.id, row.toPositionId));
-            
-            if (positionData) {
-              toPosition = positionData;
-            }
-          }
-
-          return {
-            id: row.id,
-            ucpId: row.ucpId,
-            action: row.action,
-            description: row.description,
-            oldValue: row.oldValue,
-            newValue: row.newValue,
-            itemId: row.itemId,
-            fromPositionId: row.fromPositionId,
-            toPositionId: row.toPositionId,
-            performedBy: row.performedBy,
-            timestamp: row.timestamp?.toISOString() || null,
-            performedByUser: row.userFirstName ? {
-              id: row.performedBy,
-              firstName: row.userFirstName,
-              lastName: row.userLastName,
-              email: row.userEmail || '',
-            } : undefined,
-            item,
-            fromPosition,
-            toPosition,
+        // Build item object if item data exists
+        if (row.itemId && row.itemUcpId !== null) {
+          item = {
+            id: row.itemId,
+            ucpId: row.itemUcpId!,
+            productId: row.itemProductId!,
+            quantity: row.itemQuantity!,
+            lot: row.itemLot,
+            expiryDate: row.itemExpiryDate,
+            internalCode: row.itemInternalCode,
+            addedAt: row.itemAddedAt!,
+            isActive: row.itemIsActive!,
+            addedBy: row.itemAddedBy!,
+            removedBy: row.itemRemovedBy,
+            removedAt: row.itemRemovedAt,
+            removalReason: row.itemRemovalReason,
+            product: row.itemProductId ? {
+              id: row.itemProductId,
+              sku: row.productSku || '',
+              name: row.productName || '',
+              description: row.productDescription,
+              brand: row.productBrand,
+              category: row.productCategory,
+              unit: row.productUnit || '',
+              weight: row.productWeight || null,
+              dimensions: row.productDimensions || null,
+              barcode: row.productBarcode,
+              requiresLot: row.productRequiresLot || false,
+              requiresExpiry: row.productRequiresExpiry || false,
+              minStock: row.productMinStock,
+              maxStock: row.productMaxStock,
+              isActive: row.productIsActive || false,
+              createdAt: row.productCreatedAt,
+              updatedAt: row.productUpdatedAt,
+              createdBy: row.productCreatedBy || 0,
+            } as Product : undefined,
           };
-        })
-      );
+        }
 
-      return processedHistory as any;
+        // Build from position object if position data exists
+        if (row.fromPositionId && row.fromPositionCode !== null) {
+          fromPosition = {
+            id: row.fromPositionId,
+            code: row.fromPositionCode!,
+            street: row.fromPositionStreet!,
+            side: row.fromPositionSide!,
+            position: row.fromPositionPosition!,
+            level: row.fromPositionLevel!,
+            status: row.fromPositionStatus!,
+            maxPallets: row.fromPositionMaxPallets!,
+            rackType: row.fromPositionRackType,
+            corridor: row.fromPositionCorridor,
+            restrictions: row.fromPositionRestrictions,
+            observations: row.fromPositionObservations,
+            hasDivision: row.fromPositionHasDivision!,
+            layoutConfig: row.fromPositionLayoutConfig,
+            structureId: row.fromPositionStructureId,
+            currentPalletId: row.fromPositionCurrentPalletId,
+            createdBy: row.fromPositionCreatedBy,
+            createdAt: row.fromPositionCreatedAt,
+            updatedAt: row.fromPositionUpdatedAt,
+          };
+        }
+
+        // Build to position object if position data exists
+        if (row.toPositionId && row.toPositionCode !== null) {
+          toPosition = {
+            id: row.toPositionId,
+            code: row.toPositionCode!,
+            street: row.toPositionStreet!,
+            side: row.toPositionSide!,
+            position: row.toPositionPosition!,
+            level: row.toPositionLevel!,
+            status: row.toPositionStatus!,
+            maxPallets: row.toPositionMaxPallets!,
+            rackType: row.toPositionRackType,
+            corridor: row.toPositionCorridor,
+            restrictions: row.toPositionRestrictions,
+            observations: row.toPositionObservations,
+            hasDivision: row.toPositionHasDivision!,
+            layoutConfig: row.toPositionLayoutConfig,
+            structureId: row.toPositionStructureId,
+            currentPalletId: row.toPositionCurrentPalletId,
+            createdBy: row.toPositionCreatedBy,
+            createdAt: row.toPositionCreatedAt,
+            updatedAt: row.toPositionUpdatedAt,
+          };
+        }
+
+        return {
+          id: row.id,
+          ucpId: row.ucpId,
+          action: row.action,
+          description: row.description,
+          oldValue: row.oldValue,
+          newValue: row.newValue,
+          itemId: row.itemId,
+          fromPositionId: row.fromPositionId,
+          toPositionId: row.toPositionId,
+          performedBy: row.performedBy,
+          timestamp: row.timestamp?.toISOString() || null,
+          performedByUser: row.userFirstName ? {
+            id: row.performedBy,
+            firstName: row.userFirstName,
+            lastName: row.userLastName,
+            email: row.userEmail || '',
+          } : undefined,
+          item,
+          fromPosition,
+          toPosition,
+        } as UcpHistory & { performedByUser?: User; item?: UcpItem & { product?: Product }; fromPosition?: Position; toPosition?: Position };
+      });
+
+      return processedHistory;
     } catch (error) {
       console.error('Error in getUcpHistory:', error);
       throw error;
@@ -1558,43 +1909,51 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAvailablePalletsForUcp(): Promise<Pallet[]> {
-    // Busca todos os pallets com status 'available'
-    const allAvailablePallets = await db
+    // Busca pallets que estão disponíveis E não estão sendo usados em UCPs ativas
+    const availablePallets = await db
       .select()
       .from(pallets)
-              .where(eq(pallets.status, 'disponivel'))
+      .leftJoin(ucps, and(
+        eq(ucps.palletId, pallets.id),
+        eq(ucps.status, 'active')
+      ))
+      .where(and(
+        eq(pallets.status, 'disponivel'),
+        isNull(ucps.id) // Pallet não deve estar em nenhuma UCP ativa
+      ))
       .orderBy(desc(pallets.createdAt));
 
-            // Para UCPs, consideramos todos os pallets com status 'disponivel' como disponíveis
-    // já que o status do pallet é gerenciado automaticamente pelo sistema
-    return allAvailablePallets;
+    return availablePallets.map(row => row.pallets);
   }
 
   async getNextPalletCode(): Promise<string> {
-    // Busca todos os códigos existentes no formato PLT#### 
-    const existingPallets = await db
-      .select({ code: pallets.code })
-      .from(pallets)
-      .where(sql`code ~ '^PLT[0-9]{4}$'`)
-      .orderBy(pallets.code);
+    // Use PostgreSQL sequence for atomic, concurrent-safe code generation
+    // Create sequence if it doesn't exist (idempotent)
+    await db.execute(sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'pallet_code_seq') THEN
+          -- Find the highest existing pallet number to start the sequence from
+          DECLARE
+            max_num INTEGER := 0;
+          BEGIN
+            SELECT COALESCE(MAX(CAST(SUBSTRING(code FROM 4) AS INTEGER)), 0)
+            INTO max_num
+            FROM pallets 
+            WHERE code ~ '^PLT[0-9]{4}$';
+            
+            EXECUTE format('CREATE SEQUENCE pallet_code_seq START WITH %s INCREMENT BY 1', max_num + 1);
+          END;
+        END IF;
+      END
+      $$
+    `);
 
-    // Extrai números dos códigos existentes
-    const existingNumbers = existingPallets
-      .map(p => parseInt(p.code.replace('PLT', ''), 10))
-      .filter(num => !isNaN(num))
-      .sort((a, b) => a - b);
+    // Get next value from sequence
+    const result = await db.execute(sql`SELECT nextval('pallet_code_seq') as next_num`);
+    const nextNumber = Number(result.rows[0].next_num);
 
-    // Encontra o próximo número sequencial disponível
-    let nextNumber = 1;
-    for (const num of existingNumbers) {
-      if (num === nextNumber) {
-        nextNumber++;
-      } else if (num > nextNumber) {
-        break;
-      }
-    }
-
-    // Formata o código com zero padding
+    // Format the code with zero padding
     return `PLT${nextNumber.toString().padStart(4, '0')}`;
   }
 

@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,7 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Pallet, type InsertPallet } from "@/types/api";
 import { insertPalletSchema } from "@/types/schemas";
-import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Eye, QrCode, Printer, RefreshCw } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Eye, Scan, Printer, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CameraCapture from "@/components/camera-capture";
 import QRCodeDialog from "@/components/qr-code-dialog";
@@ -115,15 +115,22 @@ export default function Pallets() {
     queryKey: ['/api/pallets'],
   });
 
-  // Atualização automática quando filtros mudam
+  // Only debounce search term changes, not status filter (which is client-side)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
-      refetch();
-    }, 300); // Debounce de 300ms
+    if (searchTerm) {
+      const timer = setTimeout(() => {
+        // Only refetch if search term is significant
+        if (searchTerm.length >= 2) {
+          queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+          refetch();
+        }
+      }, 500); // Longer debounce for search
 
-    return () => clearTimeout(timer);
-  }, [searchTerm, statusFilter, refetch]);
+      return () => clearTimeout(timer);
+    }
+  }, [searchTerm, refetch]);
+
+  // Remove status filter from auto-refresh since it's client-side filtering
 
   // Função para forçar atualização
   const forceRefresh = () => {
@@ -177,9 +184,11 @@ export default function Pallets() {
     onSuccess: () => {
       // Invalida todas as queries relacionadas a pallets
       queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/pallets/available-for-ucp'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
       // Força refetch imediato
       queryClient.refetchQueries({ queryKey: ['/api/pallets'] });
+      queryClient.refetchQueries({ queryKey: ['/api/pallets/available-for-ucp'] });
       toast({
         title: "Sucesso",
         description: "Layers criado com sucesso",
@@ -203,9 +212,11 @@ export default function Pallets() {
     onSuccess: () => {
       // Invalida todas as queries relacionadas a pallets
       queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/pallets/available-for-ucp'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] });
       // Força refetch imediato
       queryClient.refetchQueries({ queryKey: ['/api/pallets'] });
+      queryClient.refetchQueries({ queryKey: ['/api/pallets/available-for-ucp'] });
       toast({
         title: "Sucesso",
         description: "Layers atualizado com sucesso",
@@ -644,33 +655,36 @@ export default function Pallets() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center space-x-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Buscar pallets..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-            className="pl-10"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Todos os Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os Status</SelectItem>
-                            <SelectItem value="disponivel">Disponível</SelectItem>
+      {/* Filters and Search */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
+            <div className="flex-1 relative">
+              <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar pallets..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="disponivel">Disponível</SelectItem>
                 <SelectItem value="em_uso">Em Uso</SelectItem>
                 <SelectItem value="defeituoso">Defeituoso</SelectItem>
-                <SelectItem value="recuperacao">Manutenção</SelectItem>
+                <SelectItem value="manutencao">Manutenção</SelectItem>
                 <SelectItem value="descarte">Descarte</SelectItem>
-          </SelectContent>
-        </Select>
-
-      </div>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Pallets Grid */}
       {isLoading ? (
@@ -763,7 +777,7 @@ export default function Pallets() {
                           onClick={() => handleShowQRCode(pallet)}
                           title="Gerar QR Code"
                         >
-                          <QrCode className="h-4 w-4" />
+                          <Scan className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"

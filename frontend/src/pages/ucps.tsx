@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,16 +52,30 @@ export default function ComprehensiveUCPs() {
   const [dismantleDialog, setDismantleDialog] = useState<{ isOpen: boolean; ucp: Ucp | null }>({ isOpen: false, ucp: null });
   const { toast } = useToast();
 
-  // Debounced search with automatic refresh
+  // Only debounce search term changes, statusFilter and includeArchived should trigger immediate refresh
   useEffect(() => {
-    const timer = setTimeout(() => {
-      queryClient.invalidateQueries({ queryKey: ['/api/ucps'] });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm, statusFilter, includeArchived]);
+    if (searchTerm) {
+      const timer = setTimeout(() => {
+        if (searchTerm.length >= 2) {
+          queryClient.invalidateQueries({ queryKey: ['/api/ucps'] });
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [searchTerm]);
+
+  // Immediate refresh for status and archive filters
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ['/api/ucps'] });
+  }, [statusFilter, includeArchived]);
 
   const { data: ucps, isLoading, refetch } = useQuery<Ucp[]>({
-    queryKey: ['/api/ucps', { includeArchived, status: statusFilter }],
+    queryKey: ['/api/ucps', { includeArchived: includeArchived || statusFilter === "archived" }],
+    queryFn: async () => {
+      const shouldIncludeArchived = includeArchived || statusFilter === "archived";
+      const response = await apiRequest('GET', `/api/ucps?includeArchived=${shouldIncludeArchived}`);
+      return response.json();
+    },
     refetchInterval: 30000,
   });
 
@@ -77,6 +92,7 @@ export default function ComprehensiveUCPs() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/ucps'] });
       queryClient.invalidateQueries({ queryKey: ['/api/pallets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/pallets/available-for-ucp'] });
       queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
       queryClient.invalidateQueries({ queryKey: ['/api/ucps/stats'] });
       toast({
@@ -147,11 +163,24 @@ export default function ComprehensiveUCPs() {
   };
 
   const filteredUcps = ucps?.filter(ucp => {
-    const matchesSearch = ucp.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ucp.pallet?.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ucp.position?.code.toLowerCase().includes(searchTerm.toLowerCase());
+    // Enhanced search: UCP code, pallet code, position code, and product content
+    const matchesSearch = searchTerm === "" || 
+      ucp.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ucp.pallet?.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ucp.position?.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (ucp.items && ucp.items.some(item => 
+        item.product?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.product?.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.lot?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.internalCode?.toLowerCase().includes(searchTerm.toLowerCase())
+      ));
     
-    const matchesStatus = statusFilter === "all" || ucp.status === statusFilter;
+    // Enhanced status filtering with archived support
+    const matchesStatus = statusFilter === "all" || 
+      (statusFilter === "archived" && ucp.status === "archived") ||
+      (statusFilter === "active" && ucp.status === "active") ||
+      (statusFilter === "empty" && ucp.status === "empty") ||
+      ucp.status === statusFilter;
     
     return matchesSearch && matchesStatus;
   }) || [];
@@ -254,7 +283,7 @@ export default function ComprehensiveUCPs() {
             <div className="flex-1 relative">
               <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por código UCP, pallet ou posição..."
+                placeholder="Buscar por código UCP, pallet, posição, produto, SKU, lote ou código interno..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"

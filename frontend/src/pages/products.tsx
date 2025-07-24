@@ -534,7 +534,7 @@ export default function Products() {
                     <FormItem>
                       <FormLabel>Descrição</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Descrição detalhada do produto" {...field} />
+                        <Textarea placeholder="Descrição detalhada do produto" {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -545,7 +545,7 @@ export default function Products() {
                   <FormField
                     control={form.control}
                     name="category"
-                    render={({ field }) => (
+                    render={({ field: _ }) => (
                       <FormItem>
                         <FormLabel>Categoria</FormLabel>
                         <Select 
@@ -609,7 +609,7 @@ export default function Products() {
                       <FormItem>
                         <FormLabel>Marca</FormLabel>
                         <FormControl>
-                          <Input placeholder="Nome da marca" {...field} />
+                          <Input placeholder="Nome da marca" {...field} value={field.value || ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -661,6 +661,7 @@ export default function Products() {
                             step="0.001"
                             placeholder="0.000"
                             {...field} 
+                            value={field.value || ""}
                           />
                         </FormControl>
                         <FormMessage />
@@ -674,7 +675,7 @@ export default function Products() {
                       <FormItem>
                         <FormLabel>Código de Barras</FormLabel>
                         <FormControl>
-                          <Input placeholder="1234567890123" {...field} />
+                          <Input placeholder="1234567890123" {...field} value={field.value || ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -754,6 +755,7 @@ export default function Products() {
                           <Input 
                             type="number" 
                             {...field} 
+                            value={field.value || ""}
                             onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                           />
                         </FormControl>
@@ -771,6 +773,7 @@ export default function Products() {
                           <Input 
                             type="number" 
                             {...field} 
+                            value={field.value || ""}
                             onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
                           />
                         </FormControl>
@@ -797,7 +800,7 @@ export default function Products() {
                           </div>
                           <FormControl>
                             <Switch
-                              checked={field.value}
+                              checked={field.value || false}
                               onCheckedChange={field.onChange}
                             />
                           </FormControl>
@@ -818,7 +821,7 @@ export default function Products() {
                           </div>
                           <FormControl>
                             <Switch
-                              checked={field.value}
+                              checked={field.value || false}
                               onCheckedChange={field.onChange}
                             />
                           </FormControl>
@@ -839,7 +842,7 @@ export default function Products() {
                           </div>
                           <FormControl>
                             <Switch
-                              checked={field.value}
+                              checked={field.value || false}
                               onCheckedChange={field.onChange}
                             />
                           </FormControl>

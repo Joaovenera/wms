@@ -15,7 +15,10 @@ import {
   Bell,
   Settings,
   LogOut,
-  Activity
+  Activity,
+  Truck,
+  ClipboardList,
+  TrendingUp
 } from "lucide-react";
 
 interface DesktopLayoutProps {
@@ -35,7 +38,9 @@ export default function DesktopLayout({ children }: DesktopLayoutProps) {
     { name: "UCPs", href: "/ucps", icon: Box },
     { name: "Produtos", href: "/products", icon: Package2 },
     { name: "Rastreamento", href: "/warehouse-tracking", icon: Activity },
-    { name: "Relatórios", href: "/reports", icon: FileText },
+    { name: "Planejamento", href: "/transfer-planning", icon: ClipboardList },
+    { name: "Carregamento", href: "/loading-execution", icon: Truck },
+    { name: "Relatórios Transfer.", href: "/transfer-reports", icon: TrendingUp },
     { name: "Usuários", href: "/users", icon: Users },
   ];
 

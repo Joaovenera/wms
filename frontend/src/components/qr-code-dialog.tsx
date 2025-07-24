@@ -19,7 +19,6 @@ interface QRCodeDialogProps {
 
 export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }: QRCodeDialogProps) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
-  const qrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && palletCode) {
@@ -41,8 +40,10 @@ export default function QRCodeDialog({ isOpen, onClose, palletCode, palletData }
         itemType = "PALLET";
       }
       
-      // Se temos dados específicos do pallet, usar o tipo fornecido
-      if (palletData && palletData.type) {
+      // Para pallets, sempre usar "PALLET" independente do tipo específico (PBR, Europeu, etc.)
+      if (palletData && palletCode.startsWith('PLT')) {
+        itemType = "PALLET";
+      } else if (palletData && palletData.type && !palletCode.startsWith('PLT')) {
         itemType = palletData.type;
       }
       

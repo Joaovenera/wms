@@ -225,9 +225,11 @@ export default function MobilePallets() {
     onSuccess: () => {
       // Invalida todas as queries relacionadas a pallets
       queryClient.invalidateQueries({ queryKey: ["/api/pallets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pallets/available-for-ucp"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       // Força refetch imediato
       queryClient.refetchQueries({ queryKey: ["/api/pallets"] });
+      queryClient.refetchQueries({ queryKey: ["/api/pallets/available-for-ucp"] });
       setIsCreateOpen(false);
       setEditingPallet(null);
       form.reset();
@@ -253,9 +255,11 @@ export default function MobilePallets() {
     onSuccess: () => {
       // Invalida todas as queries relacionadas a pallets
       queryClient.invalidateQueries({ queryKey: ["/api/pallets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pallets/available-for-ucp"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
       // Força refetch imediato
       queryClient.refetchQueries({ queryKey: ["/api/pallets"] });
+      queryClient.refetchQueries({ queryKey: ["/api/pallets/available-for-ucp"] });
       setIsCreateOpen(false);
       setEditingPallet(null);
       form.reset();

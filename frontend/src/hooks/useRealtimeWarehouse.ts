@@ -14,7 +14,12 @@ interface RealtimeUpdate {
   timestamp: string;
 }
 
-export function useRealtimeWarehouse() {
+interface UseRealtimeWarehouseOptions {
+  enabled?: boolean;
+}
+
+export function useRealtimeWarehouse(options: UseRealtimeWarehouseOptions = {}) {
+  const { enabled = true } = options;
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<RealtimeUpdate | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -22,19 +27,35 @@ export function useRealtimeWarehouse() {
   const queryClient = useQueryClient();
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const reconnectAttempts = useRef(0);
+  const isUnmountedRef = useRef(false);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout>();
 
   const connect = () => {
+    // Don't connect if disabled or component is unmounted
+    if (!enabled || isUnmountedRef.current) {
+      return;
+    }
+
+    // Clear any existing connection timeout
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+    }
+
+    // If there's already an active connection, don't create a new one
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
+      return;
+    }
+
     try {
+      // Connect to the backend WebSocket server, not the Vite dev server
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      
-      console.log('Connecting to WebSocket:', wsUrl);
+      const backendPort = window.location.protocol === "https:" ? "5000" : "5000";
+      const wsUrl = `${protocol}//${window.location.hostname}:${backendPort}`;
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket connected successfully');
         setIsConnected(true);
         setConnectionError(null);
         reconnectAttempts.current = 0;
@@ -43,7 +64,6 @@ export function useRealtimeWarehouse() {
       ws.onmessage = (event) => {
         try {
           const message: RealtimeMessage = JSON.parse(event.data);
-          console.log('Received WebSocket message:', message);
           
           setLastUpdate({
             type: message.type as any,
@@ -70,7 +90,6 @@ export function useRealtimeWarehouse() {
               break;
               
             case 'connection':
-              console.log('Connection confirmed:', message.message);
               break;
           }
         } catch (error) {
@@ -79,27 +98,40 @@ export function useRealtimeWarehouse() {
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket connection closed:', event.code, event.reason);
         setIsConnected(false);
         wsRef.current = null;
         
-        // Attempt to reconnect with exponential backoff
-        if (reconnectAttempts.current < 5) {
+        // Only attempt to reconnect if enabled and component is still mounted
+        // Also check if this was an intentional close (code 1000) or an error
+        const wasIntentionalClose = event.code === 1000;
+        const shouldReconnect = enabled && !isUnmountedRef.current && reconnectAttempts.current < 5 && !wasIntentionalClose;
+        
+        if (shouldReconnect) {
           const delay = Math.pow(2, reconnectAttempts.current) * 1000; // 1s, 2s, 4s, 8s, 16s
-          console.log(`Attempting to reconnect in ${delay}ms...`);
           
           reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectAttempts.current++;
-            connect();
+            if (!isUnmountedRef.current && enabled) {
+              reconnectAttempts.current++;
+              connect();
+            }
           }, delay);
+        } else if (!enabled || isUnmountedRef.current) {
+          // Connection cancelled - component disabled or unmounted
+        } else if (wasIntentionalClose) {
+          // Connection closed intentionally - no reconnection needed
         } else {
           setConnectionError('Falha ao reconectar. Verifique a conexão.');
         }
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setConnectionError('Erro de conexão com o sistema de rastreamento');
+        // Only log error if the connection wasn't intentionally cancelled
+        if (!isUnmountedRef.current && enabled) {
+          console.error('WebSocket error:', error);
+          setConnectionError('Erro de conexão com o sistema de rastreamento');
+        } else {
+          // Error suppressed - connection was cancelled
+        }
         setIsConnected(false);
       };
 
@@ -110,12 +142,23 @@ export function useRealtimeWarehouse() {
   };
 
   const disconnect = () => {
+    
+    // Clear all timeouts
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = undefined;
+    }
+    
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = undefined;
     }
     
     if (wsRef.current) {
-      wsRef.current.close();
+      // Don't try to close if already closed
+      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+        wsRef.current.close(1000, 'Component unmounted'); // Normal closure
+      }
       wsRef.current = null;
     }
     
@@ -133,12 +176,29 @@ export function useRealtimeWarehouse() {
   };
 
   useEffect(() => {
-    connect();
+    isUnmountedRef.current = false;
+    
+    // Clear any existing connection timeout
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+    }
+    
+    if (enabled) {
+      // Debounce connection attempts to prevent rapid connect/disconnect
+      connectionTimeoutRef.current = setTimeout(() => {
+        if (!isUnmountedRef.current && enabled) {
+          connect();
+        }
+      }, 100); // 100ms delay to allow component to stabilize
+    } else {
+      disconnect();
+    }
 
     return () => {
+      isUnmountedRef.current = true;
       disconnect();
     };
-  }, []);
+  }, [enabled]);
 
   return {
     isConnected,

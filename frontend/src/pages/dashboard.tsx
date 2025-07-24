@@ -49,10 +49,10 @@ export default function Dashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'disponivel': return 'text-success';
-      case 'em_uso': return 'text-destructive';
-      case 'defeituoso': return 'text-warning';
-      case 'manutencao': return 'text-primary';
+      case 'disponivel': return 'text-green-500';
+      case 'em_uso': return 'text-red-500';
+      case 'defeituoso': return 'text-yellow-500';
+      case 'manutencao': return 'text-blue-500';
       case 'descarte': return 'text-gray-500';
       default: return 'text-gray-600';
     }

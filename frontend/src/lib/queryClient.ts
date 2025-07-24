@@ -1,6 +1,8 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// In development, we use relative paths so that the Vite proxy handles requests.
+// In production, the full API URL is used from environment variables.
+const API_BASE_URL = import.meta.env.PROD ? import.meta.env.VITE_API_BASE_URL || '' : '';
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -14,8 +16,9 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  // Garantir que a URL seja absoluta
-  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url.replace('/api', '')}`;
+  // Construct the full URL. In dev, this will be a relative path like /api/user.
+  // In prod, it will be an absolute path like https://api.example.com/api/user.
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
   
   const res = await fetch(fullUrl, {
     method,
@@ -37,7 +40,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const url = queryKey[0] as string;
-    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url.replace('/api', '')}`;
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
     
     const res = await fetch(fullUrl, {
       credentials: "include",
@@ -75,3 +78,19 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// Helper functions for common cache invalidations
+export const invalidatePalletQueries = async () => {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['/api/pallets'] }),
+    queryClient.invalidateQueries({ queryKey: ['/api/pallets/available-for-ucp'] }),
+    queryClient.invalidateQueries({ queryKey: ['/api/dashboard'] }),
+  ]);
+};
+
+export const refetchPalletQueries = async () => {
+  await Promise.all([
+    queryClient.refetchQueries({ queryKey: ['/api/pallets'] }),
+    queryClient.refetchQueries({ queryKey: ['/api/pallets/available-for-ucp'] }),
+  ]);
+};

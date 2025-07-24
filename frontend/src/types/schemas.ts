@@ -107,6 +107,35 @@ export const insertUcpSchema = z.object({
   createdBy: z.number(),
 });
 
+// Packaging schemas
+export const insertPackagingTypeSchema = z.object({
+  productId: z.number(),
+  name: z.string().min(1, "Nome é obrigatório"),
+  barcode: z.string().optional(),
+  baseUnitQuantity: z.string().min(1, "Quantidade da unidade base é obrigatória"),
+  isBaseUnit: z.boolean().default(false),
+  parentPackagingId: z.number().optional(),
+  level: z.number().min(1, "Nível deve ser 1 ou maior").default(1),
+  dimensions: z.any().optional(),
+  isActive: z.boolean().default(true),
+  createdBy: z.number(),
+});
+
+export const scanBarcodeSchema = z.object({
+  barcode: z.string().min(1, 'Código de barras é obrigatório')
+});
+
+export const optimizePickingSchema = z.object({
+  productId: z.number().int().positive('ID do produto deve ser um número positivo'),
+  requestedBaseUnits: z.number().positive('Quantidade solicitada deve ser positiva')
+});
+
+export const convertQuantitySchema = z.object({
+  quantity: z.number().positive('Quantidade deve ser positiva'),
+  fromPackagingId: z.number().int().positive('ID da embalagem de origem obrigatório'),
+  toPackagingId: z.number().int().positive('ID da embalagem de destino obrigatório')
+});
+
 // UCP Item schemas
 export const insertUcpItemSchema = z.object({
   ucpId: z.number(),
@@ -115,6 +144,8 @@ export const insertUcpItemSchema = z.object({
   lot: z.string().optional(),
   expiryDate: z.string().optional(),
   internalCode: z.string().optional(),
+  packagingTypeId: z.number().optional(),
+  packagingQuantity: z.string().optional(),
   addedBy: z.number(),
   removedBy: z.number().optional(),
   removalReason: z.string().optional(),
@@ -144,4 +175,70 @@ export const insertMovementSchema = z.object({
   lot: z.string().optional(),
   reason: z.string().optional(),
   performedBy: z.string().min(1, "Responsável é obrigatório"),
+});
+
+// Vehicle schemas
+export const insertVehicleSchema = z.object({
+  code: z.string().min(1, "Código é obrigatório"),
+  name: z.string().min(1, "Nome é obrigatório"),
+  type: z.string().min(1, "Tipo é obrigatório"),
+  cubicCapacity: z.string().min(1, "Capacidade cúbica é obrigatória"),
+  weightCapacity: z.string().optional(),
+  status: z.string().default("disponivel"),
+  observations: z.string().optional(),
+  isActive: z.boolean().default(true),
+  createdBy: z.number(),
+});
+
+// Transfer Request schemas
+export const insertTransferRequestSchema = z.object({
+  code: z.string().min(1, "Código é obrigatório"),
+  vehicleId: z.number().min(1, "Veículo é obrigatório"),
+  fromLocation: z.string().min(1, "Local de origem é obrigatório"),
+  toLocation: z.string().min(1, "Local de destino é obrigatório"),
+  notes: z.string().optional(),
+  createdBy: z.number(),
+});
+
+export const insertTransferRequestItemSchema = z.object({
+  transferRequestId: z.number(),
+  productId: z.number().min(1, "Produto é obrigatório"),
+  quantity: z.string().min(1, "Quantidade é obrigatória"),
+  notes: z.string().optional(),
+  addedBy: z.number(),
+});
+
+// Loading Execution schemas
+export const insertLoadingExecutionSchema = z.object({
+  transferRequestId: z.number().min(1, "Pedido de transferência é obrigatório"),
+  operatorId: z.number(),
+  observations: z.string().optional(),
+});
+
+export const scanItemSchema = z.object({
+  productId: z.number().min(1, "Produto é obrigatório"),
+  quantity: z.string().min(1, "Quantidade é obrigatória"),
+  scannedCode: z.string().optional(),
+});
+
+export const registerDivergenceSchema = z.object({
+  divergenceReason: z.enum([
+    'falta_espaco', 
+    'item_avariado', 
+    'divergencia_estoque', 
+    'item_nao_localizado'
+  ], { errorMap: () => ({ message: "Motivo de divergência inválido" }) }),
+  divergenceComments: z.string().optional(),
+});
+
+export const updateTransferStatusSchema = z.object({
+  status: z.enum([
+    'planejamento',
+    'aprovado', 
+    'carregamento', 
+    'transito', 
+    'finalizado', 
+    'cancelado'
+  ], { errorMap: () => ({ message: "Status inválido" }) }),
+  notes: z.string().optional(),
 }); 

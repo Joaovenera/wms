@@ -7,14 +7,31 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
-import { Package2, MapPin, Camera, History, Download, Eye, X } from "lucide-react";
-import type { Product } from "@/types/api";
+import { Package2, MapPin, Camera, Download, Eye, X, Package, Target } from "lucide-react";
+import { PackagingManager } from "./packaging-manager";
+import { StockConsolidationView } from "./stock-consolidation-view";
+import { PickingOptimizer } from "./picking-optimizer";
+import { PackagingScanner } from "./packaging-scanner";
 
 interface ProductDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   productId: number;
   productName: string;
+}
+
+function toCamelCase(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(toCamelCase);
+  } else if (obj && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [
+        key.replace(/_([a-z])/g, (_, c) => c.toUpperCase()),
+        toCamelCase(value)
+      ])
+    );
+  }
+  return obj;
 }
 
 export default function ProductDetailsModal({ 
@@ -26,19 +43,26 @@ export default function ProductDetailsModal({
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   // Fetch product with stock details
-  const { data: productData, isLoading } = useQuery({
+  const { data: productData, isLoading, error } = useQuery({
     queryKey: ['/api/products', productId, 'details'],
     queryFn: async () => {
-      const products = await apiRequest('GET', '/api/products?includeStock=true');
-      return products.find((p: any) => p.id === productId);
+      console.log('Fetching product details for ID:', productId);
+      const res = await apiRequest('GET', `/api/products/${productId}?includeStock=true`);
+      const data = await res.json();
+      console.log('Product data received:', data);
+      return data;
     },
     enabled: isOpen && !!productId,
+    retry: false, // Disable retry for debugging
   });
 
   // Fetch product photos
   const { data: photos, isLoading: photosLoading } = useQuery({
     queryKey: ['/api/products', productId, 'photos'],
-    queryFn: () => apiRequest('GET', `/api/products/${productId}/photos`),
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/products/${productId}/photos`);
+      return await res.json();
+    },
     enabled: isOpen && !!productId,
   });
 
@@ -60,6 +84,15 @@ export default function ProductDetailsModal({
     }
   };
 
+  // Debug logs
+  console.log('Product Details Modal State:', {
+    isOpen,
+    productId,
+    productData,
+    isLoading,
+    error
+  });
+
   if (!isOpen) return null;
 
   return (
@@ -79,11 +112,20 @@ export default function ProductDetailsModal({
               <Skeleton className="h-64 w-full" />
               <Skeleton className="h-32 w-full" />
             </div>
+          ) : error ? (
+            <div className="text-center py-8">
+              <Package2 className="h-12 w-12 text-red-400 mx-auto mb-4" />
+              <p className="text-red-500">Erro ao carregar dados do produto</p>
+              <p className="text-gray-500 text-sm">{error.message}</p>
+            </div>
           ) : productData ? (
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="overview">Visão Geral</TabsTrigger>
                 <TabsTrigger value="stock">Estoque</TabsTrigger>
+                <TabsTrigger value="packaging">Embalagens</TabsTrigger>
+                <TabsTrigger value="consolidation">Consolidado</TabsTrigger>
+                <TabsTrigger value="picking">Separação</TabsTrigger>
                 <TabsTrigger value="photos">Fotos</TabsTrigger>
                 <TabsTrigger value="specifications">Especificações</TabsTrigger>
               </TabsList>
@@ -97,11 +139,11 @@ export default function ProductDetailsModal({
                     <CardContent className="space-y-3">
                       <div className="flex justify-between">
                         <span className="text-gray-600">ID:</span>
-                        <span className="font-mono">{productData.sku}</span>
+                        <span className="font-mono">{productData?.sku || 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Nome:</span>
-                        <span className="font-medium">{productData.name}</span>
+                        <span className="font-medium">{productData?.name || 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Status:</span>
@@ -177,10 +219,10 @@ export default function ProductDetailsModal({
                               <div className="flex items-center">
                                 <Package2 className="h-4 w-4 mr-2 text-blue-500" />
                                 <span className="font-medium text-lg">
-                                  {ucp.ucp_code}
+                                  {ucp.ucpCode || ucp.ucp_code || 'Sem código'}
                                 </span>
                                 <Badge variant="outline" className="ml-2">
-                                  {ucp.ucp_type}
+                                  {ucp.ucpType || ucp.ucp_type || 'Tipo N/A'}
                                 </Badge>
                               </div>
                               <div className="text-right">
@@ -192,34 +234,31 @@ export default function ProductDetailsModal({
                                 </div>
                               </div>
                             </div>
-                            
                             <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                              {ucp.position_code && (
-                                <div>
-                                  <span className="font-medium">Posição:</span>
-                                  <span className="ml-1">{ucp.position_code}</span>
-                                </div>
-                              )}
+                              <div>
+                                <span className="font-medium">Posição:</span>
+                                <span className="ml-1">{ucp.positionCode || ucp.position_code || 'Sem posição'}</span>
+                              </div>
                               {ucp.lot && (
                                 <div>
                                   <span className="font-medium">Lote:</span>
                                   <span className="ml-1">{ucp.lot}</span>
                                 </div>
                               )}
-                              {ucp.expiry_date && (
+                              {ucp.expiryDate || ucp.expiry_date ? (
                                 <div>
                                   <span className="font-medium">Validade:</span>
                                   <span className="ml-1">
-                                    {new Date(ucp.expiry_date).toLocaleDateString('pt-BR')}
+                                    {new Date(ucp.expiryDate || ucp.expiry_date).toLocaleDateString('pt-BR')}
                                   </span>
                                 </div>
-                              )}
-                              {ucp.internal_code && (
+                              ) : null}
+                              {ucp.internalCode || ucp.internal_code ? (
                                 <div>
                                   <span className="font-medium">Código Interno:</span>
-                                  <span className="ml-1">{ucp.internal_code}</span>
+                                  <span className="ml-1">{ucp.internalCode || ucp.internal_code}</span>
                                 </div>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         ))}
@@ -361,11 +400,58 @@ export default function ProductDetailsModal({
                   </Card>
                 </div>
               </TabsContent>
+
+              <TabsContent value="packaging" className="space-y-4">
+                <PackagingManager product={productData} />
+              </TabsContent>
+
+              <TabsContent value="consolidation" className="space-y-4">
+                <StockConsolidationView product={productData} />
+              </TabsContent>
+
+              <TabsContent value="picking" className="space-y-4">
+                <div className="grid gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Target className="h-5 w-5" />
+                        Otimização de Separação
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <PickingOptimizer product={productData} />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Package className="h-5 w-5" />
+                        Scanner de Embalagens
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <PackagingScanner
+                        onPackagingFound={(packaging) => {
+                          console.log("Embalagem encontrada:", packaging);
+                        }}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
             </Tabs>
           ) : (
             <div className="text-center py-8">
               <Package2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Produto não encontrado</p>
+              <p className="text-gray-500">
+                {productData === null ? "Produto não encontrado" : "Carregando dados do produto..."}
+              </p>
+              {productData !== null && (
+                <p className="text-sm text-gray-400 mt-2">
+                  Debug: productData = {JSON.stringify(productData)}
+                </p>
+              )}
             </div>
           )}
         </DialogContent>

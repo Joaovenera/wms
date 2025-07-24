@@ -5,13 +5,14 @@ import {
   timestamp,
   jsonb,
   index,
+  uniqueIndex,
   serial,
   integer,
   decimal,
   boolean,
   date,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -120,7 +121,8 @@ export const productPhotos = pgTable("product_photos", {
   productId: integer("product_id").notNull().references(() => products.id),
   filename: varchar("filename").notNull(), // Original filename
   path: varchar("path").notNull(), // Storage path
-  url: varchar("url").notNull(), // Access URL
+  url: varchar("url").notNull(), // Original resolution URL (base64 or file path)
+  thumbnailUrl: varchar("thumbnail_url"), // Thumbnail resolution URL (base64 or file path)
   size: integer("size").notNull(), // File size in bytes
   mimeType: varchar("mime_type").notNull(), // image/jpeg, image/png, etc.
   width: integer("width"), // Image width in pixels
@@ -169,6 +171,8 @@ export const ucpItems = pgTable("ucp_items", {
   lot: varchar("lot"),
   expiryDate: date("expiry_date"),
   internalCode: varchar("internal_code"), // CI - Código Interno for individual tracking
+  packagingTypeId: integer("packaging_type_id").references(() => packagingTypes.id),
+  packagingQuantity: decimal("packaging_quantity", { precision: 10, scale: 3 }),
   addedBy: integer("added_by").notNull().references(() => users.id),
   addedAt: timestamp("added_at").defaultNow(),
   removedBy: integer("removed_by").references(() => users.id),
@@ -191,6 +195,41 @@ export const ucpHistory = pgTable("ucp_history", {
   performedBy: integer("performed_by").notNull().references(() => users.id),
   timestamp: timestamp("timestamp").defaultNow(),
 });
+
+// Packaging Types table - Hierarquia de embalagens
+export const packagingTypes = pgTable("packaging_types", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  name: varchar("name", { length: 100 }).notNull(),
+  barcode: varchar("barcode", { length: 255 }),
+  baseUnitQuantity: decimal("base_unit_quantity", { precision: 10, scale: 3 }).notNull(),
+  isBaseUnit: boolean("is_base_unit").default(false),
+  parentPackagingId: integer("parent_packaging_id").references(() => packagingTypes.id),
+  level: integer("level").notNull().default(1),
+  dimensions: jsonb("dimensions"),
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueBaseUnitPerProduct: uniqueIndex("unique_base_unit_per_product")
+    .on(table.productId).where(sql`is_base_unit = true`),
+  uniqueBarcodeWhenNotNull: uniqueIndex("unique_barcode_when_not_null")
+    .on(table.barcode).where(sql`barcode IS NOT NULL`),
+}));
+
+// Packaging Conversion Rules table - Regras de conversão entre embalagens
+export const packagingConversionRules = pgTable("packaging_conversion_rules", {
+  id: serial("id").primaryKey(),
+  fromPackagingId: integer("from_packaging_id").notNull().references(() => packagingTypes.id),
+  toPackagingId: integer("to_packaging_id").notNull().references(() => packagingTypes.id),
+  conversionFactor: decimal("conversion_factor", { precision: 10, scale: 3 }).notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  uniqueConversionRule: uniqueIndex("unique_conversion_rule")
+    .on(table.fromPackagingId, table.toPackagingId),
+}));
 
 // Item Transfers table - Registro detalhado de transferências entre UCPs
 export const itemTransfers = pgTable("item_transfers", {
@@ -219,7 +258,7 @@ export const movements = pgTable("movements", {
   quantity: decimal("quantity", { precision: 10, scale: 3 }),
   lot: varchar("lot"),
   reason: text("reason"),
-  performedBy: varchar("performed_by").notNull().references(() => users.id),
+  performedBy: integer("performed_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -272,6 +311,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   movements: many(movements),
   photos: many(productPhotos),
   photoHistory: many(productPhotoHistory),
+  packagingTypes: many(packagingTypes),
 }));
 
 export const productPhotosRelations = relations(productPhotos, ({ one }) => ({
@@ -327,6 +367,10 @@ export const ucpItemsRelations = relations(ucpItems, ({ one, many }) => ({
     fields: [ucpItems.productId],
     references: [products.id],
   }),
+  packagingType: one(packagingTypes, {
+    fields: [ucpItems.packagingTypeId],
+    references: [packagingTypes.id],
+  }),
   addedByUser: one(users, {
     fields: [ucpItems.addedBy],
     references: [users.id],
@@ -361,7 +405,44 @@ export const ucpHistoryRelations = relations(ucpHistory, ({ one }) => ({
   }),
 }));
 
-// UCPs relations updated above with history support
+export const packagingTypesRelations = relations(packagingTypes, ({ one, many }) => ({
+  product: one(products, {
+    fields: [packagingTypes.productId],
+    references: [products.id],
+  }),
+  createdBy: one(users, {
+    fields: [packagingTypes.createdBy],
+    references: [users.id],
+  }),
+  parentPackaging: one(packagingTypes, {
+    fields: [packagingTypes.parentPackagingId],
+    references: [packagingTypes.id],
+    relationName: "parentChild",
+  }),
+  childPackagings: many(packagingTypes, {
+    relationName: "parentChild",
+  }),
+  ucpItems: many(ucpItems),
+  conversionRulesFrom: many(packagingConversionRules, {
+    relationName: "fromPackaging",
+  }),
+  conversionRulesTo: many(packagingConversionRules, {
+    relationName: "toPackaging",
+  }),
+}));
+
+export const packagingConversionRulesRelations = relations(packagingConversionRules, ({ one }) => ({
+  fromPackaging: one(packagingTypes, {
+    fields: [packagingConversionRules.fromPackagingId],
+    references: [packagingTypes.id],
+    relationName: "fromPackaging",
+  }),
+  toPackaging: one(packagingTypes, {
+    fields: [packagingConversionRules.toPackagingId],
+    references: [packagingTypes.id],
+    relationName: "toPackaging",
+  }),
+}));
 
 export const movementsRelations = relations(movements, ({ one }) => ({
   ucp: one(ucps, {
@@ -435,6 +516,17 @@ export const insertUcpSchema = createInsertSchema(ucps).omit({
   updatedAt: true,
 });
 
+export const insertPackagingTypeSchema = createInsertSchema(packagingTypes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPackagingConversionRuleSchema = createInsertSchema(packagingConversionRules).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertUcpItemSchema = createInsertSchema(ucpItems).omit({
   id: true,
   addedAt: true,
@@ -477,7 +569,233 @@ export const registerSchema = insertUserSchema.extend({
   path: ["confirmPassword"],
 });
 
+// Vehicles table - Cadastro de Veículos da Frota
+export const vehicles = pgTable("vehicles", {
+  id: serial("id").primaryKey(),
+  code: varchar("code").notNull().unique(), // Placa ou código do veículo
+  name: varchar("name").notNull(), // Nome/modelo do veículo
+  type: varchar("type").notNull(), // Caminhão, Van, etc.
+  cubicCapacity: decimal("cubic_capacity", { precision: 10, scale: 3 }).notNull(), // m³
+  weightCapacity: decimal("weight_capacity", { precision: 10, scale: 2 }), // kg
+  status: varchar("status").notNull().default("disponivel"), // disponivel, em_uso, manutencao, inativo
+  observations: text("observations"),
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Transfer Requests table - Pedidos de Transferência
+export const transferRequests = pgTable("transfer_requests", {
+  id: serial("id").primaryKey(),
+  code: varchar("code").notNull().unique(), // TR-20250724-0001
+  vehicleId: integer("vehicle_id").notNull().references(() => vehicles.id),
+  fromLocation: varchar("from_location").notNull(), // Santa Catarina
+  toLocation: varchar("to_location").notNull(), // São Paulo
+  status: varchar("status").notNull().default("planejamento"), // planejamento, aprovado, carregamento, transito, finalizado, cancelado
+  totalCubicVolume: decimal("total_cubic_volume", { precision: 10, scale: 3 }).default("0"), // m³ calculado
+  effectiveCapacity: decimal("effective_capacity", { precision: 10, scale: 3 }), // Capacidade com margem de segurança
+  capacityUsagePercent: decimal("capacity_usage_percent", { precision: 5, scale: 2 }).default("0"), // % utilização
+  notes: text("notes"),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Transfer Request Items table - Itens dos Pedidos de Transferência
+export const transferRequestItems = pgTable("transfer_request_items", {
+  id: serial("id").primaryKey(),
+  transferRequestId: integer("transfer_request_id").notNull().references(() => transferRequests.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
+  unitCubicVolume: decimal("unit_cubic_volume", { precision: 10, scale: 6 }), // m³ por unidade
+  totalCubicVolume: decimal("total_cubic_volume", { precision: 10, scale: 3 }), // m³ total do item
+  notes: text("notes"),
+  addedBy: integer("added_by").notNull().references(() => users.id),
+  addedAt: timestamp("added_at").defaultNow(),
+});
+
+// Loading Executions table - Execuções de Carregamento
+export const loadingExecutions = pgTable("loading_executions", {
+  id: serial("id").primaryKey(),
+  transferRequestId: integer("transfer_request_id").notNull().references(() => transferRequests.id),
+  operatorId: integer("operator_id").notNull().references(() => users.id),
+  status: varchar("status").notNull().default("em_andamento"), // em_andamento, finalizado, cancelado
+  startedAt: timestamp("started_at").defaultNow(),
+  finishedAt: timestamp("finished_at"),
+  observations: text("observations"),
+});
+
+// Loading Items table - Itens Executados no Carregamento
+export const loadingItems = pgTable("loading_items", {
+  id: serial("id").primaryKey(),
+  loadingExecutionId: integer("loading_execution_id").notNull().references(() => loadingExecutions.id),
+  transferRequestItemId: integer("transfer_request_item_id").notNull().references(() => transferRequestItems.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  requestedQuantity: decimal("requested_quantity", { precision: 10, scale: 3 }).notNull(),
+  loadedQuantity: decimal("loaded_quantity", { precision: 10, scale: 3 }).notNull().default("0"),
+  notLoadedQuantity: decimal("not_loaded_quantity", { precision: 10, scale: 3 }).notNull().default("0"),
+  divergenceReason: varchar("divergence_reason"), // falta_espaco, item_avariado, divergencia_estoque, item_nao_localizado
+  divergenceComments: text("divergence_comments"),
+  scannedAt: timestamp("scanned_at"),
+  confirmedBy: integer("confirmed_by").references(() => users.id),
+  confirmedAt: timestamp("confirmed_at"),
+});
+
+// Transfer Reports table - Relatórios de Transferência Gerados
+export const transferReports = pgTable("transfer_reports", {
+  id: serial("id").primaryKey(),
+  transferRequestId: integer("transfer_request_id").notNull().references(() => transferRequests.id),
+  loadingExecutionId: integer("loading_execution_id").references(() => loadingExecutions.id),
+  reportType: varchar("report_type").notNull(), // summary, detailed, divergence_analysis
+  reportData: jsonb("report_data").notNull(), // Dados JSON do relatório
+  generatedBy: integer("generated_by").notNull().references(() => users.id),
+  generatedAt: timestamp("generated_at").defaultNow(),
+});
+
+// Vehicle Relations
+export const vehiclesRelations = relations(vehicles, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [vehicles.createdBy],
+    references: [users.id],
+  }),
+  transferRequests: many(transferRequests),
+}));
+
+// Transfer Request Relations
+export const transferRequestsRelations = relations(transferRequests, ({ one, many }) => ({
+  vehicle: one(vehicles, {
+    fields: [transferRequests.vehicleId],
+    references: [vehicles.id],
+  }),
+  createdBy: one(users, {
+    fields: [transferRequests.createdBy],
+    references: [users.id],
+  }),
+  approvedBy: one(users, {
+    fields: [transferRequests.approvedBy],
+    references: [users.id],
+  }),
+  items: many(transferRequestItems),
+  loadingExecution: many(loadingExecutions),
+  reports: many(transferReports),
+}));
+
+// Transfer Request Items Relations
+export const transferRequestItemsRelations = relations(transferRequestItems, ({ one, many }) => ({
+  transferRequest: one(transferRequests, {
+    fields: [transferRequestItems.transferRequestId],
+    references: [transferRequests.id],
+  }),
+  product: one(products, {
+    fields: [transferRequestItems.productId],
+    references: [products.id],
+  }),
+  addedBy: one(users, {
+    fields: [transferRequestItems.addedBy],
+    references: [users.id],
+  }),
+  loadingItems: many(loadingItems),
+}));
+
+// Loading Executions Relations
+export const loadingExecutionsRelations = relations(loadingExecutions, ({ one, many }) => ({
+  transferRequest: one(transferRequests, {
+    fields: [loadingExecutions.transferRequestId],
+    references: [transferRequests.id],
+  }),
+  operator: one(users, {
+    fields: [loadingExecutions.operatorId],
+    references: [users.id],
+  }),
+  items: many(loadingItems),
+  reports: many(transferReports),
+}));
+
+// Loading Items Relations
+export const loadingItemsRelations = relations(loadingItems, ({ one }) => ({
+  loadingExecution: one(loadingExecutions, {
+    fields: [loadingItems.loadingExecutionId],
+    references: [loadingExecutions.id],
+  }),
+  transferRequestItem: one(transferRequestItems, {
+    fields: [loadingItems.transferRequestItemId],
+    references: [transferRequestItems.id],
+  }),
+  product: one(products, {
+    fields: [loadingItems.productId],
+    references: [products.id],
+  }),
+  confirmedBy: one(users, {
+    fields: [loadingItems.confirmedBy],
+    references: [users.id],
+  }),
+}));
+
+// Transfer Reports Relations
+export const transferReportsRelations = relations(transferReports, ({ one }) => ({
+  transferRequest: one(transferRequests, {
+    fields: [transferReports.transferRequestId],
+    references: [transferRequests.id],
+  }),
+  loadingExecution: one(loadingExecutions, {
+    fields: [transferReports.loadingExecutionId],
+    references: [loadingExecutions.id],
+  }),
+  generatedBy: one(users, {
+    fields: [transferReports.generatedBy],
+    references: [users.id],
+  }),
+}));
+
+// Zod schemas for new tables
+export const insertVehicleSchema = createInsertSchema(vehicles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTransferRequestSchema = createInsertSchema(transferRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTransferRequestItemSchema = createInsertSchema(transferRequestItems).omit({
+  id: true,
+  addedAt: true,
+});
+
+export const insertLoadingExecutionSchema = createInsertSchema(loadingExecutions).omit({
+  id: true,
+  startedAt: true,
+});
+
+export const insertLoadingItemSchema = createInsertSchema(loadingItems).omit({
+  id: true,
+});
+
+export const insertTransferReportSchema = createInsertSchema(transferReports).omit({
+  id: true,
+  generatedAt: true,
+});
+
 // Types
+export type Vehicle = typeof vehicles.$inferSelect;
+export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
+export type TransferRequest = typeof transferRequests.$inferSelect;
+export type InsertTransferRequest = z.infer<typeof insertTransferRequestSchema>;
+export type TransferRequestItem = typeof transferRequestItems.$inferSelect;
+export type InsertTransferRequestItem = z.infer<typeof insertTransferRequestItemSchema>;
+export type LoadingExecution = typeof loadingExecutions.$inferSelect;
+export type InsertLoadingExecution = z.infer<typeof insertLoadingExecutionSchema>;
+export type LoadingItem = typeof loadingItems.$inferSelect;
+export type InsertLoadingItem = z.infer<typeof insertLoadingItemSchema>;
+export type TransferReport = typeof transferReports.$inferSelect;
+export type InsertTransferReport = z.infer<typeof insertTransferReportSchema>;
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type LoginData = z.infer<typeof loginSchema>;
@@ -504,3 +822,7 @@ export type InsertMovement = z.infer<typeof insertMovementSchema>;
 export type Movement = typeof movements.$inferSelect;
 export type InsertPalletStructure = z.infer<typeof insertPalletStructureSchema>;
 export type PalletStructure = typeof palletStructures.$inferSelect;
+export type InsertPackagingType = z.infer<typeof insertPackagingTypeSchema>;
+export type PackagingType = typeof packagingTypes.$inferSelect;
+export type InsertPackagingConversionRule = z.infer<typeof insertPackagingConversionRuleSchema>;
+export type PackagingConversionRule = typeof packagingConversionRules.$inferSelect;

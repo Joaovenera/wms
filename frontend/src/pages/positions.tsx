@@ -49,13 +49,19 @@ export default function Positions() {
     },
   });
 
-  // Automatic refresh with debounce
+  // Only debounce search term changes, filters should work client-side
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [searchTerm, statusFilter, streetFilter, queryClient]);
+    if (searchTerm) {
+      const timeout = setTimeout(() => {
+        if (searchTerm.length >= 2) {
+          queryClient.invalidateQueries({ queryKey: ["/api/positions"] });
+        }
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [searchTerm, queryClient]);
+
+  // Status and street filters are client-side only - no need to refetch
 
   const { data: positions = [], isLoading, refetch } = useQuery<Position[]>({
     queryKey: ["/api/positions"],
@@ -138,12 +144,12 @@ export default function Positions() {
         setScannedPosition(position);
         setIsQrScannerOpen(false);
         
-        const statusText = position.status === 'available' ? 'Disponível' : 
-                          position.status === 'occupied' ? 'Ocupada' : 
-                          position.status === 'reserved' ? 'Reservada' : 
-                          position.status === 'maintenance' ? 'Em Manutenção' : 'Bloqueada';
+        const statusText = position.status === 'disponivel' ? 'Disponível' : 
+                          position.status === 'ocupada' ? 'Ocupada' : 
+                          position.status === 'reservada' ? 'Reservada' : 
+                          position.status === 'manutencao' ? 'Em Manutenção' : 'Bloqueada';
         
-        const statusColor = position.status === 'available' ? 'default' : 'destructive';
+        const statusColor = position.status === 'disponivel' ? 'default' : 'destructive';
         
         toast({
           title: `Posição ${position.code}`,
@@ -526,14 +532,14 @@ export default function Positions() {
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
-                            <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="disponivel">Disponível</SelectItem>
-              <SelectItem value="ocupada">Ocupada</SelectItem>
-              <SelectItem value="reservada">Reservada</SelectItem>
-              <SelectItem value="manutencao">Em Manutenção</SelectItem>
-              <SelectItem value="bloqueada">Bloqueada</SelectItem>
-            </SelectContent>
+                                 <SelectContent>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  <SelectItem value="disponivel">Disponível</SelectItem>
+                  <SelectItem value="ocupada">Ocupada</SelectItem>
+                  <SelectItem value="reservada">Reservada</SelectItem>
+                  <SelectItem value="manutencao">Em Manutenção</SelectItem>
+                  <SelectItem value="bloqueada">Bloqueada</SelectItem>
+                </SelectContent>
               </Select>
 
               <Select value={streetFilter} onValueChange={setStreetFilter}>
@@ -738,7 +744,7 @@ export default function Positions() {
               <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
                 {getStatusIcon(scannedPosition)}
                 <span className="font-medium">
-                  {scannedPosition.status === 'available' ? 
+                  {scannedPosition.status === 'disponivel' ? 
                     'Esta vaga está DISPONÍVEL para armazenamento' : 
                     'Esta vaga NÃO está disponível'
                   }

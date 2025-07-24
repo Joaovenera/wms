@@ -13,7 +13,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Building2, Plus, Edit2, Trash2, MapPin, RefreshCw, QrCode } from "lucide-react";
+import { Building2, Plus, QrCode, Edit2, Trash2, MapPin, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { type InsertPalletStructure, type PalletStructure, type Position } from "@/types/api";
@@ -52,6 +52,21 @@ export default function PortaPaletes() {
   const { data: positions = [] } = useQuery<Position[]>({
     queryKey: ['/api/positions'],
   });
+
+  // Função para calcular ocupação de uma estrutura
+  const calculateOccupancy = (structure: PalletStructure) => {
+    const structurePositions = positions.filter(pos => pos.structureId === structure.id);
+    const occupiedPositions = structurePositions.filter(pos => pos.status === 'ocupada' || pos.currentPalletId);
+    const totalPositions = structure.maxPositions * (structure.maxLevels + 1);
+    const occupancyRate = totalPositions > 0 ? Math.round((occupiedPositions.length / totalPositions) * 100) : 0;
+    
+    return {
+      occupied: occupiedPositions.length,
+      total: totalPositions,
+      available: totalPositions - occupiedPositions.length,
+      occupancyRate
+    };
+  };
 
   // Mutation para criar estrutura
   const createMutation = useMutation({
@@ -603,8 +618,27 @@ export default function PortaPaletes() {
                     <p className="font-medium">{structure.maxLevels + 1}</p>
                   </div>
                   <div>
-                    <Label className="text-gray-600">Total de Vagas</Label>
-                    <p className="font-medium">{structure.maxPositions * (structure.maxLevels + 1)}</p>
+                    <Label className="text-gray-600">Ocupação</Label>
+                    {(() => {
+                      const occupancy = calculateOccupancy(structure);
+                      return (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{occupancy.occupied}/{occupancy.total}</p>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              occupancy.occupancyRate >= 90 ? 'bg-red-100 text-red-700' :
+                              occupancy.occupancyRate >= 70 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
+                              {occupancy.occupancyRate}%
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {occupancy.available} vagas disponíveis
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div>
                     <Label className="text-gray-600">Tipo</Label>

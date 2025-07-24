@@ -148,7 +148,7 @@ export default function PalletLayoutConfigurator({
     if (readonly) return;
     
     const newSlots = config.slots.map(slot => 
-      slot.id === slotId ? { ...slot, ocupada: !slot.occupied } : slot
+      slot.id === slotId ? { ...slot, ocupada: !slot.ocupada } : slot
     );
 
     onChange({
@@ -404,10 +404,10 @@ export default function PalletLayoutConfigurator({
               <h5 className="text-sm font-medium text-gray-700 mb-2">Estatísticas do Layout</h5>
               <div className="text-xs text-gray-600 space-y-1">
                 <div>• Total de slots: {config.slots.length}</div>
-                <div>• Slots ocupados: {config.slots.filter(s => s.occupied).length}</div>
-                <div>• Slots vazios: {config.slots.filter(s => !s.occupied).length}</div>
+                <div>• Slots ocupados: {config.slots.filter(s => s.ocupada).length}</div>
+                <div>• Slots vazios: {config.slots.filter(s => !s.ocupada).length}</div>
                 <div>• Dimensão: {rows} linhas × {cols} colunas</div>
-                <div>• Taxa de ocupação: {config.slots.length > 0 ? Math.round((config.slots.filter(s => s.occupied).length / config.slots.length) * 100) : 0}%</div>
+                <div>• Taxa de ocupação: {config.slots.length > 0 ? Math.round((config.slots.filter(s => s.ocupada).length / config.slots.length) * 100) : 0}%</div>
               </div>
             </div>
           </>

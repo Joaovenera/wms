@@ -90,6 +90,9 @@ export interface Product {
   createdBy: number;
   createdAt?: Date | string;
   updatedAt?: Date | string;
+  // Stock information (populated by getProductsWithStock API)
+  totalStock?: number | string;
+  ucpStock?: any[];
 }
 
 // UCP types
@@ -109,6 +112,70 @@ export interface Ucp {
   items?: UcpItem[];
 }
 
+// Packaging types
+export interface PackagingType {
+  id: number;
+  productId: number;
+  name: string;
+  barcode?: string | null;
+  baseUnitQuantity: string;
+  isBaseUnit?: boolean | null;
+  parentPackagingId?: number | null;
+  level: number;
+  dimensions?: any;
+  isActive?: boolean | null;
+  createdBy: number;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  // Relations
+  product?: Product;
+  parentPackaging?: PackagingType;
+  childPackagings?: PackagingType[];
+}
+
+export interface PackagingConversionRule {
+  id: number;
+  fromPackagingId: number;
+  toPackagingId: number;
+  conversionFactor: string;
+  isActive?: boolean | null;
+  createdAt?: Date | string;
+  // Relations
+  fromPackaging?: PackagingType;
+  toPackaging?: PackagingType;
+}
+
+export interface ProductStockByPackaging {
+  packagingId: number;
+  packagingName: string;
+  barcode?: string | null;
+  baseUnitQuantity: string;
+  level: number;
+  availablePackages: number;
+  remainingBaseUnits: number;
+  totalBaseUnits: number;
+}
+
+export interface ProductStockConsolidated {
+  productId: number;
+  totalBaseUnits: number;
+  locationsCount: number;
+  itemsCount: number;
+}
+
+export interface PickingPlanItem {
+  packaging: PackagingType;
+  quantity: number;
+  baseUnits: number;
+}
+
+export interface OptimizedPickingPlan {
+  pickingPlan: PickingPlanItem[];
+  remaining: number;
+  totalPlanned: number;
+  canFulfill: boolean;
+}
+
 // UCP Item types
 export interface UcpItem {
   id: number;
@@ -118,6 +185,8 @@ export interface UcpItem {
   lot?: string | null;
   expiryDate?: Date | string | null;
   internalCode?: string | null;
+  packagingTypeId?: number | null;
+  packagingQuantity?: string | null;
   addedBy: number;
   addedAt?: Date | string;
   removedBy?: number | null;
@@ -126,6 +195,7 @@ export interface UcpItem {
   isActive?: boolean | null;
   // Relations
   product?: Product;
+  packagingType?: PackagingType;
 }
 
 // UCP History types
@@ -164,6 +234,8 @@ export type InsertPallet = Omit<Pallet, 'id' | 'createdAt' | 'updatedAt'>;
 export type InsertPosition = Omit<Position, 'id' | 'createdAt' | 'updatedAt'>;
 export type InsertPalletStructure = Omit<PalletStructure, 'id' | 'createdAt' | 'updatedAt'>;
 export type InsertProduct = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
+export type InsertPackagingType = Omit<PackagingType, 'id' | 'createdAt' | 'updatedAt'>;
+export type InsertPackagingConversionRule = Omit<PackagingConversionRule, 'id' | 'createdAt'>;
 export type InsertUcp = Omit<Ucp, 'id' | 'createdAt' | 'updatedAt'>;
 export type InsertUcpItem = Omit<UcpItem, 'id' | 'addedAt' | 'removedAt' | 'isActive'>;
 export type InsertUcpHistory = Omit<UcpHistory, 'id' | 'timestamp'>;

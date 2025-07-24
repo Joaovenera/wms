@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Package, 
   MapPin, 
@@ -79,7 +80,18 @@ const statusConfig = {
   }
 };
 
-export default function WarehouseMapEnhanced() {
+interface WarehouseMapEnhancedProps {
+  enableRealtime?: boolean;
+}
+
+export default function WarehouseMapEnhanced({ enableRealtime = true }: WarehouseMapEnhancedProps) {
+  const [location] = useLocation();
+  
+  // Don't render the component at all if not on warehouse-tracking page
+  if (location !== '/warehouse-tracking') {
+    return null;
+  }
+
   const [selectedStreet, setSelectedStreet] = useState<string | null>(null);
   const [hoveredPosition, setHoveredPosition] = useState<Position | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
@@ -88,8 +100,10 @@ export default function WarehouseMapEnhanced() {
   const [activeTab, setActiveTab] = useState("map");
   const [realtimeUpdates, setRealtimeUpdates] = useState<any[]>([]);
 
-  // Real-time WebSocket connection
-  const { isConnected, lastUpdate, connectionError } = useRealtimeWarehouse();
+  // Real-time WebSocket connection (now we know we're on the right page)
+  const { isConnected, lastUpdate, connectionError } = useRealtimeWarehouse({ 
+    enabled: enableRealtime 
+  });
 
   // Fetch positions with real-time updates
   const { data: positions, isLoading: positionsLoading, refetch: refetchPositions } = useQuery<Position[]>({

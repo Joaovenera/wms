@@ -74,11 +74,17 @@ export default function ProductPhotoManager({
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [loadFullResolution, setLoadFullResolution] = useState(false);
   const { toast } = useToast();
 
-  // Fetch product photos
+  // Fetch product photos (thumbnails by default)
   const { data: photos = [], isLoading: photosLoading, refetch: refetchPhotos } = useQuery<ProductPhoto[]>({
-    queryKey: [`/api/products/${productId}/photos`],
+    queryKey: [`/api/products/${productId}/photos`, { full: loadFullResolution }],
+    queryFn: async () => {
+      const url = `/api/products/${productId}/photos${loadFullResolution ? '?full=true' : ''}`;
+      const response = await apiRequest('GET', url);
+      return response.json();
+    },
     enabled: isOpen && productId > 0,
   });
 
@@ -386,7 +392,11 @@ export default function ProductPhotoManager({
   // Download functionality
   const downloadPhoto = async (photo: ProductPhoto) => {
     try {
-      const response = await fetch(photo.url);
+      // Get full resolution URL for download
+      const fullResResponse = await apiRequest('GET', `/api/product-photos/${photo.id}?full=true`);
+      const fullResPhoto = await fullResResponse.json();
+      
+      const response = await fetch(fullResPhoto.url);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -490,16 +500,29 @@ export default function ProductPhotoManager({
           </DialogHeader>
 
           <Tabs defaultValue="photos" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="photos" className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                Fotos ({photos.length})
-              </TabsTrigger>
-              <TabsTrigger value="history" className="flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Histórico
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex justify-between items-center mb-4">
+              <TabsList className="grid w-full grid-cols-2 max-w-md">
+                <TabsTrigger value="photos" className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Fotos ({photos.length})
+                </TabsTrigger>
+                <TabsTrigger value="history" className="flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Histórico
+                </TabsTrigger>
+              </TabsList>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLoadFullResolution(!loadFullResolution)}
+                className="flex items-center gap-2"
+                disabled={photosLoading}
+              >
+                <ZoomIn className="h-4 w-4" />
+                {loadFullResolution ? 'Thumbnails' : 'Alta Resolução'}
+              </Button>
+            </div>
 
             <TabsContent value="photos" className="space-y-4">
               {/* Upload Section */}

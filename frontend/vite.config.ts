@@ -21,6 +21,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5174,
+    hmr: {
+      host: '69.62.95.146',
+      protocol: 'wss',
+      port: 5174,
+      path: '/ws',
+    },
     ...(certExists && {
       https: {
         // Certificados auto-assinados para desenvolvimento

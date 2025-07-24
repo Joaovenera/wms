@@ -5,7 +5,9 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User as UserType } from "./db/schema.js";
+import { User as UserType, registerSchema } from "./db/schema.js";
+import { fromZodError } from "zod-validation-error";
+import { logError, logInfo, logWarn } from "./utils/logger";
 import connectPg from "connect-pg-simple";
 
 const scryptAsync = promisify(scrypt);
@@ -79,33 +81,71 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const { email, password, firstName, lastName } = req.body;
+      // Validate input using Zod schema
+      const result = registerSchema.safeParse(req.body);
       
+      if (!result.success) {
+        const validationError = fromZodError(result.error);
+        logWarn('Registration validation failed', { 
+          errors: result.error.errors,
+          ip: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+        return res.status(400).json({ 
+          message: validationError.message,
+          errors: result.error.errors 
+        });
+      }
+
+      const { email, password, firstName, lastName } = result.data;
+      
+      // Check if user already exists
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
+        logWarn('Registration attempt with existing email', { 
+          email,
+          ip: req.ip,
+          userAgent: req.get('User-Agent')
+        });
         return res.status(400).json({ message: "Email já está em uso" });
       }
 
+      // Hash password and create user
       const hashedPassword = await hashPassword(password);
       const user = await storage.createUser({
         email,
         password: hashedPassword,
         firstName,
         lastName,
+        role: 'operator' // Default role for new registrations
       });
 
+      logInfo('New user registered successfully', {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        ip: req.ip
+      });
+
+      // Auto-login after successful registration
       req.login(user, (err) => {
-        if (err) return next(err);
+        if (err) {
+          logError('Auto-login after registration failed', err as Error);
+          return next(err);
+        }
+        
+        // Return user data (excluding sensitive info)
         res.status(201).json({ 
           id: user.id, 
           email: user.email, 
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role 
+          role: user.role,
+          message: 'Registro realizado com sucesso'
         });
       });
     } catch (error) {
-      console.error("Registration error:", error);
+      logError('Registration error', error as Error);
       res.status(500).json({ message: "Erro interno do servidor" });
     }
   });

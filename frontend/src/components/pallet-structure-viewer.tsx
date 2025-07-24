@@ -35,27 +35,11 @@ export default function PalletStructureViewer({
   const getPositionStatus = (position: Position | null) => {
     if (!position) return { status: 'empty', color: 'bg-gray-100 border-gray-200', icon: null };
     
-    if (position.status === 'occupied' || position.currentPalletId) {
+    if (position.currentPalletId) {
       return { 
         status: 'occupied', 
         color: 'bg-orange-100 border-orange-300 text-orange-800', 
         icon: <Package className="h-3 w-3" />
-      };
-    }
-    
-    if (position.status === 'maintenance') {
-      return { 
-        status: 'maintenance', 
-        color: 'bg-yellow-100 border-yellow-300 text-yellow-800', 
-        icon: <AlertCircle className="h-3 w-3" />
-      };
-    }
-    
-    if (position.status === 'blocked') {
-      return { 
-        status: 'blocked', 
-        color: 'bg-red-100 border-red-300 text-red-800', 
-        icon: <AlertCircle className="h-3 w-3" />
       };
     }
     
@@ -202,14 +186,6 @@ export default function PalletStructureViewer({
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></div>
             <span>Ocupado</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
-            <span>Manutenção</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
-            <span>Bloqueado</span>
           </div>
         </div>
       </CardContent>

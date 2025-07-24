@@ -8,6 +8,7 @@ import { createServer as createHttpsServer } from "https";
 import { readFileSync } from "fs";
 import { join } from "path";
 import logger from "./utils/logger.js";
+import { initWebSocket } from "./services/websocket.service.js";
 import { connectRedis, disconnectRedis } from "./config/redis.js";
 
 const app = express();
@@ -117,17 +118,35 @@ const authLimiter = rateLimit({
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 
-// Optimized parsers with increased limits for image uploads
-app.use(express.json({ 
-  limit: '150mb', // Increased to handle 100MB images encoded as base64 (~133MB)
-  strict: true,
-  type: ['application/json', 'application/*+json']
-}));
-app.use(express.urlencoded({ 
-  extended: false, 
-  limit: '150mb', // Increased to handle large image uploads
-  parameterLimit: 1000
-}));
+// Secure default parsers with reasonable limits for most endpoints
+// Skip image upload routes to allow custom high payload limits
+app.use((req, res, next) => {
+  // Skip default body parsing for image upload endpoints
+  if (req.path.includes('/photos') && req.method === 'POST') {
+    return next();
+  }
+  
+  // Apply default parsing for other routes
+  express.json({ 
+    limit: '10mb', // Secure default - reduced from 150mb to prevent DoS attacks
+    strict: true,
+    type: ['application/json', 'application/*+json']
+  })(req, res, next);
+});
+
+app.use((req, res, next) => {
+  // Skip default URL encoding for image upload endpoints
+  if (req.path.includes('/photos') && req.method === 'POST') {
+    return next();
+  }
+  
+  // Apply default URL encoding for other routes
+  express.urlencoded({ 
+    extended: false, 
+    limit: '10mb', // Secure default - reduced from 150mb
+    parameterLimit: 1000
+  })(req, res, next);
+});
 
 // Optimized request logging with async processing
 app.use((req, res, next) => {
@@ -213,8 +232,10 @@ httpsServer.headersTimeout = 66000;
     
     const HTTPS_PORT = Number(process.env.HTTPS_PORT) || 5000;
     
-    // Servidor HTTPS
-    httpsServer.listen(HTTPS_PORT, "0.0.0.0", () => {
+    // Iniciar o WebSocket Server
+    initWebSocket(httpsServer);
+    
+    httpsServer.listen(HTTPS_PORT, () => {
       logger.info(`HTTPS Server running on port ${HTTPS_PORT}`);
       console.log(`🔒 Servidor HTTPS rodando em https://localhost:${HTTPS_PORT}`);
     });
