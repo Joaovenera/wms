@@ -56,11 +56,11 @@ export default function ProductDetailsModal({
     retry: false, // Disable retry for debugging
   });
 
-  // Fetch product photos
-  const { data: photos, isLoading: photosLoading } = useQuery({
+  // Fetch product photos (using legacy format for compatibility)
+  const { data: photos = [], isLoading: photosLoading } = useQuery({
     queryKey: ['/api/products', productId, 'photos'],
     queryFn: async () => {
-      const res = await apiRequest('GET', `/api/products/${productId}/photos`);
+      const res = await apiRequest('GET', `/api/products/${productId}/photos?legacy=true`);
       return await res.json();
     },
     enabled: isOpen && !!productId,

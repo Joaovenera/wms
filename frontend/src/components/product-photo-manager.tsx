@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 import { 
   ImageIcon, Plus, Trash2, Star, 
   Upload, History, Clock, User, ChevronLeft, 
@@ -76,17 +77,62 @@ export default function ProductPhotoManager({
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [loadFullResolution, setLoadFullResolution] = useState(false);
   const { toast } = useToast();
+  const queryClientHook = useQueryClient();
 
-  // Fetch product photos (thumbnails by default)
-  const { data: photos = [], isLoading: photosLoading, refetch: refetchPhotos } = useQuery<ProductPhoto[]>({
-    queryKey: [`/api/products/${productId}/photos`, { full: loadFullResolution }],
+  // State for pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [allPhotos, setAllPhotos] = useState<ProductPhoto[]>([]);
+  const PHOTOS_PER_PAGE = 20;
+
+  // Fetch product photos with pagination
+  const { data: photosData, isLoading: photosLoading, refetch: refetchPhotos, error } = useQuery<{photos: ProductPhoto[], pagination: any}>({
+    queryKey: [`/api/products/${productId}/photos`, { full: loadFullResolution, page: currentPage }],
     queryFn: async () => {
-      const url = `/api/products/${productId}/photos${loadFullResolution ? '?full=true' : ''}`;
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: PHOTOS_PER_PAGE.toString(),
+        ...(loadFullResolution && { full: 'true' })
+      });
+      const url = `/api/products/${productId}/photos?${params}`;
       const response = await apiRequest('GET', url);
-      return response.json();
+      const data = await response.json();
+      return data;
     },
     enabled: isOpen && productId > 0,
+    // onSuccess replaced with useEffect below
+    onError: (error) => {
+      console.error('Error fetching photos:', error);
+    }
   });
+
+  // Reset pagination when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setCurrentPage(1);
+      setAllPhotos([]);
+      
+      // Force invalidate ALL photo queries for this product
+      queryClientHook.invalidateQueries({ 
+        queryKey: [`/api/products/${productId}/photos`],
+        exact: false // This will invalidate all variations
+      });
+    }
+  }, [isOpen, productId, queryClientHook]);
+
+  // Process photos data when it changes
+  React.useEffect(() => {
+    if (photosData && photosData.photos) {
+      if (currentPage === 1) {
+        setAllPhotos(photosData.photos);
+      } else {
+        setAllPhotos(prev => [...prev, ...photosData.photos]);
+      }
+    }
+  }, [photosData, currentPage, productId]);
+
+  // Use accumulated photos
+  const photos = allPhotos;
+  const pagination = photosData?.pagination;
 
   // Fetch photo history
   const { data: history = [], isLoading: historyLoading } = useQuery<PhotoHistory[]>({
@@ -108,8 +154,14 @@ export default function ProductPhotoManager({
         title: "🗑️ Foto Removida",
         description: "A foto foi removida com sucesso.",
       });
-      refetchPhotos();
-      queryClient.invalidateQueries({ queryKey: [`/api/products/${productId}/photo-history`] });
+      
+      // Reset pagination and refetch from first page
+      setCurrentPage(1);
+      setAllPhotos([]);
+      
+      // Invalidate all photo-related queries
+      queryClientHook.invalidateQueries({ queryKey: [`/api/products/${productId}/photos`] });
+      queryClientHook.invalidateQueries({ queryKey: [`/api/products/${productId}/photo-history`] });
     },
     onError: (error: any) => {
       toast({
@@ -131,8 +183,14 @@ export default function ProductPhotoManager({
         title: "⭐ Foto Principal",
         description: "Foto definida como principal com sucesso.",
       });
-      refetchPhotos();
-      queryClient.invalidateQueries({ queryKey: [`/api/products/${productId}/photo-history`] });
+      
+      // Reset pagination and refetch from first page
+      setCurrentPage(1);
+      setAllPhotos([]);
+      
+      // Invalidate all photo-related queries
+      queryClientHook.invalidateQueries({ queryKey: [`/api/products/${productId}/photos`] });
+      queryClientHook.invalidateQueries({ queryKey: [`/api/products/${productId}/photo-history`] });
     },
     onError: (error: any) => {
       toast({
@@ -275,8 +333,12 @@ export default function ProductPhotoManager({
         setUploadPreviews([]);
         setUploadProgress({});
         
-        // Refetch data
-        refetchPhotos();
+        // Reset pagination and refetch from first page
+        setCurrentPage(1);
+        setAllPhotos([]);
+        
+        // Invalidate all photo-related queries
+        queryClient.invalidateQueries({ queryKey: [`/api/products/${productId}/photos`] });
         queryClient.invalidateQueries({ queryKey: [`/api/products/${productId}/photo-history`] });
       } else {
         toast({
@@ -722,9 +784,10 @@ export default function ProductPhotoManager({
                     <p className="text-sm">Adicione a primeira foto do produto</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {photos.map((photo, index) => (
-                      <Card key={photo.id} className={`relative ${photo.isPrimary ? 'ring-2 ring-blue-500' : ''} ${selectedPhotos.has(photo.id) && isSelectionMode ? 'ring-2 ring-green-500' : ''}`}>
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {photos.map((photo, index) => (
+                        <Card key={photo.id} className={`relative ${photo.isPrimary ? 'ring-2 ring-blue-500' : ''} ${selectedPhotos.has(photo.id) && isSelectionMode ? 'ring-2 ring-green-500' : ''}`}>
                         <CardContent className="p-3">
                           <div 
                             className="relative group cursor-pointer overflow-hidden rounded bg-gray-50" 
@@ -824,8 +887,29 @@ export default function ProductPhotoManager({
                           </div>
                         </CardContent>
                       </Card>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+
+                    {pagination && pagination.hasMore && (
+                      <div className="flex justify-center mt-6 pb-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => setCurrentPage(prev => prev + 1)}
+                          disabled={photosLoading}
+                          className="min-w-48"
+                        >
+                          {photosLoading ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+                              Carregando...
+                            </>
+                          ) : (
+                            `Carregar mais fotos (${pagination.total - photos.length} restantes)`
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </ScrollArea>
             </TabsContent>

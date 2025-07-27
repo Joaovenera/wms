@@ -15,6 +15,7 @@ router.delete('/:id', isAuthenticated, requireManagerOrAdmin, productsController
 
 // Product Photo routes
 router.get('/:id/photos', isAuthenticated, productsController.getProductPhotos.bind(productsController));
+router.get('/:id/photos/primary', isAuthenticated, productsController.getPrimaryPhoto.bind(productsController));
 // Photo upload route with high payload limit for base64 images
 router.post('/:id/photos', imageUploadMiddleware, isAuthenticated, productsController.addProductPhoto.bind(productsController));
 router.get('/:id/photo-history', isAuthenticated, productsController.getProductPhotoHistory.bind(productsController));

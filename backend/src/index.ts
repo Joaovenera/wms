@@ -10,6 +10,7 @@ import { join } from "path";
 import logger from "./utils/logger.js";
 import { initWebSocket } from "./services/websocket.service.js";
 import { connectRedis, disconnectRedis } from "./config/redis.js";
+import { connectPostgres, disconnectPostgres } from "./config/postgres.js";
 
 const app = express();
 const server = createServer(app);
@@ -199,6 +200,9 @@ httpsServer.headersTimeout = 66000;
 
 (async () => {
   try {
+    // Conectar ao PostgreSQL
+    await connectPostgres();
+    
     // Conectar ao Redis
     await connectRedis();
     
@@ -247,6 +251,7 @@ httpsServer.headersTimeout = 66000;
       // Stop accepting new connections
       httpsServer.close(async () => {
         try {
+          await disconnectPostgres();
           await disconnectRedis();
           logger.info('HTTPS Server closed');
           process.exit(0);

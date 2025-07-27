@@ -20,6 +20,7 @@ import transferRequestsRoutes from "./transfer-requests.routes";
 import loadingExecutionsRoutes from "./loading-executions.routes";
 import transferReportsRoutes from "./transfer-reports.routes";
 import testRoutes from "./test.routes";
+import healthRoutes from "./health.routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -42,6 +43,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/loading-executions', loadingExecutionsRoutes);
   app.use('/api/transfer-reports', transferReportsRoutes);
   app.use('/api/test', testRoutes);
+  app.use('/api', healthRoutes);
 
   const httpServer = createServer(app);
   

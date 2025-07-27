@@ -25,8 +25,14 @@ export const highPayloadMiddleware = [
  * Helps with monitoring and security auditing
  */
 export const logHighPayloadUsage = (req: Request, res: Response, next: NextFunction) => {
-  console.log(`🚨 High payload middleware active for: ${req.method} ${req.path}`);
-  console.log(`Content-Length: ${req.get('content-length') || 'unknown'}`);
+  const contentLength = parseInt(req.get('content-length') || '0');
+  const sizeInMB = (contentLength / 1024 / 1024).toFixed(2);
+  
+  // Only log if payload is actually large (> 1MB)
+  if (contentLength > 1024 * 1024) {
+    console.log(`📤 Large upload detected: ${req.method} ${req.path}`);
+    console.log(`Content-Length: ${contentLength} bytes (${sizeInMB} MB)`);
+  }
   next();
 };
 

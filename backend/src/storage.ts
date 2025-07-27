@@ -378,16 +378,47 @@ export class DatabaseStorage implements IStorage {
     return !!updatedProduct;
   }
 
-  // Product Photo operations
-  async getProductPhotos(productId: number): Promise<any[]> {
+  // Product Photo operations with pagination
+  async getProductPhotos(
+    productId: number, 
+    options: { 
+      page?: number; 
+      limit?: number; 
+      onlyPrimary?: boolean;
+    } = {}
+  ): Promise<{ photos: any[]; total: number; hasMore: boolean; page: number; limit: number }> {
+    const { page = 1, limit = 20, onlyPrimary = false } = options;
+    const offset = (page - 1) * limit;
+
+    // Build where conditions
+    const whereConditions = [
+      eq(productPhotos.productId, productId),
+      eq(productPhotos.isActive, true)
+    ];
+
+    if (onlyPrimary) {
+      whereConditions.push(eq(productPhotos.isPrimary, true));
+    }
+
+    // Get total count first (faster query without joins)
+    const totalResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(productPhotos)
+      .where(and(...whereConditions));
+    
+    const total = totalResult[0]?.count || 0;
+
+    // Get paginated results with user info
     const result = await db
       .select()
       .from(productPhotos)
       .leftJoin(users, eq(productPhotos.uploadedBy, users.id))
-      .where(and(eq(productPhotos.productId, productId), eq(productPhotos.isActive, true)))
-      .orderBy(desc(productPhotos.isPrimary), desc(productPhotos.uploadedAt));
+      .where(and(...whereConditions))
+      .orderBy(desc(productPhotos.isPrimary), desc(productPhotos.uploadedAt))
+      .limit(limit)
+      .offset(offset);
 
-    return result.map(row => {
+    const photos = result.map(row => {
       const photo = row.product_photos;
       const user = row.users;
       return {
@@ -395,6 +426,14 @@ export class DatabaseStorage implements IStorage {
         uploadedBy: user || undefined,
       };
     });
+
+    return {
+      photos,
+      total,
+      hasMore: offset + photos.length < total,
+      page,
+      limit
+    };
   }
 
   async getProductPhoto(photoId: number): Promise<any> {

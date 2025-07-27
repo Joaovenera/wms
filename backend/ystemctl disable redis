@@ -1,0 +1,18 @@
+○ redis.service - Redis persistent key-value database
+     Loaded: loaded (]8;;file://vps.jarmaq.com.br/usr/lib/systemd/system/redis.service/usr/lib/systemd/system/redis.service]8;;; [0;1;32menabled[0m; preset: [0;1;38;5;185mdisabled[0m)
+    Drop-In: /etc/systemd/system/redis.service.d
+             └─]8;;file://vps.jarmaq.com.br/etc/systemd/system/redis.service.d/limit.conflimit.conf]8;;
+     Active: inactive (dead) since Sun 2025-07-27 18:47:57 UTC; 12s ago
+   Duration: 41min 7.064s
+    Process: 1243 ExecStart=/usr/bin/redis-server /etc/redis/redis.conf --daemonize no --supervised systemd (code=exited, status=0/SUCCESS)
+    Process: 14579 ExecStop=/usr/libexec/redis-shutdown (code=exited, status=0/SUCCESS)
+   Main PID: 1243 (code=exited, status=0/SUCCESS)
+     Status: "Saving the final RDB snapshot"
+        CPU: 3.481s
+
+Jul 27 18:06:50 vps.jarmaq.com.br systemd[1]: Starting Redis persistent key-value database...
+Jul 27 18:06:50 vps.jarmaq.com.br systemd[1]: Started Redis persistent key-value database.
+Jul 27 18:47:57 vps.jarmaq.com.br systemd[1]: Stopping Redis persistent key-value database...
+Jul 27 18:47:57 vps.jarmaq.com.br systemd[1]: redis.service: Deactivated successfully.
+Jul 27 18:47:57 vps.jarmaq.com.br systemd[1]: Stopped Redis persistent key-value database.
+Jul 27 18:47:57 vps.jarmaq.com.br systemd[1]: redis.service: Consumed 3.481s CPU time.

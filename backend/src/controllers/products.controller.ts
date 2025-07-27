@@ -3,8 +3,29 @@ import { storage } from "../storage";
 import { insertProductSchema } from "../db/schema";
 import { fromZodError } from "zod-validation-error";
 import { logError, logInfo } from "../utils/logger";
+import { setCache, getCache, deleteCache } from "../config/redis";
 
 export class ProductsController {
+  // Helper method to invalidate all photo caches for a product
+  private async invalidatePhotoCache(productId: number) {
+    try {
+      // Invalidate primary photo cache
+      await deleteCache(`product:${productId}:photo:primary`);
+      
+      // Invalidate paginated photo caches (we don't know all pages, so we'll invalidate common ones)
+      for (let page = 1; page <= 20; page++) {
+        for (const limit of [20, 50, 100]) {
+          for (const onlyPrimary of [true, false]) {
+            await deleteCache(`product:${productId}:photos:${page}:${limit}:${onlyPrimary}`);
+          }
+        }
+      }
+      
+      logInfo('Photo cache invalidated', { productId });
+    } catch (error) {
+      logError('Error invalidating photo cache', error as Error);
+    }
+  }
   async getProducts(req: Request, res: Response) {
     try {
       const includeStock = req.query.includeStock === 'true';
@@ -152,22 +173,51 @@ export class ProductsController {
     }
   }
 
-  // Product Photos methods
+  // Product Photos methods with pagination
   async getProductPhotos(req: Request, res: Response) {
     try {
       const productId = parseInt(req.params.id);
       const fullResolution = req.query.full === 'true';
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const onlyPrimary = req.query.primary === 'true';
+      const legacyFormat = req.query.legacy === 'true';
+      
+      // Validate pagination parameters
+      if (page < 1 || limit < 1 || limit > 100) {
+        return res.status(400).json({ 
+          error: 'Invalid pagination parameters. Page must be >= 1, limit must be between 1 and 100' 
+        });
+      }
       
       logInfo('Fetching product photos', { 
         userId: (req as any).user?.id,
         productId,
-        fullResolution 
+        page,
+        limit,
+        total: 0 // Will be updated after query
       });
+
+      // Create cache key
+      const cacheKey = `product:${productId}:photos:${page}:${limit}:${onlyPrimary}`;
       
-      const photos = await storage.getProductPhotos(productId);
+      // Try to get from cache first
+      let result = await getCache<any>(cacheKey);
+      
+      if (!result) {
+        // If not in cache, fetch from database
+        result = await storage.getProductPhotos(productId, {
+          page,
+          limit,
+          onlyPrimary
+        });
+        
+        // Cache for 5 minutes (photos don't change frequently)
+        await setCache(cacheKey, result, 300);
+      }
       
       // Transform photos based on resolution requested
-      const transformedPhotos = photos.map(photo => {
+      const transformedPhotos = result.photos.map(photo => {
         if (fullResolution) {
           // Return original resolution
           return photo;
@@ -180,10 +230,74 @@ export class ProductsController {
         }
       });
       
-      res.json(transformedPhotos);
+      // Support legacy format for backward compatibility
+      if (legacyFormat) {
+        res.json(transformedPhotos);
+      } else {
+        res.json({
+          photos: transformedPhotos,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            hasMore: result.hasMore,
+            totalPages: Math.ceil(result.total / result.limit)
+          }
+        });
+      }
     } catch (error) {
       logError("Error fetching product photos", error as Error);
       res.status(500).json({ message: "Failed to fetch product photos" });
+    }
+  }
+
+  // Get only primary photo (faster for large collections)
+  async getPrimaryPhoto(req: Request, res: Response) {
+    try {
+      const productId = parseInt(req.params.id);
+      const fullResolution = req.query.full === 'true';
+      
+      logInfo('Fetching primary product photo', { 
+        userId: (req as any).user?.id,
+        productId,
+        fullResolution
+      });
+
+      // Create cache key for primary photo
+      const cacheKey = `product:${productId}:photo:primary`;
+      
+      // Try to get from cache first
+      let result = await getCache<any>(cacheKey);
+      
+      if (!result) {
+        // If not in cache, fetch from database
+        result = await storage.getProductPhotos(productId, {
+          page: 1,
+          limit: 1,
+          onlyPrimary: true
+        });
+        
+        // Cache for 10 minutes (primary photos change even less frequently)
+        await setCache(cacheKey, result, 600);
+        logInfo('Primary photo cached', { productId, cacheKey });
+      } else {
+        logInfo('Primary photo served from cache', { productId, cacheKey });
+      }
+      
+      if (result.photos.length === 0) {
+        return res.status(404).json({ message: "No primary photo found" });
+      }
+      
+      const photo = result.photos[0];
+      const transformedPhoto = fullResolution ? photo : {
+        ...photo,
+        url: photo.thumbnailUrl || photo.url
+      };
+      
+      res.json(transformedPhoto);
+    } catch (error) {
+      logError("Error fetching primary photo", error as Error);
+      res.status(500).json({ message: "Failed to fetch primary photo" });
     }
   }
 
@@ -204,6 +318,9 @@ export class ProductsController {
       });
 
       const photo = await storage.addProductPhoto(photoData, (req as any).user.id);
+      
+      // Invalidate cache for this product's photos
+      await this.invalidatePhotoCache(productId);
       
       res.status(201).json({
         success: true,
