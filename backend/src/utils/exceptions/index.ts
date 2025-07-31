@@ -115,6 +115,12 @@ export class DatabaseConnectionError extends InternalServerError {
   }
 }
 
+export class CacheError extends InternalServerError {
+  constructor(message: string = 'Cache operation failed') {
+    super(message, 'CACHE_ERROR');
+  }
+}
+
 export class CacheConnectionError extends InternalServerError {
   constructor(message: string = 'Cache connection failed') {
     super(message, 'CACHE_CONNECTION_ERROR');

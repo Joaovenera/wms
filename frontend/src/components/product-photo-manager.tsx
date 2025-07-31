@@ -85,7 +85,7 @@ export default function ProductPhotoManager({
   const PHOTOS_PER_PAGE = 20;
 
   // Fetch product photos with pagination
-  const { data: photosData, isLoading: photosLoading, refetch: refetchPhotos, error } = useQuery<{photos: ProductPhoto[], pagination: any}>({
+  const { data: photosData, isLoading: photosLoading } = useQuery<{photos: ProductPhoto[], pagination: any}>({
     queryKey: [`/api/products/${productId}/photos`, { full: loadFullResolution, page: currentPage }],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -99,10 +99,7 @@ export default function ProductPhotoManager({
       return data;
     },
     enabled: isOpen && productId > 0,
-    // onSuccess replaced with useEffect below
-    onError: (error) => {
-      console.error('Error fetching photos:', error);
-    }
+    throwOnError: false
   });
 
   // Reset pagination when modal opens
@@ -121,7 +118,7 @@ export default function ProductPhotoManager({
 
   // Process photos data when it changes
   React.useEffect(() => {
-    if (photosData && photosData.photos) {
+    if (photosData && Array.isArray(photosData.photos)) {
       if (currentPage === 1) {
         setAllPhotos(photosData.photos);
       } else {
@@ -132,7 +129,7 @@ export default function ProductPhotoManager({
 
   // Use accumulated photos
   const photos = allPhotos;
-  const pagination = photosData?.pagination;
+  const pagination = photosData && typeof photosData === 'object' && 'pagination' in photosData ? photosData.pagination : undefined;
 
   // Fetch photo history
   const { data: history = [], isLoading: historyLoading } = useQuery<PhotoHistory[]>({

@@ -99,7 +99,7 @@ export class CacheService {
         latency: `${latency}ms`,
       });
 
-      throw new CacheError(`Failed to get cache key ${fullKey}`, { cause: error });
+      throw new CacheError(`Failed to get cache key ${fullKey}`);
     }
   }
 
@@ -120,7 +120,7 @@ export class CacheService {
       const serializedValue = typeof value === 'string' ? value : JSON.stringify(value);
 
       // Set with TTL
-      await redisClient.setex(fullKey, ttl, serializedValue);
+      await redisClient.setEx(fullKey, ttl, serializedValue);
 
       // Set tags for bulk invalidation
       if (options.tags && options.tags.length > 0) {
@@ -148,7 +148,7 @@ export class CacheService {
         latency: `${latency}ms`,
       });
 
-      throw new CacheError(`Failed to set cache key ${fullKey}`, { cause: error });
+      throw new CacheError(`Failed to set cache key ${fullKey}`);
     }
   }
 
@@ -183,7 +183,7 @@ export class CacheService {
         latency: `${latency}ms`,
       });
 
-      throw new CacheError(`Failed to delete cache key ${fullKey}`, { cause: error });
+      throw new CacheError(`Failed to delete cache key ${fullKey}`);
     }
   }
 
@@ -220,11 +220,11 @@ export class CacheService {
     try {
       for (const tag of tags) {
         const tagKey = `tag:${tag}`;
-        const keys = await redisClient.smembers(tagKey);
+        const keys = await redisClient.sMembers(tagKey);
         
         if (keys.length > 0) {
           // Delete all keys with this tag
-          const deleted = await redisClient.del(...keys);
+          const deleted = await redisClient.del(keys);
           deletedCount += deleted;
           
           // Remove the tag set
@@ -252,7 +252,7 @@ export class CacheService {
         latency: `${latency}ms`,
       });
 
-      throw new CacheError(`Failed to invalidate cache by tags: ${tags.join(', ')}`, { cause: error });
+      throw new CacheError(`Failed to invalidate cache by tags: ${tags.join(', ')}`);
     }
   }
 
@@ -263,7 +263,7 @@ export class CacheService {
     const start = Date.now();
 
     try {
-      await redisClient.flushdb();
+      await redisClient.flushDb();
       
       // Reset stats
       this.stats = {
@@ -289,7 +289,7 @@ export class CacheService {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
 
-      throw new CacheError('Failed to clear cache', { cause: error });
+      throw new CacheError('Failed to clear cache');
     }
   }
 
@@ -314,7 +314,7 @@ export class CacheService {
 
     try {
       // Test set
-      await redisClient.setex(testKey, 10, testValue);
+      await redisClient.setEx(testKey, 10, testValue);
       
       // Test get
       const retrieved = await redisClient.get(testKey);
@@ -361,7 +361,10 @@ export class CacheService {
     while (Date.now() - start < timeout) {
       try {
         // Try to acquire lock
-        const result = await redisClient.set(lockKey, lockValue, 'PX', ttl, 'NX');
+        const result = await redisClient.set(lockKey, lockValue, {
+          PX: ttl,
+          NX: true
+        });
         
         if (result === 'OK') {
           logInfo('Lock acquired', {
@@ -381,7 +384,7 @@ export class CacheService {
           error: error instanceof Error ? error.message : 'Unknown error',
         });
         
-        throw new CacheError(`Failed to acquire lock for resource: ${resource}`, { cause: error });
+        throw new CacheError(`Failed to acquire lock for resource: ${resource}`);
       }
     }
 
@@ -409,7 +412,10 @@ export class CacheService {
         end
       `;
 
-      const result = await redisClient.eval(script, 1, lockKey, lockValue);
+      const result = await redisClient.eval(script, {
+        keys: [lockKey],
+        arguments: [lockValue]
+      });
       const released = result === 1;
 
       if (released) {
@@ -432,7 +438,7 @@ export class CacheService {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
 
-      throw new CacheError(`Failed to release lock for resource: ${resource}`, { cause: error });
+      throw new CacheError(`Failed to release lock for resource: ${resource}`);
     }
   }
 
@@ -451,7 +457,7 @@ export class CacheService {
   private async setTags(key: string, tags: string[]): Promise<void> {
     for (const tag of tags) {
       const tagKey = `tag:${tag}`;
-      await redisClient.sadd(tagKey, key);
+      await redisClient.sAdd(tagKey, key);
     }
   }
 

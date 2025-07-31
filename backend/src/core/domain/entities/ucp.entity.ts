@@ -48,6 +48,7 @@ export interface CreateUcpItemData {
 export interface UcpWithItems extends UcpEntity {
   items: UcpItemEntity[];
   totalItems: number;
+  totalQuantity: number;
   totalWeight?: number;
 }
 
@@ -149,6 +150,32 @@ export class Ucp implements UcpEntity {
       status: STATUS.UCP.ACTIVE,
     };
   }
+
+  static update(current: UcpEntity, updates: Partial<UcpEntity>): Partial<UcpEntity> {
+    const updated: Partial<UcpEntity> = {};
+
+    if (updates.code && updates.code !== current.code) {
+      updated.code = updates.code.toUpperCase().trim();
+    }
+
+    if (updates.palletId !== undefined && updates.palletId !== current.palletId) {
+      updated.palletId = updates.palletId;
+    }
+
+    if (updates.positionId !== undefined && updates.positionId !== current.positionId) {
+      updated.positionId = updates.positionId;
+    }
+
+    if (updates.status && updates.status !== current.status) {
+      updated.status = updates.status;
+    }
+
+    if (updates.observations !== undefined && updates.observations !== current.observations) {
+      updated.observations = updates.observations?.trim();
+    }
+
+    return updated;
+  }
 }
 
 export class UcpItem implements UcpItemEntity {
@@ -222,7 +249,7 @@ export class UcpItem implements UcpItemEntity {
   }
 
   // Factory methods
-  static create(data: CreateUcpItemData & { addedBy: number }): Omit<UcpItemEntity, 'id' | 'createdAt' | 'updatedAt' | 'addedAt' | 'removedBy' | 'removedAt' | 'removalReason' | 'isActive'> {
+  static create(data: CreateUcpItemData & { addedBy: number }): Omit<UcpItemEntity, 'id' | 'createdAt' | 'updatedAt' | 'removedBy' | 'removedAt' | 'removalReason' | 'isActive'> {
     return {
       ucpId: data.ucpId,
       productId: data.productId,
@@ -233,7 +260,7 @@ export class UcpItem implements UcpItemEntity {
       packagingTypeId: data.packagingTypeId,
       packagingQuantity: data.packagingQuantity,
       addedBy: data.addedBy,
-      createdBy: data.addedBy,
+      addedAt: new Date(),
     };
   }
 

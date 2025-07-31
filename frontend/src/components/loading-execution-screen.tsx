@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import QrScanner from "./qr-scanner";
 import { 
   Package, 
-  Scan, 
   CheckCircle, 
   AlertTriangle, 
   Clock,
   User,
   Truck,
-  FileText,
   CheckSquare,
   XCircle,
   Camera,
@@ -26,17 +24,6 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
-interface LoadingExecution {
-  id: number;
-  status: string;
-  startedAt: string;
-  finishedAt?: string;
-  observations?: string;
-  transferRequestId: number;
-  transferRequestCode: string;
-  operatorName: string;
-  items: LoadingItem[];
-}
 
 interface LoadingItem {
   id: number;
@@ -75,7 +62,6 @@ export function LoadingExecutionScreen({ executionId, onExecutionComplete }: Loa
   const [finishObservations, setFinishObservations] = useState("");
   const [showFinishDialog, setShowFinishDialog] = useState(false);
 
-  const queryClient = useQueryClient();
 
   // Fetch loading execution details
   const { data: execution, isLoading, refetch } = useQuery({

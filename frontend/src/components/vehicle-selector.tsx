@@ -3,17 +3,21 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Truck, Package, Weight, Info } from "lucide-react";
+import { Truck, Package, Weight, Info, Ruler } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
 interface Vehicle {
   id: number;
   code: string;
   name: string;
+  brand: string;
+  model: string;
+  licensePlate: string;
   type: string;
-  cubicCapacity: string;
-  weightCapacity?: string;
+  weightCapacity: string;
+  cargoAreaLength: number;
+  cargoAreaWidth: number;
+  cargoAreaHeight: number;
   status: string;
   observations?: string;
 }
@@ -56,6 +60,11 @@ export function VehicleSelector({ selectedVehicleId, onVehicleSelect, disabled =
       { label: status, variant: 'outline' as const };
     
     return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
+  };
+
+  // Calculate cargo volume for display
+  const calculateCargoVolume = (vehicle: Vehicle) => {
+    return (vehicle.cargoAreaLength * vehicle.cargoAreaWidth * vehicle.cargoAreaHeight).toFixed(2);
   };
 
   return (
@@ -110,23 +119,30 @@ export function VehicleSelector({ selectedVehicleId, onVehicleSelect, disabled =
               
               <div className="flex items-center gap-2">
                 <Truck className="h-4 w-4 text-green-500" />
-                <span className="text-gray-600">Tipo:</span>
-                <span>{selectedVehicle.type}</span>
+                <span className="text-gray-600">Marca/Modelo:</span>
+                <span>{selectedVehicle.brand} {selectedVehicle.model}</span>
               </div>
               
               <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-orange-500" />
-                <span className="text-gray-600">Capacidade Cúbica:</span>
-                <span className="font-semibold">{selectedVehicle.cubicCapacity} m³</span>
+                <Weight className="h-4 w-4 text-purple-500" />
+                <span className="text-gray-600">Capacidade Peso:</span>
+                <span className="font-semibold">{selectedVehicle.weightCapacity}</span>
               </div>
               
-              {selectedVehicle.weightCapacity && (
-                <div className="flex items-center gap-2">
-                  <Weight className="h-4 w-4 text-purple-500" />
-                  <span className="text-gray-600">Capacidade Peso:</span>
-                  <span className="font-semibold">{selectedVehicle.weightCapacity} kg</span>
+              <div className="flex items-center gap-2">
+                <Ruler className="h-4 w-4 text-orange-500" />
+                <span className="text-gray-600">Área de Carga:</span>
+                <span className="font-semibold">{calculateCargoVolume(selectedVehicle)} m³</span>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t">
+              <div className="text-sm">
+                <span className="text-gray-600">Dimensões da carga:</span>
+                <div className="font-mono text-xs mt-1">
+                  {selectedVehicle.cargoAreaLength}m × {selectedVehicle.cargoAreaWidth}m × {selectedVehicle.cargoAreaHeight}m
                 </div>
-              )}
+              </div>
             </div>
 
             {selectedVehicle.observations && (

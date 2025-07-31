@@ -7,11 +7,22 @@
     "build": "tsc && esbuild src/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
+    "test": "NODE_ENV=test jest",
+    "test:watch": "NODE_ENV=test jest --watch",
+    "test:run": "vitest run",
+    "test:coverage": "NODE_ENV=test jest --coverage",
+    "test:ui": "vitest --ui",
+    "test:e2e": "playwright test",
+    "test:integration": "NODE_ENV=test jest --testPathPattern=integration",
+    "test:unit": "NODE_ENV=test jest --testPathPattern=unit",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "migrate:photo-thumbnails": "tsx --env-file=.env src/scripts/migrate-photo-thumbnails.ts",
-    "fix:foreign-keys": "tsx --env-file=.env src/scripts/fix-foreign-keys.ts"
+    "fix:foreign-keys": "tsx --env-file=.env src/scripts/fix-foreign-keys.ts",
+    "test:db": "NODE_ENV=test tsx --env-file=.env.test tests/helpers/create-test-db.ts",
+    "test:setup": "npm run test:db && npm run db:migrate",
+    "test:ci": "NODE_ENV=test jest --ci --coverage --watchAll=false"
   },
   "dependencies": {
     "@types/ioredis": "^4.28.10",
@@ -47,6 +58,8 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@jest/globals": "^30.0.5",
+    "@playwright/test": "^1.41.0",
     "@types/compression": "^1.8.1",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/cors": "^2.8.19",
@@ -60,13 +73,19 @@
     "@types/passport": "^1.0.16",
     "@types/passport-local": "^1.0.38",
     "@types/sharp": "^0.31.1",
+    "@types/supertest": "^6.0.2",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "^1.2.0",
+    "@vitest/ui": "^1.2.0",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",
+    "jest-junit": "^16.0.0",
+    "supertest": "^6.3.4",
     "tsx": "^4.19.1",
-    "typescript": "5.6.3"
+    "typescript": "5.6.3",
+    "vitest": "^1.2.0"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"

@@ -1,10 +1,6 @@
-import { eq, desc, like, and, or, gte, lte, count, inArray, sql, isNull } from 'drizzle-orm';
-import { products } from '../schemas/products.schema.js';
-import { ucpItems } from '../schemas/ucps.schema.js';
-import { ucps } from '../schemas/ucps.schema.js';
-import { pallets } from '../schemas/pallets.schema.js';
-import { positions } from '../schemas/positions.schema.js';
-import { db } from '../database.js';
+import { eq, desc, like, and, or, gte, lte, count, inArray, sql, isNull, ne, isNotNull } from 'drizzle-orm';
+import { products, ucpItems, ucps, pallets, positions } from '../../../db/schema.js';
+import { db } from '../../../db.js';
 import { ProductRepository, ProductQueryFilters } from '../../../core/domain/interfaces/product.repository.js';
 import { ProductEntity, CreateProductData, UpdateProductData, ProductWithStock, Product } from '../../../core/domain/entities/product.entity.js';
 import { StockInfo } from '../../../core/shared/types/index.js';
@@ -12,6 +8,33 @@ import { NotFoundError, ConflictError } from '../../../utils/exceptions/index.js
 import { logInfo, logError } from '../../../utils/logger.js';
 
 export class ProductRepositoryImpl implements ProductRepository {
+  
+  private transformToProductEntity(dbProduct: any): ProductEntity {
+    return {
+      ...dbProduct,
+      description: dbProduct.description || undefined, // Convert null to undefined
+      category: dbProduct.category || undefined,
+      brand: dbProduct.brand || undefined,
+      weight: dbProduct.weight ? parseFloat(dbProduct.weight) : undefined, // Convert string to number
+      barcode: dbProduct.barcode || undefined,
+      maxStock: dbProduct.maxStock || undefined,
+      requiresLot: Boolean(dbProduct.requiresLot),
+      requiresExpiry: Boolean(dbProduct.requiresExpiry),
+      isActive: Boolean(dbProduct.isActive),
+    };
+  }
+
+  private transformToDbData(entityData: any): any {
+    return {
+      ...entityData,
+      description: entityData.description || null, // Convert undefined to null
+      category: entityData.category || null,
+      brand: entityData.brand || null,
+      weight: entityData.weight?.toString() || null, // Convert number to string
+      barcode: entityData.barcode || null,
+      maxStock: entityData.maxStock || null,
+    };
+  }
   async findById(id: number): Promise<ProductEntity | null> {
     try {
       const [product] = await db
@@ -20,7 +43,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.id, id))
         .limit(1);
 
-      return product || null;
+      return product ? this.transformToProductEntity(product) : null;
     } catch (error) {
       logError('Error finding product by ID', { error, id });
       throw error;
@@ -35,7 +58,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.sku, sku.toUpperCase()))
         .limit(1);
 
-      return product || null;
+      return product ? this.transformToProductEntity(product) : null;
     } catch (error) {
       logError('Error finding product by SKU', { error, sku });
       throw error;
@@ -50,7 +73,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.barcode, barcode))
         .limit(1);
 
-      return product || null;
+      return product ? this.transformToProductEntity(product) : null;
     } catch (error) {
       logError('Error finding product by barcode', { error, barcode });
       throw error;
@@ -59,10 +82,10 @@ export class ProductRepositoryImpl implements ProductRepository {
 
   async findAll(filters?: ProductQueryFilters): Promise<ProductEntity[]> {
     try {
-      let query = db.select().from(products);
+      const query = db.select().from(products);
+      const conditions = [];
 
       if (filters) {
-        const conditions = [];
 
         if (filters.sku) {
           conditions.push(like(products.sku, `%${filters.sku.toUpperCase()}%`));
@@ -116,19 +139,20 @@ export class ProductRepositoryImpl implements ProductRepository {
           conditions.push(lte(products.createdAt, filters.createdTo));
         }
 
-        if (conditions.length > 0) {
-          query = query.where(and(...conditions));
-        }
       }
 
-      const result = await query.orderBy(products.name);
+      const baseQuery = conditions.length > 0 
+        ? query.where(and(...conditions))
+        : query;
+
+      const result = await baseQuery.orderBy(products.name);
       
       logInfo('Products retrieved successfully', { 
         count: result.length,
         filters: filters ? Object.keys(filters) : [],
       });
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding all products', { error, filters });
       throw error;
@@ -152,9 +176,10 @@ export class ProductRepositoryImpl implements ProductRepository {
       }
 
       const productData = Product.create(data);
+      const dbData = this.transformToDbData(productData);
       const [newProduct] = await db
         .insert(products)
-        .values(productData)
+        .values(dbData)
         .returning();
 
       logInfo('Product created successfully', {
@@ -163,7 +188,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         name: newProduct.name,
       });
 
-      return newProduct;
+      return this.transformToProductEntity(newProduct);
     } catch (error) {
       logError('Error creating product', { error, sku: data.sku });
       throw error;
@@ -191,9 +216,10 @@ export class ProductRepositoryImpl implements ProductRepository {
         return currentProduct; // No changes needed
       }
 
+      const dbUpdateData = this.transformToDbData({ ...updateData, updatedAt: new Date() });
       const [updatedProduct] = await db
         .update(products)
-        .set({ ...updateData, updatedAt: new Date() })
+        .set(dbUpdateData)
         .where(eq(products.id, id))
         .returning();
 
@@ -203,7 +229,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         updatedFields: Object.keys(updateData),
       });
 
-      return updatedProduct;
+      return this.transformToProductEntity(updatedProduct);
     } catch (error) {
       logError('Error updating product', { error, id });
       throw error;
@@ -240,7 +266,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(and(eq(products.category, category), eq(products.isActive, true)))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding products by category', { error, category });
       throw error;
@@ -255,7 +281,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(and(eq(products.brand, brand), eq(products.isActive, true)))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding products by brand', { error, brand });
       throw error;
@@ -339,7 +365,7 @@ export class ProductRepositoryImpl implements ProductRepository {
           eq(ucpItems.isActive, true)
         ));
 
-      return result.map(row => ({
+      return result.map((row: any) => ({
         quantity: Number(row.quantity),
         unit: row.unit,
         lot: row.lot,
@@ -382,7 +408,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.isActive, true))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding active products', { error });
       throw error;
@@ -397,7 +423,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.isActive, false))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding inactive products', { error });
       throw error;
@@ -416,7 +442,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         logInfo('Product activated successfully', { productId: id });
       }
 
-      return activated || null;
+      return activated ? this.transformToProductEntity(activated) : null;
     } catch (error) {
       logError('Error activating product', { error, id });
       throw error;
@@ -435,7 +461,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         logInfo('Product deactivated successfully', { productId: id });
       }
 
-      return deactivated || null;
+      return deactivated ? this.transformToProductEntity(deactivated) : null;
     } catch (error) {
       logError('Error deactivating product', { error, id });
       throw error;
@@ -450,7 +476,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(and(eq(products.requiresLot, true), eq(products.isActive, true)))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding products requiring lot', { error });
       throw error;
@@ -465,7 +491,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(and(eq(products.requiresExpiry, true), eq(products.isActive, true)))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding products requiring expiry', { error });
       throw error;
@@ -483,7 +509,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         ))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding products with special handling', { error });
       throw error;
@@ -561,7 +587,7 @@ export class ProductRepositoryImpl implements ProductRepository {
       `;
 
       const result = await db.execute(query);
-      return result.rows as ProductEntity[];
+      return result.rows.map((row: any) => this.transformToProductEntity(row));
     } catch (error) {
       logError('Error finding out of stock products', { error });
       throw error;
@@ -586,7 +612,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         ))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error searching products', { error, query });
       throw error;
@@ -604,7 +630,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         ))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding products by name', { error, name });
       throw error;
@@ -622,7 +648,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         ))
         .orderBy(products.name);
 
-      return result;
+      return result.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error finding products by description', { error, description });
       throw error;
@@ -631,19 +657,18 @@ export class ProductRepositoryImpl implements ProductRepository {
 
   async skuExists(sku: string, excludeId?: number): Promise<boolean> {
     try {
-      let query = db
+      const query = db
         .select({ count: count() })
-        .from(products)
-        .where(eq(products.sku, sku.toUpperCase()));
-
+        .from(products);
+        
+      const conditions = [eq(products.sku, sku.toUpperCase())];
+        
       if (excludeId) {
-        query = query.where(and(
-          eq(products.sku, sku.toUpperCase()),
-          ne(products.id, excludeId)
-        ));
+        conditions.push(ne(products.id, excludeId));
       }
-
-      const [result] = await query;
+      
+      const baseQuery = query.where(and(...conditions));
+      const [result] = await baseQuery;
       return result.count > 0;
     } catch (error) {
       logError('Error checking if SKU exists', { error, sku, excludeId });
@@ -653,19 +678,18 @@ export class ProductRepositoryImpl implements ProductRepository {
 
   async barcodeExists(barcode: string, excludeId?: number): Promise<boolean> {
     try {
-      let query = db
+      const query = db
         .select({ count: count() })
-        .from(products)
-        .where(eq(products.barcode, barcode));
-
+        .from(products);
+        
+      const conditions = [eq(products.barcode, barcode)];
+        
       if (excludeId) {
-        query = query.where(and(
-          eq(products.barcode, barcode),
-          ne(products.id, excludeId)
-        ));
+        conditions.push(ne(products.id, excludeId));
       }
-
-      const [result] = await query;
+      
+      const baseQuery = query.where(and(...conditions));
+      const [result] = await baseQuery;
       return result.count > 0;
     } catch (error) {
       logError('Error checking if barcode exists', { error, barcode, excludeId });
@@ -685,7 +709,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.isActive, true))
         .groupBy(products.category);
 
-      return result.map(row => ({
+      return result.map((row: any) => ({
         category: row.category,
         count: Number(row.count),
       }));
@@ -706,7 +730,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.isActive, true))
         .groupBy(products.brand);
 
-      return result.map(row => ({
+      return result.map((row: any) => ({
         brand: row.brand,
         count: Number(row.count),
       }));
@@ -727,7 +751,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.isActive, true))
         .groupBy(products.unit);
 
-      return result.map(row => ({
+      return result.map((row: any) => ({
         unit: row.unit,
         count: Number(row.count),
       }));
@@ -754,18 +778,18 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(inArray(products.sku, skus));
 
       if (existingProducts.length > 0) {
-        const existingSkus = existingProducts.map(p => p.sku);
+        const existingSkus = existingProducts.map((p: any) => p.sku);
         throw new ConflictError(`Products already exist with SKUs: ${existingSkus.join(', ')}`);
       }
 
-      const productData = productsData.map(data => Product.create(data));
+      const productData = productsData.map(data => this.transformToDbData(Product.create(data)));
       const newProducts = await db
         .insert(products)
         .values(productData)
         .returning();
 
       logInfo('Batch products created successfully', { count: newProducts.length });
-      return newProducts;
+      return newProducts.map(product => this.transformToProductEntity(product));
     } catch (error) {
       logError('Error creating batch products', { error, count: productsData.length });
       throw error;
@@ -829,11 +853,10 @@ export class ProductRepositoryImpl implements ProductRepository {
 
   async count(filters?: ProductQueryFilters): Promise<number> {
     try {
-      let query = db.select({ count: count() }).from(products);
+      const query = db.select({ count: count() }).from(products);
+      const conditions = [];
 
       if (filters) {
-        const conditions = [];
-
         if (filters.isActive !== undefined) {
           conditions.push(eq(products.isActive, filters.isActive));
         }
@@ -841,13 +864,13 @@ export class ProductRepositoryImpl implements ProductRepository {
         if (filters.category) {
           conditions.push(eq(products.category, filters.category));
         }
-
-        if (conditions.length > 0) {
-          query = query.where(and(...conditions));
-        }
       }
 
-      const [result] = await query;
+      const baseQuery = conditions.length > 0 
+        ? query.where(and(...conditions))
+        : query;
+
+      const [result] = await baseQuery;
       return result.count;
     } catch (error) {
       logError('Error counting products', { error, filters });
@@ -911,7 +934,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.id, id))
         .returning();
 
-      return updated || null;
+      return updated ? this.transformToProductEntity(updated) : null;
     } catch (error) {
       logError('Error updating product photo URL', { error, id, photoUrl });
       throw error;
@@ -926,7 +949,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         .where(eq(products.id, id))
         .returning();
 
-      return updated || null;
+      return updated ? this.transformToProductEntity(updated) : null;
     } catch (error) {
       logError('Error removing product photo URL', { error, id });
       throw error;

@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Camera, RefreshCw } from "lucide-react";
+import { Camera } from "lucide-react";
 import {
   type InsertPallet,
   type Pallet,
@@ -105,13 +105,6 @@ export default function PalletForm({ editingPallet, onSubmit, isLoading }: Palle
     }
   }, [editingPallet, form]);
 
-  const handleCameraCapture = (imageData: string) => {
-    if (imageData && imageData !== "data:,") {
-      setPhotoPreview(imageData);
-      form.setValue("photoUrl", imageData);
-    }
-    setIsCameraOpen(false);
-  };
 
   const handleSubmit = (data: InsertPallet) => {
     onSubmit(data);

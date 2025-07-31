@@ -13,11 +13,10 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { Building2, Plus, QrCode, Edit2, Trash2, MapPin, RefreshCw } from "lucide-react";
+import { Building2, Plus, QrCode, Edit2, Trash2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { type InsertPalletStructure, type PalletStructure, type Position } from "@/types/api";
-import { insertPortaPalletSchema } from "@/types/schemas";
+import { type PalletStructure, type Position } from "@/types/api";
 import PalletStructureViewer from "@/components/pallet-structure-viewer";
 import QRCodeDialog from "@/components/qr-code-dialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -84,7 +83,7 @@ export default function PortaPaletes() {
       const response = await apiRequest('POST', '/api/pallet-structures', structureData);
       return response;
     },
-    onSuccess: (newStructure: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/pallet-structures'] });
       queryClient.invalidateQueries({ queryKey: ['/api/positions'] });
       toast({
@@ -274,7 +273,7 @@ export default function PortaPaletes() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Lado</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Selecione o lado" />
@@ -346,7 +345,7 @@ export default function PortaPaletes() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Tipo de Rack</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione o tipo" />
@@ -437,7 +436,7 @@ export default function PortaPaletes() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Lado</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione o lado" />
@@ -511,7 +510,7 @@ export default function PortaPaletes() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Rack</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione o tipo" />

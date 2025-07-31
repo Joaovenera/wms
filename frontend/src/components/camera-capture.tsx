@@ -7,7 +7,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Camera, X, RotateCw, Check, Upload, AlertTriangle } from "lucide-react";
-import { Input } from "@/components/ui/input";
 
 interface CameraCaptureProps {
   onCapture: (imageData: string) => void;
@@ -300,13 +299,6 @@ export default function CameraCapture({
   const openFileSelector = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
-
-  // Iniciar câmera quando o diálogo abre
-  const handleDialogOpen = useCallback(() => {
-    if (isOpen && !capturedImage && !stream) {
-      startCamera();
-    }
-  }, [isOpen, capturedImage, stream, startCamera]);
 
   // Chamar quando o diálogo abre
   if (isOpen && !stream && !capturedImage && !isLoading) {

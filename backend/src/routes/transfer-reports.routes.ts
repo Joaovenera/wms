@@ -20,6 +20,6 @@ router.get('/efficiency-metrics', transferReportsController.getEfficiencyMetrics
 router.get('/:id', transferReportsController.getReportById);
 
 // POST /api/transfer-reports/generate/:transferRequestId - Gerar relatório detalhado
-router.post('/generate/:transferRequestId', transferReportsController.generateDetailedReport);
+router.post('/generate/:transferRequestId', transferReportsController.generateDetailedReport as any);
 
 export default router;

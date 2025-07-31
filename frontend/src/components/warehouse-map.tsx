@@ -43,7 +43,7 @@ export default function WarehouseMap() {
   const [selectedStreet, setSelectedStreet] = useState<string | null>(null);
   const [hoveredPosition, setHoveredPosition] = useState<Position | null>(null);
 
-  const { data: positions, isLoading, refetch } = useQuery<Position[]>({
+  const { data: positions, isLoading } = useQuery<Position[]>({
     queryKey: ['/api/positions'],
     refetchInterval: 30000
   });
@@ -52,9 +52,6 @@ export default function WarehouseMap() {
     console.log('Position clicked:', position);
   };
 
-  function getStatusLabel(status: string) {
-    return statusConfig[status as keyof typeof statusConfig]?.label || status;
-  }
 
   function getStatusInfo(status: string) {
     return statusConfig[status as keyof typeof statusConfig] || statusConfig.disponivel;

@@ -1,0 +1,34 @@
+{
+  "default": [
+    {
+      "key": "wms-setup",
+      "value": "Sistema WMS configurado com Claude Flow v2.0.0-alpha.78, Docker funcionando, PostgreSQL e Redis ativos",
+      "namespace": "default",
+      "timestamp": 1753924327012
+    },
+    {
+      "key": "wms-architecture",
+      "value": "Sistema WMS com React frontend, Node.js backend, PostgreSQL e Redis",
+      "namespace": "default",
+      "timestamp": 1753924603458
+    },
+    {
+      "key": "wms-tech-stack",
+      "value": "Frontend: React+TypeScript+Vite+Tailwind+Radix UI | Backend: Node.js+Express+TypeScript+Drizzle ORM+PostgreSQL | Infra: Docker+Redis+PostgreSQL",
+      "namespace": "default",
+      "timestamp": 1753924605329
+    },
+    {
+      "key": "wms-development",
+      "value": "Desenvolvimento com hot reload, HTTPS local, certificados auto-assinados, Docker Compose para ambiente completo",
+      "namespace": "default",
+      "timestamp": 1753924606438
+    },
+    {
+      "key": "wms-analysis",
+      "value": "Projeto WMS analisado: Frontend React/TypeScript com 30+ componentes especializados, Backend Node.js/Express com 15+ APIs, PostgreSQL 17 + Redis, Docker Compose. Stack moderna com TypeScript, Vite, Tailwind, Radix UI, Drizzle ORM. Pontos fortes: arquitetura sólida, componentes especializados, performance otimizada. Melhorias prioritárias: testes, JWT, lazy loading, monitoramento.",
+      "namespace": "default",
+      "timestamp": 1753924717762
+    }
+  ]
+}

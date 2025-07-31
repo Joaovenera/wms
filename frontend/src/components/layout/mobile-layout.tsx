@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { Home, QrCode, Package, CheckSquare, User, Warehouse, Wifi, Box } from "lucide-react";
+import { Home, QrCode, Package, User, Warehouse, Wifi, Box } from "lucide-react";
 
 interface MobileLayoutProps {
   children: ReactNode;
@@ -33,7 +33,7 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
             <Wifi className="h-5 w-5" />
             <div className="w-8 h-8 bg-blue-700 rounded-full flex items-center justify-center">
               <span className="text-sm font-medium">
-                {user?.firstName?.charAt(0) || user?.email?.charAt(0) || "U"}
+                {(user as any)?.firstName?.charAt(0) || (user as any)?.email?.charAt(0) || "U"}
               </span>
             </div>
           </div>

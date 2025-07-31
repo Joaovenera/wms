@@ -7,7 +7,6 @@ import {
   QrCode,
   Edit,
   Trash2,
-  Image,
   CheckCircle,
   Clock,
   XCircle,
@@ -331,7 +330,7 @@ export default function MobilePallets() {
       photoUrl: pallet.photoUrl || "",
       observations: pallet.observations || "",
     });
-    setPhotoPreview(pallet.photoUrl);
+    setPhotoPreview(pallet.photoUrl || null);
     setIsCreateOpen(true);
   }, [form]);
 
@@ -709,7 +708,7 @@ export default function MobilePallets() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredPallets.map((pallet, index) => {
+          {filteredPallets.map((pallet) => {
             const statusInfo = getStatusInfo(pallet.status);
             const StatusIcon = statusInfo.icon;
 

@@ -132,7 +132,7 @@ export function useDeletePackaging() {
     mutationFn: async (id: number): Promise<void> => {
       await apiRequest("DELETE", `/api/packaging/${id}`);
     },
-    onSuccess: (_, deletedId) => {
+    onSuccess: () => {
       // Invalidar todas as queries de packaging pois não sabemos o productId
       queryClient.invalidateQueries({
         queryKey: ["/api/packaging"],

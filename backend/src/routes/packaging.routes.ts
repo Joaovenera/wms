@@ -3,7 +3,7 @@ import { z } from "zod";
 import { packagingService } from "../services/packaging.service";
 import { insertPackagingTypeSchema } from "../db/schema";
 import { validatePayload } from "../middleware/payload.middleware";
-import { isAuthenticated } from "../middleware/auth.middleware";
+import { isAuthenticated, AuthenticatedRequest } from "../middleware/auth.middleware";
 
 const router = Router();
 
@@ -149,7 +149,7 @@ router.post('/', validatePayload(insertPackagingTypeSchema), async (req, res) =>
   try {
     const packaging = await packagingService.createPackaging({
       ...req.body,
-      createdBy: req.user!.id
+      createdBy: (req as AuthenticatedRequest).user.id
     });
     
     res.status(201).json(packaging);

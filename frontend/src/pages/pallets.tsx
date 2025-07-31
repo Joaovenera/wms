@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -16,7 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Pallet, type InsertPallet } from "@/types/api";
 import { insertPalletSchema } from "@/types/schemas";
-import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Eye, Scan, Printer, RefreshCw } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Scan, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CameraCapture from "@/components/camera-capture";
 import QRCodeDialog from "@/components/qr-code-dialog";
@@ -172,7 +171,7 @@ export default function Pallets() {
           form.setValue('code', data.code);
         }
       } catch (error) {
-        console.error('Erro ao gerar próximo código:', error);
+        // Erro ao gerar próximo código
       }
     }
   };
@@ -257,9 +256,6 @@ export default function Pallets() {
     },
   });
 
-  // Log dos dados recebidos para debug
-  console.log('Dados dos pallets recebidos:', pallets);
-  console.log('Status filter atual:', statusFilter);
 
   const filteredPallets = pallets?.filter(pallet => {
     const matchesSearch = !searchTerm || 
@@ -269,12 +265,8 @@ export default function Pallets() {
     
     const matchesStatus = statusFilter === "all" || pallet.status === statusFilter;
     
-    console.log(`Pallet ${pallet.code}: status="${pallet.status}", filter="${statusFilter}", matchesStatus=${matchesStatus}, matchesSearch=${matchesSearch}`);
-    
     return matchesSearch && matchesStatus;
   }) || [];
-
-  console.log(`Total pallets: ${pallets?.length || 0}, Filtered: ${filteredPallets.length}`);
 
   const handleCameraCapture = (imageData: string) => {
     if (imageData && imageData !== 'data:,') {

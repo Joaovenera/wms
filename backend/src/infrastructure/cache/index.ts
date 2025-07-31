@@ -23,6 +23,15 @@ export {
   getCacheStats,
 } from './redis.client.js';
 
+// Import services first
+import { cacheService, CacheService } from './cache.service.js';
+import { 
+  strategies, 
+  strategicCache, 
+  StrategicCacheService,
+  cacheStrategies 
+} from './strategies.js';
+
 // Advanced cache service exports
 export { cacheService, CacheService } from './cache.service.js';
 export type { CacheOptions, CacheStats } from './cache.service.js';
@@ -61,8 +70,5 @@ export const cache = {
   strategies,
 } as const;
 
-// Re-export Redis client as default (backward compatibility)
-export { default } from './redis.client.js';
-
-// Export unified cache interface as well
+// Export unified cache interface as default
 export default cache;

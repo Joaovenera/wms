@@ -4,8 +4,8 @@ import { UserRole } from '../../shared/enums/index.js';
 export interface UserEntity extends BaseEntity {
   email: string;
   password: string;
-  firstName?: string;
-  lastName?: string;
+  firstName: string | null;
+  lastName: string | null;
   role: UserRole;
 }
 
@@ -28,8 +28,8 @@ export interface UpdateUserData {
 export interface UserProfile {
   id: number;
   email: string;
-  firstName?: string;
-  lastName?: string;
+  firstName: string | null;
+  lastName: string | null;
   role: UserRole;
   fullName: string;
   initials: string;
@@ -40,8 +40,8 @@ export class User implements UserEntity {
   public readonly id: number;
   public readonly email: string;
   public readonly password: string;
-  public readonly firstName?: string;
-  public readonly lastName?: string;
+  public readonly firstName: string | null;
+  public readonly lastName: string | null;
   public readonly role: UserRole;
   public readonly createdAt: Date;
   public readonly updatedAt: Date;
@@ -111,8 +111,8 @@ export class User implements UserEntity {
     return {
       email: data.email.toLowerCase().trim(),
       password: data.password,
-      firstName: data.firstName?.trim(),
-      lastName: data.lastName?.trim(),
+      firstName: data.firstName?.trim() || null,
+      lastName: data.lastName?.trim() || null,
       role: data.role || UserRole.OPERATOR,
       createdBy: data.createdBy,
     };

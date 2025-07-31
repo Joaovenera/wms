@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, CheckCircle, AlertCircle } from "lucide-react";
+import { Package, CheckCircle } from "lucide-react";
 import { type Position } from "@/types/api";
 
 interface PalletStructureViewerProps {
@@ -143,7 +143,7 @@ export default function PalletStructureViewer({
                   </div>
                   <div className="flex gap-2">
                     {levelPositions.map((position, posIndex) => {
-                      const { status, color, icon } = getPositionStatus(position);
+                      const { color, icon } = getPositionStatus(position);
                       return (
                         <div
                           key={`${level}-${posIndex}`}

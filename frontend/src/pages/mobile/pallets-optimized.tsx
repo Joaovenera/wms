@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Plus,
   Search,
-  Camera,
   QrCode,
   Edit,
   Trash2,
@@ -14,7 +13,6 @@ import {
   Wrench,
   AlertCircle,
   RefreshCw,
-  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,16 +35,12 @@ import {
 } from "@/components/ui/dialog";
 import { DialogDescription } from "@/components/ui/dialog";
 import {
-  insertPalletSchema,
   type InsertPallet,
   type Pallet,
 } from "@/types/api";
-import { insertPalletSchema } from "@/types/schemas";
-import { apiRequest } from "@/lib/queryClient";
-import { optimizedQueryClient } from "@/lib/optimizedQueryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import PalletForm from "@/components/pallet-form";
-import CameraCapture from "@/components/camera-capture";
 import QRCodeDialog from "@/components/qr-code-dialog";
 
 // Optimized status info with memoization
@@ -83,7 +77,7 @@ const getStatusInfo = (status: string) => {
       iconColor: "text-gray-600",
     },
   };
-  return statusMap[status as keyof typeof statusMap] || statusMap.discard;
+  return statusMap[status as keyof typeof statusMap] || statusMap.descarte;
 };
 
 // Optimized image component with lazy loading
@@ -173,7 +167,7 @@ export default function OptimizedMobilePallets() {
   } = useQuery<Pallet[]>({
     queryKey: ["/api/pallets"],
     staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,
     refetchInterval: false, // Disable automatic refetch
   });
@@ -197,7 +191,7 @@ export default function OptimizedMobilePallets() {
   const filteredPallets = useMemo(() => {
     if (!pallets) return [];
     
-    return pallets.filter((pallet) => {
+    return pallets?.filter((pallet: Pallet) => {
       const matchesSearch = searchTerm.length < 2 || 
         pallet.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pallet.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -394,7 +388,7 @@ export default function OptimizedMobilePallets() {
           {/* Virtual scrolling spacer */}
           <div style={{ height: visibleRange.start * 180 }} />
           
-          {visiblePallets.map((pallet) => {
+          {visiblePallets.map((pallet: Pallet) => {
             const statusInfo = getStatusInfo(pallet.status);
             const StatusIcon = statusInfo.icon;
 

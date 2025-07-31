@@ -10,7 +10,7 @@ import {
   insertLoadingExecutionSchema,
   insertLoadingItemSchema
 } from '../db/schema.js';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, isNull } from 'drizzle-orm';
 import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import logger from '../utils/logger.js';
 
@@ -20,7 +20,16 @@ export const loadingExecutionsController = {
     try {
       const { status, transferRequestId } = req.query;
       
-      let query = db.select({
+      // Build WHERE conditions
+      const conditions = [];
+      if (status) {
+        conditions.push(eq(loadingExecutions.status, status as string));
+      }
+      if (transferRequestId) {
+        conditions.push(eq(loadingExecutions.transferRequestId, parseInt(transferRequestId as string)));
+      }
+      
+      const query = db.select({
         id: loadingExecutions.id,
         status: loadingExecutions.status,
         startedAt: loadingExecutions.startedAt,
@@ -34,15 +43,11 @@ export const loadingExecutionsController = {
       .leftJoin(transferRequests, eq(loadingExecutions.transferRequestId, transferRequests.id))
       .leftJoin(users, eq(loadingExecutions.operatorId, users.id));
       
-      if (status) {
-        query = query.where(eq(loadingExecutions.status, status as string));
-      }
+      const baseQuery = conditions.length > 0 
+        ? query.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+        : query;
       
-      if (transferRequestId) {
-        query = query.where(eq(loadingExecutions.transferRequestId, parseInt(transferRequestId as string)));
-      }
-      
-      const executions = await query.orderBy(desc(loadingExecutions.startedAt));
+      const executions = await baseQuery.orderBy(desc(loadingExecutions.startedAt));
       
       logger.info(`Retrieved ${executions.length} loading executions`, { 
         userId: (req as AuthenticatedRequest).user?.id 
@@ -333,7 +338,7 @@ export const loadingExecutionsController = {
         .from(loadingItems)
         .where(and(
           eq(loadingItems.loadingExecutionId, parseInt(id)),
-          eq(loadingItems.confirmedAt, null)
+          isNull(loadingItems.confirmedAt)
         ));
       
       if (pendingItems.length > 0) {

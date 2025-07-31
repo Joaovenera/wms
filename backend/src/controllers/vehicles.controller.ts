@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../db.js';
 import { vehicles, insertVehicleSchema } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import logger from '../utils/logger.js';
 
@@ -11,15 +11,22 @@ export const vehiclesController = {
     try {
       const { status, includeInactive } = req.query;
       
-      let query = db.select().from(vehicles);
+      // Build WHERE conditions
+      const conditions = [];
       
       if (status) {
-        query = query.where(eq(vehicles.status, status as string));
+        conditions.push(eq(vehicles.status, status as string));
       } else if (!includeInactive) {
-        query = query.where(eq(vehicles.isActive, true));
+        conditions.push(eq(vehicles.isActive, true));
       }
       
-      const vehiclesList = await query.orderBy(vehicles.createdAt);
+      const query = db.select().from(vehicles);
+      
+      const baseQuery = conditions.length > 0 
+        ? query.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+        : query;
+      
+      const vehiclesList = await baseQuery.orderBy(vehicles.createdAt);
       
       logger.info(`Retrieved ${vehiclesList.length} vehicles`, { 
         userId: (req as AuthenticatedRequest).user?.id 
@@ -60,8 +67,15 @@ export const vehiclesController = {
   // POST /api/vehicles - Criar novo veículo
   async createVehicle(req: AuthenticatedRequest, res: Response) {
     try {
+      // Calcular cubicCapacity automaticamente a partir das dimensões
+      const { cargoAreaLength, cargoAreaWidth, cargoAreaHeight } = req.body;
+      const calculatedCubicCapacity = cargoAreaLength && cargoAreaWidth && cargoAreaHeight 
+        ? (parseFloat(cargoAreaLength) * parseFloat(cargoAreaWidth) * parseFloat(cargoAreaHeight)).toString()
+        : '0';
+
       const validatedData = insertVehicleSchema.parse({
         ...req.body,
+        cubicCapacity: calculatedCubicCapacity,
         createdBy: req.user!.id
       });
       
@@ -73,6 +87,16 @@ export const vehiclesController = {
       
       if (existingVehicle.length > 0) {
         return res.status(400).json({ error: 'Já existe um veículo com este código' });
+      }
+
+      // Verificar se já existe veículo com essa placa
+      const existingLicensePlate = await db.select()
+        .from(vehicles)
+        .where(eq(vehicles.licensePlate, validatedData.licensePlate))
+        .limit(1);
+      
+      if (existingLicensePlate.length > 0) {
+        return res.status(400).json({ error: 'Já existe um veículo com esta placa' });
       }
       
       const [newVehicle] = await db.insert(vehicles)
@@ -118,7 +142,7 @@ export const vehiclesController = {
           .from(vehicles)
           .where(and(
             eq(vehicles.code, req.body.code),
-            eq(vehicles.id, vehicleId)
+            ne(vehicles.id, vehicleId)
           ))
           .limit(1);
         
@@ -126,9 +150,37 @@ export const vehiclesController = {
           return res.status(400).json({ error: 'Já existe outro veículo com este código' });
         }
       }
+
+      // Verificar se outro veículo já usa esta placa (se foi alterada)
+      if (req.body.licensePlate && req.body.licensePlate !== existingVehicle[0].licensePlate) {
+        const plateCheck = await db.select()
+          .from(vehicles)
+          .where(and(
+            eq(vehicles.licensePlate, req.body.licensePlate),
+            ne(vehicles.id, vehicleId)
+          ))
+          .limit(1);
+        
+        if (plateCheck.length > 0) {
+          return res.status(400).json({ error: 'Já existe outro veículo com esta placa' });
+        }
+      }
+
+      // Calcular cubicCapacity se as dimensões foram fornecidas
+      let calculatedCubicCapacity = existingVehicle[0].cubicCapacity;
+      const { cargoAreaLength, cargoAreaWidth, cargoAreaHeight } = req.body;
+      
+      if (cargoAreaLength || cargoAreaWidth || cargoAreaHeight) {
+        const length = cargoAreaLength || existingVehicle[0].cargoAreaLength;
+        const width = cargoAreaWidth || existingVehicle[0].cargoAreaWidth;
+        const height = cargoAreaHeight || existingVehicle[0].cargoAreaHeight;
+        
+        calculatedCubicCapacity = (parseFloat(length) * parseFloat(width) * parseFloat(height)).toString();
+      }
       
       const updateData = {
         ...req.body,
+        cubicCapacity: calculatedCubicCapacity,
         updatedAt: new Date()
       };
       

@@ -217,7 +217,7 @@ export class ProductsController {
       }
       
       // Transform photos based on resolution requested
-      const transformedPhotos = result.photos.map(photo => {
+      const transformedPhotos = result.photos.map((photo: any) => {
         if (fullResolution) {
           // Return original resolution
           return photo;

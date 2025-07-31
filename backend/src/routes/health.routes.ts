@@ -170,15 +170,15 @@ router.get('/health/database/test', async (req, res) => {
     
     if (dbHealth.status === 'healthy') {
       res.json({
+        ...dbHealth,
         status: 'success',
         message: 'Database connection test successful',
-        ...dbHealth,
       });
     } else {
       res.status(503).json({
+        ...dbHealth,
         status: 'error',
         message: 'Database connection test failed',
-        ...dbHealth,
       });
     }
   } catch (error) {

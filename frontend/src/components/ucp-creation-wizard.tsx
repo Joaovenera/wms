@@ -13,8 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
-  Package, Plus, Minus, Check, AlertCircle, Scan, 
-  MapPin, User, Calendar, Hash, Layers
+  Package, Minus, Check, AlertCircle, Scan, Hash
 } from "lucide-react";
 import { type Pallet, type Position, type Product, type InsertUcp } from "@/types/api";
 import QrScanner from "@/components/qr-scanner";
@@ -56,10 +55,6 @@ export default function UcpCreationWizard({ isOpen, onClose, suggestedProducts =
     queryKey: ['/api/products'],
   });
 
-  const { data: availableUcps } = useQuery<any[]>({
-    queryKey: ['/api/ucps/available'],
-    enabled: selectedProducts.length > 0,
-  });
 
   // Generate UCP code when wizard opens
   useEffect(() => {

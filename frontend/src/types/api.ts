@@ -1,5 +1,4 @@
 // Tipos da API - substituindo @shared/schema
-import { z } from 'zod';
 
 // User types
 export interface User {
@@ -52,6 +51,7 @@ export interface Position {
   updatedAt?: Date | string;
   hasDivision?: boolean | null;
   layoutConfig?: any;
+  capacity?: number;
 }
 
 // Pallet Structure types
@@ -226,6 +226,28 @@ export interface Movement {
   reason?: string | null;
   performedBy: string;
   createdAt?: Date | string;
+  timestamp?: Date | string;
+}
+
+// Vehicle interface
+export interface Vehicle {
+  id: number;
+  code: string;
+  name: string;
+  brand: string;
+  model: string;
+  licensePlate: string;
+  type: string;
+  weightCapacity: string;
+  cargoAreaLength: number;
+  cargoAreaWidth: number;
+  cargoAreaHeight: number;
+  status: string;
+  observations?: string | null;
+  isActive?: boolean | null;
+  createdBy: number;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 }
 
 // Insert/Create types
@@ -240,6 +262,7 @@ export type InsertUcp = Omit<Ucp, 'id' | 'createdAt' | 'updatedAt'>;
 export type InsertUcpItem = Omit<UcpItem, 'id' | 'addedAt' | 'removedAt' | 'isActive'>;
 export type InsertUcpHistory = Omit<UcpHistory, 'id' | 'timestamp'>;
 export type InsertMovement = Omit<Movement, 'id' | 'createdAt'>;
+export type InsertVehicle = Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>;
 
 // Auth types
 export type LoginData = {

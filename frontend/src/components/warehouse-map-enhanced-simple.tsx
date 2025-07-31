@@ -1,20 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Package, 
   MapPin, 
-  BarChart3, 
   RefreshCw, 
   Search, 
-  Filter, 
-  Eye,
-  EyeOff,
   Zap,
-  Clock,
   CheckCircle,
   XCircle,
   AlertCircle
@@ -91,6 +84,7 @@ export function WarehouseMapEnhanced({
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     return movements.filter(movement => 
       (movement.fromPositionId === positionId || movement.toPositionId === positionId) &&
+      movement.timestamp &&
       new Date(movement.timestamp) > fiveMinutesAgo
     );
   };

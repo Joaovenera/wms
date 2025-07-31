@@ -102,7 +102,7 @@ export const optimizedQueryClient = new QueryClient({
       
       // Optimized timing
       staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh for longer
-      cacheTime: 10 * 60 * 1000, // 10 minutes - keep in memory longer
+      gcTime: 10 * 60 * 1000, // 10 minutes - keep in memory longer
       
       // Reduced network requests
       refetchOnWindowFocus: false,
@@ -133,7 +133,7 @@ export const optimizedQueryClient = new QueryClient({
         return { previousData: variables };
       },
       
-      onError: (err, variables, context) => {
+      onError: (err) => {
         // Roll back optimistic updates on error
         console.error('Mutation error:', err);
       },
