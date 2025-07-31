@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,14 @@ interface Vehicle {
   brand: string;
   model: string;
   licensePlate: string;
+  brand: string;
+  model: string;
+  licensePlate: string;
   type: string;
+  weightCapacity: string;
+  cargoAreaLength: number;
+  cargoAreaWidth: number;
+  cargoAreaHeight: number;
   weightCapacity: string;
   cargoAreaLength: number;
   cargoAreaWidth: number;
@@ -40,9 +48,12 @@ interface Vehicle {
 }
 
 interface ProductWithStock {
+interface ProductWithStock {
   id: number;
   sku: string;
   name: string;
+  unit: string;
+  totalStock?: number;
   unit: string;
   totalStock?: number;
   dimensions?: {
@@ -60,6 +71,7 @@ interface TransferItem {
   quantity: string;
   unitCubicVolume: number;
   totalCubicVolume: number;
+  availableStock: number;
   availableStock: number;
   notes?: string;
 }
@@ -79,14 +91,18 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
   
   // State para adicionar item
   const [selectedProduct, setSelectedProduct] = useState<ProductWithStock | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithStock | null>(null);
   const [itemQuantity, setItemQuantity] = useState("");
   const [itemNotes, setItemNotes] = useState("");
+  const [quantityError, setQuantityError] = useState("");
   const [quantityError, setQuantityError] = useState("");
 
   const queryClient = useQueryClient();
 
   // Calcular totais
   const totalCubicVolume = transferItems.reduce((sum, item) => sum + item.totalCubicVolume, 0);
+  const effectiveCapacity = selectedVehicle ? 
+    (selectedVehicle.cargoAreaLength * selectedVehicle.cargoAreaWidth * selectedVehicle.cargoAreaHeight) * 0.9 : 0;
   const effectiveCapacity = selectedVehicle ? 
     (selectedVehicle.cargoAreaLength * selectedVehicle.cargoAreaWidth * selectedVehicle.cargoAreaHeight) * 0.9 : 0;
   const capacityUsagePercent = effectiveCapacity > 0 ? (totalCubicVolume / effectiveCapacity) * 100 : 0;
@@ -110,6 +126,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
   });
 
   // Função para calcular cubagem do produto
+  const calculateCubicVolume = (product: ProductWithStock, quantity: number): number => {
   const calculateCubicVolume = (product: ProductWithStock, quantity: number): number => {
     if (!product.dimensions) return 0;
     
@@ -155,8 +172,52 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
     }
   };
 
+  // Validar quantidade contra estoque
+  const validateQuantity = (quantity: string, availableStock: number): string => {
+    const numQuantity = parseFloat(quantity);
+    
+    if (isNaN(numQuantity) || numQuantity <= 0) {
+      return "Quantidade deve ser um número maior que zero";
+    }
+    
+    if (numQuantity > availableStock) {
+      return `Quantidade excede estoque disponível (${availableStock})`;
+    }
+    
+    return "";
+  };
+
+  // Validar se ainda há estoque disponível considerando items já adicionados
+  const getAvailableStockForProduct = (productId: number, originalStock: number): number => {
+    const usedQuantity = transferItems
+      .filter(item => item.productId === productId)
+      .reduce((sum, item) => sum + parseFloat(item.quantity), 0);
+    
+    return Math.max(0, originalStock - usedQuantity);
+  };
+
+  const handleQuantityChange = (value: string) => {
+    setItemQuantity(value);
+    
+    if (selectedProduct && value) {
+      const availableStock = getAvailableStockForProduct(selectedProduct.id, selectedProduct.totalStock || 0);
+      const error = validateQuantity(value, availableStock);
+      setQuantityError(error);
+    } else {
+      setQuantityError("");
+    }
+  };
+
   const handleAddItem = () => {
     if (!selectedProduct || !itemQuantity) return;
+    
+    const availableStock = getAvailableStockForProduct(selectedProduct.id, selectedProduct.totalStock || 0);
+    const error = validateQuantity(itemQuantity, availableStock);
+    
+    if (error) {
+      setQuantityError(error);
+      return;
+    }
     
     const availableStock = getAvailableStockForProduct(selectedProduct.id, selectedProduct.totalStock || 0);
     const error = validateQuantity(itemQuantity, availableStock);
@@ -209,6 +270,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
     setSelectedProduct(null);
     setItemQuantity("");
     setItemNotes("");
+    setQuantityError("");
     setQuantityError("");
     setShowAddItemDialog(false);
   };
@@ -273,6 +335,12 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
     setItemQuantity("");
   }, [selectedProduct]);
 
+  // Reset quantity error when product changes
+  useEffect(() => {
+    setQuantityError("");
+    setItemQuantity("");
+  }, [selectedProduct]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -281,8 +349,11 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
           <CardTitle className="flex items-center gap-2">
             <Truck className="h-5 w-5" />
             Nova Transferência
+            <Truck className="h-5 w-5" />
+            Nova Transferência
           </CardTitle>
           <CardDescription>
+            Configure os detalhes da transferência com validação de estoque
             Configure os detalhes da transferência com validação de estoque
           </CardDescription>
         </CardHeader>
@@ -361,12 +432,15 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Itens da Transferência</CardTitle>
+              <CardTitle>Itens da Transferência</CardTitle>
               <CardDescription>
+                Adicione produtos que estão em estoque
                 Adicione produtos que estão em estoque
               </CardDescription>
             </div>
             <Button
               onClick={() => setShowAddItemDialog(true)}
+              disabled={!canAddMoreItems}
               disabled={!canAddMoreItems}
               className="flex items-center gap-2"
             >
@@ -381,6 +455,10 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
                 A cubagem total excede a capacidade do veículo!
+            <Alert className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                A cubagem total excede a capacidade do veículo!
               </AlertDescription>
             </Alert>
           )}
@@ -389,7 +467,9 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
             <div className="text-center py-8">
               <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">Nenhum item adicionado</p>
+              <p className="text-gray-500">Nenhum item adicionado</p>
               <p className="text-sm text-gray-400">
+                Clique em "Adicionar Item" para começar
                 Clique em "Adicionar Item" para começar
               </p>
             </div>
@@ -484,8 +564,19 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
       )}
 
       {/* Notes */}
+      {/* Capacity Indicator */}
+      {selectedVehicle && (
+        <CapacityIndicator
+          totalCubicVolume={totalCubicVolume}
+          effectiveCapacity={effectiveCapacity}
+          vehicleName={selectedVehicle.name}
+        />
+      )}
+
+      {/* Notes */}
       <Card>
         <CardHeader>
+          <CardTitle>Observações</CardTitle>
           <CardTitle>Observações</CardTitle>
         </CardHeader>
         <CardContent>
@@ -493,11 +584,13 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Observações sobre a transferência..."
+            placeholder="Observações sobre a transferência..."
             rows={3}
           />
         </CardContent>
       </Card>
 
+      {/* Create Button */}
       {/* Create Button */}
       <Card>
         <CardContent className="pt-6">
@@ -517,6 +610,8 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
               disabled={
                 !selectedVehicle ||
                 transferItems.length === 0 ||
+                !selectedVehicle ||
+                transferItems.length === 0 ||
                 isOverCapacity ||
                 createTransferMutation.isPending
               }
@@ -528,11 +623,13 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                 <Send className="h-4 w-4" />
               )}
               Criar Transferência
+              Criar Transferência
             </Button>
           </div>
         </CardContent>
       </Card>
 
+      {/* Add Item Dialog */}
       {/* Add Item Dialog */}
       <Dialog open={showAddItemDialog} onOpenChange={setShowAddItemDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -545,11 +642,36 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
           
           <div className="space-y-4">
             <ProductSearchWithStock
+            <ProductSearchWithStock
               onProductSelect={setSelectedProduct}
               selectedProduct={selectedProduct}
               showOnlyInStock={true}
+              showOnlyInStock={true}
             />
 
+            {selectedProduct && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantidade</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    value={itemQuantity}
+                    onChange={(e) => handleQuantityChange(e.target.value)}
+                    placeholder="Digite a quantidade"
+                    min="0.01"
+                    step="0.01"
+                  />
+                  {quantityError && (
+                    <p className="text-sm text-red-500 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {quantityError}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    Estoque disponível: {getAvailableStockForProduct(selectedProduct.id, selectedProduct.totalStock || 0)} {selectedProduct.unit}
+                  </p>
+                </div>
             {selectedProduct && (
               <>
                 <div className="space-y-2">
@@ -584,7 +706,26 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                     rows={2}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="itemNotes">Observações</Label>
+                  <Textarea
+                    id="itemNotes"
+                    value={itemNotes}
+                    onChange={(e) => setItemNotes(e.target.value)}
+                    placeholder="Observações sobre este item..."
+                    rows={2}
+                  />
+                </div>
 
+                {selectedProduct.dimensions && itemQuantity && !quantityError && (
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <strong>Cubagem calculada:</strong> {' '}
+                      {calculateCubicVolume(selectedProduct, parseFloat(itemQuantity)).toFixed(3)} m³
+                    </p>
+                  </div>
+                )}
+              </>
                 {selectedProduct.dimensions && itemQuantity && !quantityError && (
                   <div className="p-3 bg-blue-50 rounded-lg">
                     <p className="text-sm text-blue-700">
@@ -608,12 +749,24 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                 setQuantityError("");
               }}
             >
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddItemDialog(false);
+                setSelectedProduct(null);
+                setItemQuantity("");
+                setItemNotes("");
+                setQuantityError("");
+              }}
+            >
               Cancelar
             </Button>
             <Button
               onClick={handleAddItem}
               disabled={!selectedProduct || !itemQuantity || !!quantityError}
+              disabled={!selectedProduct || !itemQuantity || !!quantityError}
             >
+              Adicionar
               Adicionar
             </Button>
           </DialogFooter>
