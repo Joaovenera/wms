@@ -21,7 +21,16 @@ export const transferReportsController = {
     try {
       const { transferRequestId, reportType } = req.query;
       
-      let query = db.select({
+      // Build WHERE conditions
+      const conditions = [];
+      if (transferRequestId) {
+        conditions.push(eq(transferReports.transferRequestId, parseInt(transferRequestId as string)));
+      }
+      if (reportType) {
+        conditions.push(eq(transferReports.reportType, reportType as string));
+      }
+      
+      const query = db.select({
         id: transferReports.id,
         reportType: transferReports.reportType,
         generatedAt: transferReports.generatedAt,
@@ -33,15 +42,11 @@ export const transferReportsController = {
       .leftJoin(transferRequests, eq(transferReports.transferRequestId, transferRequests.id))
       .leftJoin(users, eq(transferReports.generatedBy, users.id));
       
-      if (transferRequestId) {
-        query = query.where(eq(transferReports.transferRequestId, parseInt(transferRequestId as string)));
-      }
+      const baseQuery = conditions.length > 0 
+        ? query.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+        : query;
       
-      if (reportType) {
-        query = query.where(eq(transferReports.reportType, reportType as string));
-      }
-      
-      const reports = await query.orderBy(desc(transferReports.generatedAt));
+      const reports = await baseQuery.orderBy(desc(transferReports.generatedAt));
       
       logger.info(`Retrieved ${reports.length} transfer reports`, { 
         userId: (req as AuthenticatedRequest).user?.id 
@@ -219,7 +224,7 @@ export const transferReportsController = {
       const { startDate, endDate, vehicleId } = req.query;
       
       // Query base para buscar divergências
-      let baseQuery = db.select({
+      const query = db.select({
         transferRequestCode: transferRequests.code,
         transferRequestId: transferRequests.id,
         vehicleName: vehicles.name,
@@ -240,19 +245,23 @@ export const transferReportsController = {
       .leftJoin(transferRequests, eq(transferRequestItems.transferRequestId, transferRequests.id))
       .leftJoin(vehicles, eq(transferRequests.vehicleId, vehicles.id))
       .leftJoin(products, eq(loadingItems.productId, products.id))
-      .where(sql`${loadingItems.divergenceReason} IS NOT NULL`);
+      
+      // Build WHERE conditions
+      const conditions = [sql`${loadingItems.divergenceReason} IS NOT NULL`];
       
       if (startDate) {
-        baseQuery = baseQuery.where(gte(loadingItems.confirmedAt, new Date(startDate as string)));
+        conditions.push(gte(loadingItems.confirmedAt, new Date(startDate as string)));
       }
       
       if (endDate) {
-        baseQuery = baseQuery.where(lte(loadingItems.confirmedAt, new Date(endDate as string)));
+        conditions.push(lte(loadingItems.confirmedAt, new Date(endDate as string)));
       }
       
       if (vehicleId) {
-        baseQuery = baseQuery.where(eq(transferRequests.vehicleId, parseInt(vehicleId as string)));
+        conditions.push(eq(transferRequests.vehicleId, parseInt(vehicleId as string)));
       }
+      
+      const baseQuery = query.where(and(...conditions));
       
       const divergences = await baseQuery.orderBy(desc(loadingItems.confirmedAt));
       
@@ -311,17 +320,21 @@ export const transferReportsController = {
       .from(transferRequests)
       .leftJoin(vehicles, eq(transferRequests.vehicleId, vehicles.id))
       .leftJoin(loadingExecutions, eq(transferRequests.id, loadingExecutions.transferRequestId))
-      .where(sql`${transferRequests.status} IN ('finalizado', 'transito')`);
+      
+      // Build WHERE conditions
+      const conditions = [sql`${transferRequests.status} IN ('finalizado', 'transito')`];
       
       if (startDate) {
-        query = query.where(gte(transferRequests.createdAt, new Date(startDate as string)));
+        conditions.push(gte(transferRequests.createdAt, new Date(startDate as string)));
       }
       
       if (endDate) {
-        query = query.where(lte(transferRequests.createdAt, new Date(endDate as string)));
+        conditions.push(lte(transferRequests.createdAt, new Date(endDate as string)));
       }
       
-      const transfers = await query.orderBy(desc(transferRequests.createdAt));
+      const queryWithConditions = query.where(and(...conditions));
+      
+      const transfers = await queryWithConditions.orderBy(desc(transferRequests.createdAt));
       
       // Calcular métricas
       const metrics = {

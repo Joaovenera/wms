@@ -17,12 +17,12 @@ router.get('/available', vehiclesController.getAvailableVehicles);
 router.get('/:id', vehiclesController.getVehicleById);
 
 // POST /api/vehicles - Criar novo veículo
-router.post('/', vehiclesController.createVehicle);
+router.post('/', vehiclesController.createVehicle as any);
 
 // PUT /api/vehicles/:id - Atualizar veículo
-router.put('/:id', vehiclesController.updateVehicle);
+router.put('/:id', vehiclesController.updateVehicle as any);
 
 // DELETE /api/vehicles/:id - Desativar veículo
-router.delete('/:id', vehiclesController.deactivateVehicle);
+router.delete('/:id', vehiclesController.deactivateVehicle as any);
 
 export default router;

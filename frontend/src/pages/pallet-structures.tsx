@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { Building2, Plus, Trash2, Edit, Grid3X3, Eye, QrCode } from "lucide-react";
+import { Building2, Plus, Trash2, Eye, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -14,22 +14,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { useMobile } from "@/hooks/use-mobile";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type PalletStructure, type InsertPalletStructure } from "@/types/api";
 import { insertPalletStructureSchema } from "@/types/schemas";
 import QRCodeDialog from "@/components/qr-code-dialog";
 
 export default function PalletStructures() {
-  const isMobile = useMobile();
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [editingStructure, setEditingStructure] = useState<PalletStructure | null>(null);
-  const [previewStructure, setPreviewStructure] = useState<PalletStructure | null>(null);
   const [qrCodeDialog, setQrCodeDialog] = useState<{ isOpen: boolean; structure?: PalletStructure }>({ isOpen: false });
 
   // Query para buscar estruturas
-  const { data: structures = [], isLoading, refetch } = useQuery<PalletStructure[]>({
+  const { data: structures = [], isLoading } = useQuery<PalletStructure[]>({
     queryKey: ["/api/pallet-structures"],
     refetchInterval: 30000,
   });
@@ -226,7 +222,7 @@ export default function PalletStructures() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Lado</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue />
@@ -290,7 +286,7 @@ export default function PalletStructures() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Tipo de Estrutura</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+                        <Select onValueChange={field.onChange} value={field.value || undefined}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue />

@@ -197,14 +197,14 @@ export const ucpHistory = pgTable("ucp_history", {
 });
 
 // Packaging Types table - Hierarquia de embalagens
-export const packagingTypes = pgTable("packaging_types", {
+export const packagingTypes: any = pgTable("packaging_types", {
   id: serial("id").primaryKey(),
   productId: integer("product_id").notNull().references(() => products.id),
   name: varchar("name", { length: 100 }).notNull(),
   barcode: varchar("barcode", { length: 255 }),
   baseUnitQuantity: decimal("base_unit_quantity", { precision: 10, scale: 3 }).notNull(),
   isBaseUnit: boolean("is_base_unit").default(false),
-  parentPackagingId: integer("parent_packaging_id").references(() => packagingTypes.id),
+  parentPackagingId: integer("parent_packaging_id"),
   level: integer("level").notNull().default(1),
   dimensions: jsonb("dimensions"),
   isActive: boolean("is_active").default(true),
@@ -572,11 +572,18 @@ export const registerSchema = insertUserSchema.extend({
 // Vehicles table - Cadastro de Veículos da Frota
 export const vehicles = pgTable("vehicles", {
   id: serial("id").primaryKey(),
-  code: varchar("code").notNull().unique(), // Placa ou código do veículo
-  name: varchar("name").notNull(), // Nome/modelo do veículo
+  code: varchar("code").notNull().unique(), // Código interno do veículo
+  name: varchar("name").notNull(), // Nome/apelido do veículo
+  brand: varchar("brand").notNull(), // Marca do veículo (Mercedes-Benz, Volvo, etc.)
+  model: varchar("model").notNull(), // Modelo do veículo (Atego 1719, FH540, etc.)
+  licensePlate: varchar("license_plate").notNull(), // Placa do veículo
   type: varchar("type").notNull(), // Caminhão, Van, etc.
-  cubicCapacity: decimal("cubic_capacity", { precision: 10, scale: 3 }).notNull(), // m³
-  weightCapacity: decimal("weight_capacity", { precision: 10, scale: 2 }), // kg
+  weightCapacity: varchar("weight_capacity").notNull(), // Capacidade de peso (ex: "5000 kg")
+  cargoAreaLength: decimal("cargo_area_length", { precision: 10, scale: 3 }).notNull(), // Comprimento em metros
+  cargoAreaWidth: decimal("cargo_area_width", { precision: 10, scale: 3 }).notNull(), // Largura em metros
+  cargoAreaHeight: decimal("cargo_area_height", { precision: 10, scale: 3 }).notNull(), // Altura em metros
+  // Manter cubicCapacity para compatibilidade com sistema existente (calculado automaticamente)
+  cubicCapacity: decimal("cubic_capacity", { precision: 10, scale: 3 }), // m³ (calculado das dimensões)
   status: varchar("status").notNull().default("disponivel"), // disponivel, em_uso, manutencao, inativo
   observations: text("observations"),
   isActive: boolean("is_active").default(true),
@@ -751,10 +758,22 @@ export const transferReportsRelations = relations(transferReports, ({ one }) => 
 }));
 
 // Zod schemas for new tables
-export const insertVehicleSchema = createInsertSchema(vehicles).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+export const insertVehicleSchema = z.object({
+  code: z.string().min(1, "Código é obrigatório"),
+  name: z.string().min(1, "Nome é obrigatório"),
+  brand: z.string().min(1, "Marca é obrigatória"),
+  model: z.string().min(1, "Modelo é obrigatório"),
+  licensePlate: z.string().min(1, "Placa é obrigatória"),
+  type: z.string().min(1, "Tipo é obrigatório"),
+  weightCapacity: z.string().min(1, "Capacidade de peso é obrigatória"),
+  cargoAreaLength: z.number().positive("Comprimento deve ser positivo"),
+  cargoAreaWidth: z.number().positive("Largura deve ser positiva"),
+  cargoAreaHeight: z.number().positive("Altura deve ser positiva"),
+  cubicCapacity: z.string().optional(),
+  status: z.string().default("disponivel"),
+  observations: z.string().optional(),
+  isActive: z.boolean().default(true),
+  createdBy: z.number(),
 });
 
 export const insertTransferRequestSchema = createInsertSchema(transferRequests).omit({

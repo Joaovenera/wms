@@ -6,28 +6,38 @@
  */
 
 // Repository Implementations
-export { UserRepositoryImpl } from './user.repository.impl.js';
-export { PalletRepositoryImpl } from './pallet.repository.impl.js';
-export { ProductRepositoryImpl } from './product.repository.impl.js';
-export { UcpRepositoryImpl } from './ucp.repository.impl.js';
-export { UcpItemRepositoryImpl } from './ucp-item.repository.impl.js';
+import { UserRepositoryImpl } from './user.repository.impl.js';
+import { PalletRepositoryImpl } from './pallet.repository.impl.js';
+import { ProductRepositoryImpl } from './product.repository.impl.js';
+import { UcpRepositoryImpl } from './ucp.repository.impl.js';
+import { UcpItemRepositoryImpl } from './ucp-item.repository.impl.js';
+
+export { UserRepositoryImpl, PalletRepositoryImpl, ProductRepositoryImpl, UcpRepositoryImpl, UcpItemRepositoryImpl };
 
 // Repository Instances (Singleton pattern for dependency injection)
-export const userRepository = new UserRepositoryImpl();
-export const palletRepository = new PalletRepositoryImpl();
-export const productRepository = new ProductRepositoryImpl();
-export const ucpRepository = new UcpRepositoryImpl();
-export const ucpItemRepository = new UcpItemRepositoryImpl();
+const userRepositoryInstance = new UserRepositoryImpl();
+const palletRepositoryInstance = new PalletRepositoryImpl(); 
+const productRepositoryInstance = new ProductRepositoryImpl();
+const ucpRepositoryInstance = new UcpRepositoryImpl();
+const ucpItemRepositoryInstance = new UcpItemRepositoryImpl();
+
+export { 
+  userRepositoryInstance as userRepository, 
+  palletRepositoryInstance as palletRepository, 
+  productRepositoryInstance as productRepository, 
+  ucpRepositoryInstance as ucpRepository, 
+  ucpItemRepositoryInstance as ucpItemRepository 
+};
 
 /**
  * Repository container for easy injection
  */
 export const repositories = {
-  user: userRepository,
-  pallet: palletRepository,
-  product: productRepository,
-  ucp: ucpRepository,
-  ucpItem: ucpItemRepository,
+  user: userRepositoryInstance,
+  pallet: palletRepositoryInstance,
+  product: productRepositoryInstance,
+  ucp: ucpRepositoryInstance,
+  ucpItem: ucpItemRepositoryInstance,
 } as const;
 
 export type RepositoryContainer = typeof repositories;

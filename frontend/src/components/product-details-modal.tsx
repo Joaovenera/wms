@@ -20,20 +20,6 @@ interface ProductDetailsModalProps {
   productName: string;
 }
 
-function toCamelCase(obj: any): any {
-  if (Array.isArray(obj)) {
-    return obj.map(toCamelCase);
-  } else if (obj && typeof obj === 'object') {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [
-        key.replace(/_([a-z])/g, (_, c) => c.toUpperCase()),
-        toCamelCase(value)
-      ])
-    );
-  }
-  return obj;
-}
-
 export default function ProductDetailsModal({ 
   isOpen, 
   onClose, 

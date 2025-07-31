@@ -17,15 +17,15 @@ router.get('/pending', loadingExecutionsController.getPendingExecutions);
 router.get('/:id', loadingExecutionsController.getLoadingExecutionById);
 
 // POST /api/loading-executions - Iniciar nova execução
-router.post('/', loadingExecutionsController.startLoadingExecution);
+router.post('/', loadingExecutionsController.startLoadingExecution as any);
 
 // POST /api/loading-executions/:id/scan-item - Confirmar item via scanner
-router.post('/:id/scan-item', loadingExecutionsController.scanAndConfirmItem);
+router.post('/:id/scan-item', loadingExecutionsController.scanAndConfirmItem as any);
 
 // PUT /api/loading-executions/:id/items/:itemId/divergence - Registrar divergência
-router.put('/:id/items/:itemId/divergence', loadingExecutionsController.registerDivergence);
+router.put('/:id/items/:itemId/divergence', loadingExecutionsController.registerDivergence as any);
 
 // PUT /api/loading-executions/:id/finish - Finalizar execução
-router.put('/:id/finish', loadingExecutionsController.finishLoadingExecution);
+router.put('/:id/finish', loadingExecutionsController.finishLoadingExecution as any);
 
 export default router;

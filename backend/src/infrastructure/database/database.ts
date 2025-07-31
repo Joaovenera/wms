@@ -30,15 +30,14 @@ export const pool = new Pool({
   max: databaseConfig.pool.max,
   idleTimeoutMillis: databaseConfig.pool.idleTimeoutMillis,
   connectionTimeoutMillis: databaseConfig.pool.connectionTimeoutMillis,
-  acquireTimeoutMillis: databaseConfig.pool.acquireTimeoutMillis,
-  createTimeoutMillis: databaseConfig.pool.createTimeoutMillis,
-  destroyTimeoutMillis: databaseConfig.pool.destroyTimeoutMillis,
-  reapIntervalMillis: databaseConfig.pool.reapIntervalMillis,
-  createRetryIntervalMillis: databaseConfig.pool.createRetryIntervalMillis,
+  // createTimeoutMillis: databaseConfig.pool.createTimeoutMillis, // Not supported in pg PoolConfig
+  // destroyTimeoutMillis: databaseConfig.pool.destroyTimeoutMillis, // Not supported in pg PoolConfig
+  // reapIntervalMillis: databaseConfig.pool.reapIntervalMillis, // Not supported in pg PoolConfig
+  // createRetryIntervalMillis: databaseConfig.pool.createRetryIntervalMillis, // Not supported in pg PoolConfig
   
   // Advanced pool settings for PostgreSQL 17
-  maxUses: databaseConfig.pool.maxUses,
-  testOnBorrow: databaseConfig.pool.testOnBorrow,
+  // maxUses: databaseConfig.pool.maxUses, // Not supported in pg PoolConfig
+  // testOnBorrow: databaseConfig.pool.testOnBorrow, // Not supported in pg PoolConfig
   
   // SSL configuration
   ssl: databaseConfig.ssl,
@@ -46,7 +45,7 @@ export const pool = new Pool({
   // PostgreSQL 17 specific connection options
   allowExitOnIdle: false,
   keepAlive: databaseConfig.options.keepAlive,
-  keepAliveInitialDelay: databaseConfig.options.keepAliveInitialDelay,
+  keepAliveInitialDelayMillis: databaseConfig.options.keepAliveInitialDelay,
   
   // Application identification
   application_name: databaseConfig.options.application_name,
@@ -68,8 +67,7 @@ export const db = drizzle(pool, {
 // Connection event handlers
 pool.on('connect', (client) => {
   logInfo('Database client connected', {
-    processId: client.processID,
-    database: client.database,
+    // PostgreSQL client connected
   });
 });
 
@@ -77,13 +75,12 @@ pool.on('error', (err, client) => {
   logError('Database pool error', {
     error: err.message,
     stack: err.stack,
-    processId: client?.processID,
+    // Client error
   });
 });
 
 pool.on('acquire', (client) => {
   logInfo('Database client acquired', {
-    processId: client.processID,
     poolSize: pool.totalCount,
     idleCount: pool.idleCount,
   });
@@ -93,11 +90,9 @@ pool.on('release', (err, client) => {
   if (err) {
     logError('Database client release error', {
       error: err.message,
-      processId: client.processID,
     });
   } else {
     logInfo('Database client released', {
-      processId: client.processID,
       poolSize: pool.totalCount,
       idleCount: pool.idleCount,
     });

@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -16,7 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Pallet, type InsertPallet } from "@/types/api";
 import { insertPalletSchema } from "@/types/schemas";
-import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Eye, QrCode, Printer, RefreshCw } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, QrCode, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import CameraCapture from "@/components/camera-capture";
 import QRCodeDialog from "@/components/qr-code-dialog";
@@ -340,7 +339,7 @@ export default function Pallets() {
                               form.setValue('width', defaults.width);
                               form.setValue('length', defaults.length);
                               form.setValue('height', defaults.height);
-                              form.setValue('maxWeight', defaults.maxWeight);
+                              form.setValue('maxWeight', defaults.maxWeight.toString());
                             }
                           }} 
                           value={field.value}
@@ -535,7 +534,7 @@ export default function Pallets() {
                         </div>
                       </div>
                       <FormControl>
-                        <Input type="hidden" {...field} />
+                        <Input type="hidden" {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -549,7 +548,7 @@ export default function Pallets() {
                     <FormItem>
                       <FormLabel>Observações</FormLabel>
                       <FormControl>
-                        <Textarea {...field} />
+                        <Textarea {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

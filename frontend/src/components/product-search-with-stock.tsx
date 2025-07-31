@@ -4,13 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, Package2, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Package2, X, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
-interface Product {
+interface ProductWithStock {
   id: number;
   sku: string;
   name: string;
+  unit: string;
+  totalStock?: number;
   dimensions?: {
     length: number;
     width: number;
@@ -18,61 +20,63 @@ interface Product {
   };
 }
 
-interface ProductSearchFieldProps {
-  onProductSelect: (product: Product | null) => void;
-  selectedProduct?: Product | null;
+interface ProductSearchWithStockProps {
+  onProductSelect: (product: ProductWithStock | null) => void;
+  selectedProduct?: ProductWithStock | null;
   placeholder?: string;
+  showOnlyInStock?: boolean;
 }
 
-export function ProductSearchField({ 
+export function ProductSearchWithStock({ 
   onProductSelect, 
   selectedProduct,
-  placeholder = "Pesquisar produto por ID, SKU ou nome..."
-}: ProductSearchFieldProps) {
+  placeholder = "Pesquisar produto com estoque...",
+  showOnlyInStock = true
+}: ProductSearchWithStockProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<ProductWithStock[]>([]);
 
-  // Fetch products
+  // Fetch products with stock information
   const { data: products, isLoading } = useQuery({
-    queryKey: ['/api/products'],
+    queryKey: ['/api/products?includeStock=true'],
     queryFn: async () => {
-      const res = await apiRequest('GET', '/api/products');
+      const res = await apiRequest('GET', '/api/products?includeStock=true');
       return await res.json();
     }
   });
 
-  // Filter products based on search term
+  // Filter products based on search term and stock availability
   useEffect(() => {
     if (!products || !Array.isArray(products)) {
       setFilteredProducts([]);
       return;
     }
 
-    if (!searchTerm.trim()) {
-      setFilteredProducts(products.slice(0, 10)); // Show first 10 by default
-      return;
+    let filtered = products;
+
+    // Filter by stock if required
+    if (showOnlyInStock) {
+      filtered = filtered.filter((product: ProductWithStock) => 
+        (product.totalStock || 0) > 0
+      );
     }
 
-    const filtered = products.filter((product: Product) => {
+    // Filter by search term
+    if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
-      
-      // Search by ID (convert to string for comparison)
-      const idMatch = product.id.toString().includes(term);
-      
-      // Search by SKU
-      const skuMatch = product.sku.toLowerCase().includes(term);
-      
-      // Search by name
-      const nameMatch = product.name.toLowerCase().includes(term);
-      
-      return idMatch || skuMatch || nameMatch;
-    });
+      filtered = filtered.filter((product: ProductWithStock) => {
+        const idMatch = product.id.toString().includes(term);
+        const skuMatch = product.sku.toLowerCase().includes(term);
+        const nameMatch = product.name.toLowerCase().includes(term);
+        return idMatch || skuMatch || nameMatch;
+      });
+    }
 
     setFilteredProducts(filtered.slice(0, 20)); // Limit to 20 results
-  }, [products, searchTerm]);
+  }, [products, searchTerm, showOnlyInStock]);
 
-  const handleProductSelect = (product: Product) => {
+  const handleProductSelect = (product: ProductWithStock) => {
     onProductSelect(product);
     setSearchTerm("");
     setIsOpen(false);
@@ -96,15 +100,26 @@ export function ProductSearchField({
     }
   };
 
+  const formatStock = (stock?: number, unit?: string) => {
+    if (stock === undefined || stock === null) return "0";
+    return `${stock} ${unit || ''}`.trim();
+  };
+
+  const getStockStatus = (stock?: number) => {
+    if (!stock || stock === 0) return { variant: 'destructive' as const, label: 'Sem estoque' };
+    if (stock < 10) return { variant: 'outline' as const, label: 'Estoque baixo' };
+    return { variant: 'default' as const, label: 'Em estoque' };
+  };
+
   return (
     <div className="space-y-2 relative">
-      <Label>Produto</Label>
+      <Label>Produto (com validação de estoque)</Label>
       
       {/* Display selected product */}
       {selectedProduct && !isOpen ? (
         <div className="border rounded-md p-3 bg-gray-50">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex-1">
               <span className="font-medium">{selectedProduct.name}</span>
               <div className="flex items-center gap-2 mt-1">
                 <Badge variant="secondary" className="text-xs">
@@ -112,6 +127,9 @@ export function ProductSearchField({
                 </Badge>
                 <Badge variant="outline" className="text-xs">
                   SKU: {selectedProduct.sku}
+                </Badge>
+                <Badge variant={getStockStatus(selectedProduct.totalStock).variant} className="text-xs">
+                  {formatStock(selectedProduct.totalStock, selectedProduct.unit)}
                 </Badge>
               </div>
             </div>
@@ -169,7 +187,7 @@ export function ProductSearchField({
           </div>
           
           <p className="text-xs text-gray-500">
-            Pesquise por ID do sistema, SKU ou nome do produto
+            {showOnlyInStock ? 'Mostrando apenas produtos com estoque disponível' : 'Pesquise por ID, SKU ou nome do produto'}
           </p>
         </>
       )}
@@ -185,48 +203,61 @@ export function ProductSearchField({
             <div className="p-4 text-center">
               <Package2 className="h-8 w-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm text-gray-500">
-                {searchTerm ? 'Nenhum produto encontrado' : 'Nenhum produto disponível'}
+                {searchTerm ? 'Nenhum produto encontrado' : showOnlyInStock ? 'Nenhum produto com estoque disponível' : 'Nenhum produto disponível'}
               </p>
-              {searchTerm && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Tente pesquisar por ID, SKU ou nome
+              {showOnlyInStock && !searchTerm && (
+                <p className="text-xs text-gray-400 mt-1 flex items-center justify-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Apenas produtos com estoque são exibidos
                 </p>
               )}
             </div>
           ) : (
             <div className="max-h-64 overflow-y-auto">
-              {filteredProducts.map((product: Product) => (
-                <div
-                  key={product.id}
-                  className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                  onClick={() => handleProductSelect(product)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h4 className="font-medium">{product.name}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="secondary" className="text-xs">
-                          ID: {product.id}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          SKU: {product.sku}
-                        </Badge>
+              {filteredProducts.map((product: ProductWithStock) => {
+                const stockStatus = getStockStatus(product.totalStock);
+                return (
+                  <div
+                    key={product.id}
+                    className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                    onClick={() => handleProductSelect(product)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium">{product.name}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="secondary" className="text-xs">
+                            ID: {product.id}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            SKU: {product.sku}
+                          </Badge>
+                          <Badge variant={stockStatus.variant} className="text-xs">
+                            {formatStock(product.totalStock, product.unit)}
+                          </Badge>
+                        </div>
+                        {product.dimensions && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            {product.dimensions.length}×{product.dimensions.width}×{product.dimensions.height}cm
+                          </p>
+                        )}
                       </div>
-                      {product.dimensions && (
-                        <p className="text-xs text-gray-600 mt-1">
-                          {product.dimensions.length}×{product.dimensions.width}×{product.dimensions.height}cm
-                        </p>
-                      )}
+                      <div className="flex flex-col items-end">
+                        <Package2 className="h-5 w-5 text-gray-400" />
+                        {(product.totalStock || 0) === 0 && (
+                          <AlertTriangle className="h-4 w-4 text-red-500 mt-1" />
+                        )}
+                      </div>
                     </div>
-                    <Package2 className="h-5 w-5 text-gray-400" />
                   </div>
-                </div>
-              ))}
+                );
+              })}
               
               {searchTerm && (
                 <div className="p-2 border-t bg-gray-50">
                   <p className="text-xs text-gray-600 text-center">
                     {filteredProducts.length} resultado{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
+                    {showOnlyInStock && ' (com estoque)'}
                   </p>
                 </div>
               )}

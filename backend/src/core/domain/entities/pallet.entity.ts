@@ -14,6 +14,11 @@ export interface PalletEntity extends BaseEntity {
   photoUrl?: string;
   observations?: string;
   lastInspectionDate?: Date;
+  
+  // Methods
+  canBeUsed(): boolean;
+  isAvailable(): boolean;
+  isDefective(): boolean;
 }
 
 export interface CreatePalletData {
@@ -148,6 +153,15 @@ export class Pallet implements PalletEntity {
       observations: data.observations?.trim(),
       lastInspectionDate: data.lastInspectionDate,
       createdBy: data.createdBy,
+      canBeUsed(): boolean {
+        return this.status === STATUS.PALLET.DISPONIVEL;
+      },
+      isAvailable(): boolean {
+        return this.status === STATUS.PALLET.DISPONIVEL;
+      },
+      isDefective(): boolean {
+        return this.status === STATUS.PALLET.DEFEITUOSO;
+      }
     };
   }
 

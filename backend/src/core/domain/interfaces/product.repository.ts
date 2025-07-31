@@ -1,7 +1,7 @@
 import { Repository, QueryFilters, StockInfo } from '../../shared/types/index.js';
 import { ProductEntity, CreateProductData, UpdateProductData, ProductWithStock } from '../entities/product.entity.js';
 
-export interface ProductRepository extends Repository<ProductEntity> {
+export interface ProductRepository {
   // Basic CRUD
   findById(id: number): Promise<ProductEntity | null>;
   findAll(filters?: ProductQueryFilters): Promise<ProductEntity[]>;

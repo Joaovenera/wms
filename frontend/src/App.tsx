@@ -16,6 +16,7 @@ import PalletStructures from "@/pages/pallet-structures";
 import UCPs from "@/pages/ucps";
 import Products from "@/pages/products";
 import Users from "@/pages/users";
+import Vehicles from "@/pages/vehicles";
 import WarehouseTracking from "@/pages/warehouse-tracking";
 import TransferPlanning from "@/pages/transfer-planning";
 import LoadingExecution from "@/pages/loading-execution";
@@ -65,6 +66,7 @@ function Router() {
         <Route path="/pallet-structures" component={PalletStructures} />
         <Route path="/ucps" component={UCPs} />
         <Route path="/products" component={Products} />
+        <Route path="/vehicles" component={Vehicles} />
         <Route path="/users" component={Users} />
         <Route path="/warehouse-tracking" component={WarehouseTracking} />
         <Route path="/transfer-planning" component={TransferPlanning} />
@@ -79,7 +81,7 @@ function Router() {
 function App() {
   // Initialize service worker for performance optimizations
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator && import.meta.env.DEV) {
       navigator.serviceWorker.register('/sw.js').catch(console.error);
     }
   }, []);

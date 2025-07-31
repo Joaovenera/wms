@@ -166,7 +166,7 @@ export default function PalletLayoutConfigurator({
         key={slot.id}
         className={`
           absolute border-2 rounded cursor-pointer transition-all duration-200
-          ${slot.occupied 
+          ${slot.ocupada 
             ? 'bg-orange-100 border-orange-400 shadow-md' 
             : 'bg-blue-50 border-blue-300 border-dashed hover:border-blue-400'
           }
@@ -181,7 +181,7 @@ export default function PalletLayoutConfigurator({
         onClick={() => toggleSlotOccupied(slot.id)}
       >
         <div className="w-full h-full flex items-center justify-center text-xs font-medium">
-          {slot.occupied ? (
+          {slot.ocupada ? (
             <div className="text-center">
               <div className="text-orange-600 font-bold">BOX</div>
               {slot.width > 1 || slot.height > 1 ? (

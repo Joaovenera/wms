@@ -1,7 +1,7 @@
 import { Repository, QueryFilters } from '../../shared/types/index.js';
 import { PalletEntity, CreatePalletData, UpdatePalletData } from '../entities/pallet.entity.js';
 
-export interface PalletRepository extends Repository<PalletEntity> {
+export interface PalletRepository {
   // Basic CRUD
   findById(id: number): Promise<PalletEntity | null>;
   findAll(filters?: PalletQueryFilters): Promise<PalletEntity[]>;

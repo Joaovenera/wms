@@ -38,7 +38,7 @@ import {
 } from "./db/schema.js";
 import { db } from "./db";
 import { imageService } from "./services/image.service";
-import { eq, desc, sql, and, like, or, isNull } from "drizzle-orm";
+import { eq, desc, sql, and, like, or, isNull, ne } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -76,7 +76,7 @@ export interface IStorage {
   deleteProduct(id: number): Promise<boolean>;
 
   // Product Photo operations
-  getProductPhotos(productId: number): Promise<any[]>;
+  getProductPhotos(productId: number, options?: { page?: number; limit?: number; onlyPrimary?: boolean }): Promise<{ photos: any[]; total: number; hasMore: boolean; page: number; limit: number }>;
   getProductPhoto(photoId: number): Promise<any>;
   addProductPhoto(photo: InsertProductPhoto, userId: number): Promise<ProductPhoto>;
   removeProductPhoto(photoId: number, userId: number, notes?: string): Promise<boolean>;
@@ -1737,6 +1737,8 @@ export class DatabaseStorage implements IStorage {
             removedBy: row.itemRemovedBy,
             removedAt: row.itemRemovedAt,
             removalReason: row.itemRemovalReason,
+            packagingTypeId: null,
+            packagingQuantity: null,
             product: row.itemProductId ? {
               id: row.itemProductId,
               sku: row.productSku || '',

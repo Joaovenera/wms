@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   ArrowRight, Package, AlertCircle, 
-  CheckCircle, Hash, Layers, RefreshCw
+  CheckCircle, RefreshCw
 } from "lucide-react";
 
 interface UcpItemTransferProps {

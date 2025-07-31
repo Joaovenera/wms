@@ -570,7 +570,7 @@ export default function WarehouseMapEnhanced({ enableRealtime = true }: Warehous
               <CardContent>
                 {movements && movements.length > 0 ? (
                   <div className="space-y-3">
-                    {movements.slice(0, 10).map((movement, index) => (
+                    {movements.slice(0, 10).map((movement) => (
                       <div 
                         key={movement.id}
                         className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border"

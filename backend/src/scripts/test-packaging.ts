@@ -51,7 +51,7 @@ async function testPackaging() {
         createdBy: product.createdBy
       }).returning();
 
-      basePackaging = newBasePackaging[0];
+      basePackaging = (newBasePackaging as PackagingType[])[0];
       console.log(`✅ Embalagem base criada: ${basePackaging.name}`);
     } else {
       basePackaging = existingPackaging[0];

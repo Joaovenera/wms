@@ -1,12 +1,35 @@
 import { eq, desc, like, and, gte, lte, count, inArray } from 'drizzle-orm';
-import { users } from '../schemas/auth.schema.js';
+import { users } from '../../../db/schema.js';
 import { db } from '../database.js';
 import { UserRepository, UserQueryFilters } from '../../../core/domain/interfaces/user.repository.js';
 import { UserEntity, CreateUserData, UpdateUserData, UserProfile, User } from '../../../core/domain/entities/user.entity.js';
+import { UserRole } from '../../../core/shared/enums/index.js';
 import { NotFoundError, ConflictError } from '../../../utils/exceptions/index.js';
 import { logInfo, logError } from '../../../utils/logger.js';
 
 export class UserRepositoryImpl implements UserRepository {
+
+  private transformToUserEntity(dbUser: any): UserEntity {
+    return {
+      ...dbUser,
+      role: dbUser.role as UserRole,
+      firstName: dbUser.firstName === null ? undefined : dbUser.firstName,
+      lastName: dbUser.lastName === null ? undefined : dbUser.lastName,
+    };
+  }
+
+  private transformToUserEntities(dbUsers: any[]): UserEntity[] {
+    return dbUsers.map(dbUser => this.transformToUserEntity(dbUser));
+  }
+
+  private transformToDbData(entityData: any): any {
+    return {
+      ...entityData,
+      firstName: entityData.firstName === undefined ? null : entityData.firstName,
+      lastName: entityData.lastName === undefined ? null : entityData.lastName,
+    };
+  }
+
   async findById(id: number): Promise<UserEntity | null> {
     try {
       const [user] = await db
@@ -15,7 +38,7 @@ export class UserRepositoryImpl implements UserRepository {
         .where(eq(users.id, id))
         .limit(1);
 
-      return user || null;
+      return user ? this.transformToUserEntity(user) : null;
     } catch (error) {
       logError('Error finding user by ID', { error, id });
       throw error;
@@ -30,7 +53,7 @@ export class UserRepositoryImpl implements UserRepository {
         .where(eq(users.email, email.toLowerCase()))
         .limit(1);
 
-      return user || null;
+      return user ? this.transformToUserEntity(user) : null;
     } catch (error) {
       logError('Error finding user by email', { error, email });
       throw error;
@@ -39,7 +62,7 @@ export class UserRepositoryImpl implements UserRepository {
 
   async findAll(filters?: UserQueryFilters): Promise<UserEntity[]> {
     try {
-      let query = db.select().from(users);
+      let query = db.select().from(users).$dynamic();
 
       // Apply filters
       if (filters) {
@@ -81,7 +104,7 @@ export class UserRepositoryImpl implements UserRepository {
         filters: filters ? Object.keys(filters) : [],
       });
 
-      return result;
+      return this.transformToUserEntities(result);
     } catch (error) {
       logError('Error finding all users', { error, filters });
       throw error;
@@ -99,7 +122,7 @@ export class UserRepositoryImpl implements UserRepository {
       const userData = User.create(data);
       const [newUser] = await db
         .insert(users)
-        .values(userData)
+        .values(this.transformToDbData(userData))
         .returning();
 
       logInfo('User created successfully', {
@@ -108,7 +131,7 @@ export class UserRepositoryImpl implements UserRepository {
         role: newUser.role,
       });
 
-      return newUser;
+      return this.transformToUserEntity(newUser);
     } catch (error) {
       logError('Error creating user', { error, email: data.email });
       throw error;
@@ -138,7 +161,7 @@ export class UserRepositoryImpl implements UserRepository {
 
       const [updatedUser] = await db
         .update(users)
-        .set({ ...updateData, updatedAt: new Date() })
+        .set({ ...this.transformToDbData(updateData), updatedAt: new Date() })
         .where(eq(users.id, id))
         .returning();
 
@@ -147,7 +170,7 @@ export class UserRepositoryImpl implements UserRepository {
         updatedFields: Object.keys(updateData),
       });
 
-      return updatedUser;
+      return this.transformToUserEntity(updatedUser);
     } catch (error) {
       logError('Error updating user', { error, id, updateData: Object.keys(data) });
       throw error;
@@ -194,8 +217,8 @@ export class UserRepositoryImpl implements UserRepository {
     try {
       const updateData: UpdateUserData = {};
       
-      if (data.firstName !== undefined) updateData.firstName = data.firstName;
-      if (data.lastName !== undefined) updateData.lastName = data.lastName;
+      if (data.firstName !== undefined) updateData.firstName = data.firstName === null ? undefined : data.firstName;
+      if (data.lastName !== undefined) updateData.lastName = data.lastName === null ? undefined : data.lastName;
       if (data.email !== undefined) updateData.email = data.email;
 
       const updatedUser = await this.update(id, updateData);
@@ -232,7 +255,7 @@ export class UserRepositoryImpl implements UserRepository {
     }
   }
 
-  async updateRole(id: number, role: string): Promise<UserEntity | null> {
+  async updateRole(id: number, role: UserRole): Promise<UserEntity | null> {
     try {
       const [updatedUser] = await db
         .update(users)
@@ -244,14 +267,14 @@ export class UserRepositoryImpl implements UserRepository {
         logInfo('User role updated successfully', { userId: id, newRole: role });
       }
 
-      return updatedUser || null;
+      return updatedUser ? this.transformToUserEntity(updatedUser) : null;
     } catch (error) {
       logError('Error updating user role', { error, id, role });
       throw error;
     }
   }
 
-  async findByRole(role: string): Promise<UserEntity[]> {
+  async findByRole(role: UserRole): Promise<UserEntity[]> {
     try {
       const result = await db
         .select()
@@ -260,7 +283,7 @@ export class UserRepositoryImpl implements UserRepository {
         .orderBy(desc(users.createdAt));
 
       logInfo('Users found by role', { role, count: result.length });
-      return result;
+      return this.transformToUserEntities(result);
     } catch (error) {
       logError('Error finding users by role', { error, role });
       throw error;
@@ -283,7 +306,7 @@ export class UserRepositoryImpl implements UserRepository {
 
   async count(filters?: UserQueryFilters): Promise<number> {
     try {
-      let query = db.select({ count: count() }).from(users);
+      let query = db.select({ count: count() }).from(users).$dynamic();
 
       if (filters) {
         const conditions = [];
@@ -330,14 +353,14 @@ export class UserRepositoryImpl implements UserRepository {
         throw new ConflictError(`Users already exist with emails: ${existingEmails.join(', ')}`);
       }
 
-      const userData = usersData.map(data => User.create(data));
+      const userData = usersData.map((u: CreateUserData) => User.create(u));
       const newUsers = await db
         .insert(users)
-        .values(userData)
+        .values(userData.map(u => this.transformToDbData(u)))
         .returning();
 
       logInfo('Batch users created successfully', { count: newUsers.length });
-      return newUsers;
+      return this.transformToUserEntities(newUsers);
     } catch (error) {
       logError('Error creating batch users', { error, count: usersData.length });
       throw error;
@@ -373,10 +396,10 @@ export class UserRepositoryImpl implements UserRepository {
       const result = await db
         .select()
         .from(users)
-        .where(eq(users.createdBy, createdBy))
+        // .where(eq(users.createdBy, createdBy))
         .orderBy(desc(users.createdAt));
 
-      return result;
+      return this.transformToUserEntities(result);
     } catch (error) {
       logError('Error getting users created by user', { error, createdBy });
       throw error;
@@ -394,7 +417,7 @@ export class UserRepositoryImpl implements UserRepository {
         .where(gte(users.createdAt, dateThreshold))
         .orderBy(desc(users.createdAt));
 
-      return result;
+      return this.transformToUserEntities(result);
     } catch (error) {
       logError('Error getting recently created users', { error, days });
       throw error;

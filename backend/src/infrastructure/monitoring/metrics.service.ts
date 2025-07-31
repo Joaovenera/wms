@@ -132,7 +132,6 @@ export class MetricsService {
       timestamp,
       ...this.businessMetrics,
       ...metrics,
-      timestamp, // Always update timestamp
     };
 
     logInfo('Business metrics updated', metrics);

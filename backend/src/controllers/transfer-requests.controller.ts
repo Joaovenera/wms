@@ -38,7 +38,16 @@ export const transferRequestsController = {
     try {
       const { status, vehicleId } = req.query;
       
-      let query = db.select({
+      // Build WHERE conditions
+      const conditions = [];
+      if (status) {
+        conditions.push(eq(transferRequests.status, status as string));
+      }
+      if (vehicleId) {
+        conditions.push(eq(transferRequests.vehicleId, parseInt(vehicleId as string)));
+      }
+      
+      const query = db.select({
         id: transferRequests.id,
         code: transferRequests.code,
         status: transferRequests.status,
@@ -57,15 +66,11 @@ export const transferRequestsController = {
       .leftJoin(vehicles, eq(transferRequests.vehicleId, vehicles.id))
       .leftJoin(users, eq(transferRequests.createdBy, users.id));
       
-      if (status) {
-        query = query.where(eq(transferRequests.status, status as string));
-      }
+      const baseQuery = conditions.length > 0 
+        ? query.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+        : query;
       
-      if (vehicleId) {
-        query = query.where(eq(transferRequests.vehicleId, parseInt(vehicleId as string)));
-      }
-      
-      const requests = await query.orderBy(desc(transferRequests.createdAt));
+      const requests = await baseQuery.orderBy(desc(transferRequests.createdAt));
       
       logger.info(`Retrieved ${requests.length} transfer requests`, { 
         userId: (req as AuthenticatedRequest).user?.id 

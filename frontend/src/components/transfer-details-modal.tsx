@@ -26,32 +26,6 @@ interface TransferDetailsModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-interface TransferDetail {
-  id: number;
-  code: string;
-  status: string;
-  fromLocation: string;
-  toLocation: string;
-  totalCubicVolume: string;
-  effectiveCapacity: string;
-  capacityUsagePercent: string;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-  vehicleName: string;
-  vehicleCode: string;
-  vehicleCubicCapacity: string;
-  createdByName: string;
-  items: Array<{
-    id: number;
-    productId: number;
-    productName: string;
-    productSku: string;
-    quantity: string;
-    totalCubicVolume: string;
-    notes?: string;
-  }>;
-}
 
 const STATUS_LABELS = {
   'planejamento': { label: 'Planejamento', color: 'bg-gray-100 text-gray-800' },

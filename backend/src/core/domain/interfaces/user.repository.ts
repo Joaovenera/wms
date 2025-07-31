@@ -1,7 +1,7 @@
 import { Repository, QueryFilters } from '../../shared/types/index.js';
 import { UserEntity, CreateUserData, UpdateUserData, UserProfile } from '../entities/user.entity.js';
 
-export interface UserRepository extends Repository<UserEntity> {
+export interface UserRepository {
   // Authentication methods
   findByEmail(email: string): Promise<UserEntity | null>;
   

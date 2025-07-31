@@ -47,16 +47,6 @@ export default function Dashboard() {
     );
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'disponivel': return 'text-green-500';
-      case 'em_uso': return 'text-red-500';
-      case 'defeituoso': return 'text-yellow-500';
-      case 'manutencao': return 'text-blue-500';
-      case 'descarte': return 'text-gray-500';
-      default: return 'text-gray-600';
-    }
-  };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -190,7 +180,7 @@ export default function Dashboard() {
                   manutencao: { color: 'bg-blue-500', textColor: 'text-blue-700', bgColor: 'bg-blue-50', icon: '🔧' },
                   descarte: { color: 'bg-gray-500', textColor: 'text-gray-700', bgColor: 'bg-gray-50', icon: '🗑️' }
                 };
-                const config = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.available;
+                const config = statusConfig[item.status as keyof typeof statusConfig] || statusConfig.disponivel;
                 
                 return (
                   <div 

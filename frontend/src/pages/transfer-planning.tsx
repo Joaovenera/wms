@@ -31,7 +31,7 @@ export default function TransferPlanningPage() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // Fetch transfer requests
-  const { data: transferRequests, isLoading, refetch } = useQuery({
+  const { data: transferRequests, refetch } = useQuery({
     queryKey: ['/api/transfer-requests'],
     queryFn: async () => {
       const res = await apiRequest('GET', '/api/transfer-requests');
@@ -72,7 +72,7 @@ export default function TransferPlanningPage() {
     });
   };
 
-  const handleTransferCreated = (transferId: number) => {
+  const handleTransferCreated = () => {
     setShowNewTransfer(false);
     setActiveTab("planning");
     refetch();

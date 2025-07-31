@@ -186,7 +186,7 @@ export class PackagingService {
       .values(data)
       .returning();
     
-    return result[0];
+    return (result as PackagingType[])[0];
   }
 
   /**

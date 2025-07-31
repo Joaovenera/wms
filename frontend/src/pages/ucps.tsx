@@ -4,19 +4,18 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { type Ucp, type Pallet, type Position, type Product, type UcpItem } from "@/types/api";
+import { type Ucp } from "@/types/api";
 import { 
-  Plus, Search, Trash2, Package, QrCode, MapPin, 
-  Activity, Clock, Archive, RefreshCw, Filter, Eye,
-  TrendingUp, BarChart3, Layers, Move, AlertCircle, Camera,
-  History, PackagePlus, Users, Calendar, Hash, Truck
+  Plus, Search, Package, QrCode, MapPin, 
+  Activity, Clock, Archive, RefreshCw, Eye,
+  BarChart3, Layers, Camera,
+  History, Truck
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,7 +37,7 @@ interface UcpStats {
 export default function ComprehensiveUCPs() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("active");
-  const [includeArchived, setIncludeArchived] = useState(false);
+  const [includeArchived] = useState(false);
   const [isCreationWizardOpen, setIsCreationWizardOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);

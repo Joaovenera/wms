@@ -18,7 +18,7 @@ import { packagingService } from "../services/packaging.service";
 
 async function testProdutoXScenarios() {
   console.log("🎯 DEMONSTRAÇÃO: Problema de Hierarquia de Embalagens - Produto X");
-  console.log("=" * 80);
+  console.log("=".repeat(80));
 
   try {
     // Buscar usuário para criação
@@ -45,15 +45,15 @@ async function testProdutoXScenarios() {
         name: 'Produto X',
         description: 'Produto exemplo para demonstração de hierarquia de embalagens',
         unit: 'un',
-        createdBy: user[0].id
+        createdBy: (user as any[])[0]?.id
       }).returning();
       produtoX = newProduct;
-      console.log(`✅ Produto X criado com ID: ${produtoX[0].id}`);
+      console.log(`✅ Produto X criado com ID: ${(produtoX as any[])[0]?.id}`);
     } else {
-      console.log(`✅ Produto X já existe com ID: ${produtoX[0].id}`);
+      console.log(`✅ Produto X já existe com ID: ${(produtoX as any[])[0]?.id}`);
     }
 
-    const productId = produtoX[0].id;
+    const productId = (produtoX as any[])[0]?.id;
 
     // 2. CONFIGURAÇÃO DAS EMBALAGENS
     console.log("\n📋 2. CONFIGURANDO HIERARQUIA DE EMBALAGENS");
@@ -73,7 +73,7 @@ async function testProdutoXScenarios() {
       baseUnitQuantity: '1',
       isBaseUnit: true,
       level: 1,
-      createdBy: user[0].id
+      createdBy: (user as any[])[0]?.id
     }).returning();
 
     // Cenário 2: Caixa com 10 unidades
@@ -84,9 +84,9 @@ async function testProdutoXScenarios() {
       barcode: '7891234567891',
       baseUnitQuantity: '10',
       isBaseUnit: false,
-      parentPackagingId: unidadeIndividual[0].id,
+      parentPackagingId: (unidadeIndividual as any[])[0]?.id,
       level: 2,
-      createdBy: user[0].id
+      createdBy: (user as any[])[0]?.id
     }).returning();
 
     // Cenário 3: Caixa Master (10 caixas × 2 unidades cada = 20 unidades)
@@ -97,15 +97,15 @@ async function testProdutoXScenarios() {
       barcode: '7891234567892',
       baseUnitQuantity: '20', // 10 caixas × 2 unidades cada
       isBaseUnit: false,
-      parentPackagingId: caixa10[0].id,
+      parentPackagingId: (caixa10 as any[])[0]?.id,
       level: 3,
-      createdBy: user[0].id
+      createdBy: (user as any[])[0]?.id
     }).returning();
 
     console.log("\n✅ Hierarquia de embalagens criada:");
-    console.log(`   • ${unidadeIndividual[0].name}: ${unidadeIndividual[0].baseUnitQuantity} unidade(s) base`);
-    console.log(`   • ${caixa10[0].name}: ${caixa10[0].baseUnitQuantity} unidade(s) base`);
-    console.log(`   • ${caixaMaster[0].name}: ${caixaMaster[0].baseUnitQuantity} unidade(s) base`);
+    console.log(`   • ${(unidadeIndividual as any[])[0]?.name}: ${(unidadeIndividual as any[])[0]?.baseUnitQuantity} unidade(s) base`);
+    console.log(`   • ${(caixa10 as any[])[0]?.name}: ${(caixa10 as any[])[0]?.baseUnitQuantity} unidade(s) base`);
+    console.log(`   • ${(caixaMaster as any[])[0]?.name}: ${(caixaMaster as any[])[0]?.baseUnitQuantity} unidade(s) base`);
 
     // 3. SIMULAÇÃO DE RECEBIMENTOS
     console.log("\n📥 3. SIMULAÇÃO DE RECEBIMENTOS POR DIFERENTES CÓDIGOS");
@@ -121,34 +121,34 @@ async function testProdutoXScenarios() {
     // Recebimento 1: Por unidade individual
     console.log("Recebimento 1: 15 unidades individuais (código 7891234567890)");
     await db.insert(ucpItems).values({
-      ucpId: ucpList[0].id,
+      ucpId: (ucpList as any[])[0]?.id,
       productId: productId,
       quantity: '15', // 15 unidades base
-      packagingTypeId: unidadeIndividual[0].id,
+      packagingTypeId: (unidadeIndividual as any[])[0]?.id,
       packagingQuantity: '15',
-      addedBy: user[0].id
+      addedBy: (user as any[])[0]?.id
     });
 
     // Recebimento 2: Por caixa de 10
     console.log("Recebimento 2: 3 caixas de 10 unidades (código 7891234567891)");
     await db.insert(ucpItems).values({
-      ucpId: ucpList[0].id,
+      ucpId: (ucpList as any[])[0]?.id,
       productId: productId,
       quantity: '30', // 3 caixas × 10 = 30 unidades base
-      packagingTypeId: caixa10[0].id,
+      packagingTypeId: (caixa10 as any[])[0]?.id,
       packagingQuantity: '3',
-      addedBy: user[0].id
+      addedBy: (user as any[])[0]?.id
     });
 
     // Recebimento 3: Por caixa master
     console.log("Recebimento 3: 2 caixas master (código 7891234567892)");
     await db.insert(ucpItems).values({
-      ucpId: ucpList[0].id,
+      ucpId: (ucpList as any[])[0]?.id,
       productId: productId,
       quantity: '40', // 2 caixas master × 20 = 40 unidades base
-      packagingTypeId: caixaMaster[0].id,
+      packagingTypeId: (caixaMaster as any[])[0]?.id,
       packagingQuantity: '2',
-      addedBy: user[0].id
+      addedBy: (user as any[])[0]?.id
     });
 
     // 4. DEMONSTRAÇÃO DE CONSOLIDAÇÃO
@@ -176,15 +176,15 @@ async function testProdutoXScenarios() {
     console.log("-".repeat(50));
 
     console.log("Conversão: 5 Caixas 10un → Unidades base");
-    const conv1 = await packagingService.convertToBaseUnits(5, caixa10[0].id);
+    const conv1 = await packagingService.convertToBaseUnits(5, (caixa10 as any[])[0]?.id);
     console.log(`Resultado: ${conv1} unidades base`);
 
     console.log("Conversão: 3 Caixas Master → Unidades base");
-    const conv2 = await packagingService.convertToBaseUnits(3, caixaMaster[0].id);
+    const conv2 = await packagingService.convertToBaseUnits(3, (caixaMaster as any[])[0]?.id);
     console.log(`Resultado: ${conv2} unidades base`);
 
     console.log("Conversão: 100 Unidades base → Caixas 10un");
-    const conv3 = await packagingService.convertFromBaseUnits(100, caixa10[0].id);
+    const conv3 = await packagingService.convertFromBaseUnits(100, (caixa10 as any[])[0]?.id);
     console.log(`Resultado: ${conv3} caixas de 10un`);
 
     // 7. OTIMIZAÇÃO DE SEPARAÇÃO

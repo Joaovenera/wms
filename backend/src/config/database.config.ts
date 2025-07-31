@@ -72,7 +72,6 @@ export const databaseConfig = {
     
     // NVMe-specific optimizations
     createRetryIntervalMillis: 100,
-    acquireTimeoutMillis: env.DB_ACQUIRE_TIMEOUT,
     
     // Pool validation
     testOnBorrow: true,

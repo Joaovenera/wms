@@ -1,9 +1,16 @@
 // Central configuration exports
-export { appConfig, type AppConfig } from './app.config.js';
-export { databaseConfig, type DatabaseConfig } from './database.config.js';
-export { redisConfig, type RedisConfig } from './redis.config.js';
-export { securityConfig, type SecurityConfig } from './security.config.js';
-export { loggerConfig, type LoggerConfig } from './logger.config.js';
+export { appConfig, type AppConfig } from './app.config';
+export { databaseConfig, type DatabaseConfig } from './database.config';
+export { redisConfig, type RedisConfig } from './redis.config';
+export { securityConfig, type SecurityConfig } from './security.config';
+export { loggerConfig, type LoggerConfig } from './logger.config';
+
+// Import configs for combined object
+import { appConfig } from './app.config';
+import { databaseConfig } from './database.config';
+import { redisConfig } from './redis.config';
+import { securityConfig } from './security.config';
+import { loggerConfig } from './logger.config';
 
 // Combined configuration object for easy access
 export const config = {

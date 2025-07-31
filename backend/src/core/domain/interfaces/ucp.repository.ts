@@ -8,7 +8,7 @@ import {
   TransferRequest
 } from '../entities/ucp.entity.js';
 
-export interface UcpRepository extends Repository<UcpEntity> {
+export interface UcpRepository {
   // Basic CRUD
   findById(id: number): Promise<UcpEntity | null>;
   findAll(filters?: UcpQueryFilters): Promise<UcpEntity[]>;

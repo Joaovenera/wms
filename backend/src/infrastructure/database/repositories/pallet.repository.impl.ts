@@ -1,6 +1,5 @@
 import { eq, desc, like, and, or, gte, lte, count, inArray, sql, isNull } from 'drizzle-orm';
-import { pallets } from '../schemas/pallets.schema.js';
-import { ucps } from '../schemas/ucps.schema.js';
+import { pallets, ucps } from '../../../db/schema.js';
 import { db } from '../database.js';
 import { PalletRepository, PalletQueryFilters } from '../../../core/domain/interfaces/pallet.repository.js';
 import { PalletEntity, CreatePalletData, UpdatePalletData, Pallet } from '../../../core/domain/entities/pallet.entity.js';
@@ -9,6 +8,32 @@ import { STATUS, BUSINESS_RULES } from '../../../core/shared/constants/index.js'
 import { logInfo, logError } from '../../../utils/logger.js';
 
 export class PalletRepositoryImpl implements PalletRepository {
+  
+  private transformToPalletEntity(dbPallet: any): PalletEntity {
+    return {
+      ...dbPallet,
+      maxWeight: parseFloat(dbPallet.maxWeight), // Convert string to number
+      canBeUsed(): boolean {
+        return this.status === STATUS.PALLET.DISPONIVEL;
+      },
+      isAvailable(): boolean {
+        return this.status === STATUS.PALLET.DISPONIVEL;
+      },
+      isDefective(): boolean {
+        return this.status === STATUS.PALLET.DEFEITUOSO;
+      }
+    };
+  }
+
+  private transformToDbData(entityData: any): any {
+    return {
+      ...entityData,
+      maxWeight: entityData.maxWeight?.toString(), // Convert number to string
+      canBeUsed: undefined, // Remove entity methods
+      isAvailable: undefined,
+      isDefective: undefined
+    };
+  }
   async findById(id: number): Promise<PalletEntity | null> {
     try {
       const [pallet] = await db
@@ -17,7 +42,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         .where(eq(pallets.id, id))
         .limit(1);
 
-      return pallet || null;
+      return pallet ? this.transformToPalletEntity(pallet) : null;
     } catch (error) {
       logError('Error finding pallet by ID', { error, id });
       throw error;
@@ -32,7 +57,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         .where(eq(pallets.code, code.toUpperCase()))
         .limit(1);
 
-      return pallet || null;
+      return pallet ? this.transformToPalletEntity(pallet) : null;
     } catch (error) {
       logError('Error finding pallet by code', { error, code });
       throw error;
@@ -41,10 +66,10 @@ export class PalletRepositoryImpl implements PalletRepository {
 
   async findAll(filters?: PalletQueryFilters): Promise<PalletEntity[]> {
     try {
-      let query = db.select().from(pallets);
+      const query = db.select().from(pallets);
+      const conditions = [];
 
       if (filters) {
-        const conditions = [];
 
         if (filters.code) {
           conditions.push(like(pallets.code, `%${filters.code.toUpperCase()}%`));
@@ -84,24 +109,25 @@ export class PalletRepositoryImpl implements PalletRepository {
           conditions.push(
             or(
               isNull(pallets.lastInspectionDate),
-              lte(pallets.lastInspectionDate, sixMonthsAgo)
+              lte(pallets.lastInspectionDate, sixMonthsAgo.toISOString())
             )
           );
         }
 
-        if (conditions.length > 0) {
-          query = query.where(and(...conditions));
-        }
       }
 
-      const result = await query.orderBy(desc(pallets.createdAt));
+      const baseQuery = conditions.length > 0 
+        ? query.where(and(...conditions))
+        : query;
+      
+      const result = await baseQuery.orderBy(desc(pallets.createdAt));
       
       logInfo('Pallets retrieved successfully', { 
         count: result.length,
         filters: filters ? Object.keys(filters) : [],
       });
 
-      return result;
+      return result.map(pallet => this.transformToPalletEntity(pallet));
     } catch (error) {
       logError('Error finding all pallets', { error, filters });
       throw error;
@@ -117,9 +143,10 @@ export class PalletRepositoryImpl implements PalletRepository {
       }
 
       const palletData = Pallet.create(data);
+      const dbData = this.transformToDbData(palletData);
       const [newPallet] = await db
         .insert(pallets)
-        .values(palletData)
+        .values(dbData)
         .returning();
 
       logInfo('Pallet created successfully', {
@@ -128,7 +155,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         type: newPallet.type,
       });
 
-      return newPallet;
+      return this.transformToPalletEntity(newPallet);
     } catch (error) {
       logError('Error creating pallet', { error, code: data.code });
       throw error;
@@ -148,9 +175,10 @@ export class PalletRepositoryImpl implements PalletRepository {
         return currentPallet; // No changes needed
       }
 
+      const dbUpdateData = this.transformToDbData({ ...updateData, updatedAt: new Date() });
       const [updatedPallet] = await db
         .update(pallets)
-        .set({ ...updateData, updatedAt: new Date() })
+        .set(dbUpdateData)
         .where(eq(pallets.id, id))
         .returning();
 
@@ -160,7 +188,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         updatedFields: Object.keys(updateData),
       });
 
-      return updatedPallet;
+      return this.transformToPalletEntity(updatedPallet);
     } catch (error) {
       logError('Error updating pallet', { error, id });
       throw error;
@@ -204,7 +232,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         .where(eq(pallets.status, status))
         .orderBy(desc(pallets.createdAt));
 
-      return result;
+      return result.map(pallet => this.transformToPalletEntity(pallet));
     } catch (error) {
       logError('Error finding pallets by status', { error, status });
       throw error;
@@ -219,7 +247,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         .where(eq(pallets.type, type))
         .orderBy(desc(pallets.createdAt));
 
-      return result;
+      return result.map(pallet => this.transformToPalletEntity(pallet));
     } catch (error) {
       logError('Error finding pallets by type', { error, type });
       throw error;
@@ -234,7 +262,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         .where(eq(pallets.material, material))
         .orderBy(desc(pallets.createdAt));
 
-      return result;
+      return result.map(pallet => this.transformToPalletEntity(pallet));
     } catch (error) {
       logError('Error finding pallets by material', { error, material });
       throw error;
@@ -261,7 +289,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         ))
         .orderBy(desc(pallets.createdAt));
 
-      return result.map(row => row.pallets);
+      return result.map((row: any) => row.pallets);
     } catch (error) {
       logError('Error finding available pallets for UCP', { error });
       throw error;
@@ -327,12 +355,12 @@ export class PalletRepositoryImpl implements PalletRepository {
         .where(
           or(
             isNull(pallets.lastInspectionDate),
-            lte(pallets.lastInspectionDate, sixMonthsAgo)
+            lte(pallets.lastInspectionDate, sixMonthsAgo.toISOString())
           )
         )
         .orderBy(pallets.lastInspectionDate);
 
-      return result;
+      return result.map(pallet => this.transformToPalletEntity(pallet));
     } catch (error) {
       logError('Error finding pallets needing inspection', { error });
       throw error;
@@ -406,7 +434,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         .from(pallets)
         .groupBy(pallets.status);
 
-      return result.map(row => ({
+      return result.map((row: any) => ({
         status: row.status,
         count: Number(row.count),
       }));
@@ -426,7 +454,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         .from(pallets)
         .groupBy(pallets.type);
 
-      return result.map(row => ({
+      return result.map((row: any) => ({
         type: row.type,
         count: Number(row.count),
       }));
@@ -446,7 +474,7 @@ export class PalletRepositoryImpl implements PalletRepository {
         .from(pallets)
         .groupBy(pallets.material);
 
-      return result.map(row => ({
+      return result.map((row: any) => ({
         material: row.material,
         count: Number(row.count),
       }));
@@ -477,14 +505,14 @@ export class PalletRepositoryImpl implements PalletRepository {
         throw new ConflictError(`Pallets already exist with codes: ${existingCodes.join(', ')}`);
       }
 
-      const palletData = palletsData.map(data => Pallet.create(data));
+      const palletData = palletsData.map(data => this.transformToDbData(Pallet.create(data)));
       const newPallets = await db
         .insert(pallets)
         .values(palletData)
         .returning();
 
       logInfo('Batch pallets created successfully', { count: newPallets.length });
-      return newPallets;
+      return newPallets.map(pallet => this.transformToPalletEntity(pallet));
     } catch (error) {
       logError('Error creating batch pallets', { error, count: palletsData.length });
       throw error;
@@ -509,10 +537,10 @@ export class PalletRepositoryImpl implements PalletRepository {
 
   async count(filters?: PalletQueryFilters): Promise<number> {
     try {
-      let query = db.select({ count: count() }).from(pallets);
+      const query = db.select({ count: count() }).from(pallets);
+      const conditions = [];
 
       if (filters) {
-        const conditions = [];
 
         if (filters.status) {
           conditions.push(eq(pallets.status, filters.status));
@@ -522,12 +550,13 @@ export class PalletRepositoryImpl implements PalletRepository {
           conditions.push(eq(pallets.type, filters.type));
         }
 
-        if (conditions.length > 0) {
-          query = query.where(and(...conditions));
-        }
       }
 
-      const [result] = await query;
+      const baseQuery = conditions.length > 0 
+        ? query.where(and(...conditions))
+        : query;
+
+      const [result] = await baseQuery;
       return result.count;
     } catch (error) {
       logError('Error counting pallets', { error, filters });
@@ -572,14 +601,14 @@ export class PalletRepositoryImpl implements PalletRepository {
         conditions.push(...volumeConditions);
       }
 
-      let query = db.select().from(pallets);
+      const query = db.select().from(pallets);
       
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
+      const baseQuery = conditions.length > 0 
+        ? query.where(and(...conditions))
+        : query;
 
-      const result = await query.orderBy(desc(pallets.createdAt));
-      return result;
+      const result = await baseQuery.orderBy(desc(pallets.createdAt));
+      return result.map(pallet => this.transformToPalletEntity(pallet));
     } catch (error) {
       logError('Error finding pallets by capacity', { error, minWeight, maxWeight, minVolume, maxVolume });
       throw error;

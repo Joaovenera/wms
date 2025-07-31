@@ -7,23 +7,48 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Search, Users as UsersIcon, Mail, Calendar, User, Plus, Edit, Trash2, Shield, UserCheck } from "lucide-react";
-import { type User as UserType, type InsertUser } from "@/types/api";
+import { Search, Users as UsersIcon, Mail, Calendar, User, Plus, Edit, Trash2, Shield } from "lucide-react";
+import { type User as UserType } from "@/types/api";
 import { insertUserSchema } from "@/types/schemas";
+import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-type UserFormData = InsertUser & { confirmPassword: string };
+type UserFormData = {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role: string;
+  password: string;
+  confirmPassword: string;
+};
 
 const userFormSchema = insertUserSchema.extend({
   confirmPassword: insertUserSchema.shape.password,
 }).refine((data) => data.password === data.confirmPassword, {
+  message: "Senhas não coincidem",
+  path: ["confirmPassword"],
+});
+
+const editUserFormSchema = z.object({
+  email: z.string().email("Email inválido"),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  role: z.string().default("operator"),
+  password: z.string().optional(),
+  confirmPassword: z.string().optional(),
+}).refine((data) => {
+  if (data.password || data.confirmPassword) {
+    return data.password === data.confirmPassword;
+  }
+  return true;
+}, {
   message: "Senhas não coincidem",
   path: ["confirmPassword"],
 });
@@ -161,7 +186,7 @@ export default function Users() {
   // Form handlers
   const UserForm = ({ user, onClose }: { user?: UserType; onClose: () => void }) => {
     const form = useForm<UserFormData>({
-      resolver: zodResolver(userFormSchema),
+      resolver: zodResolver(user ? editUserFormSchema : userFormSchema),
       defaultValues: {
         email: user?.email || "",
         firstName: user?.firstName || "",
@@ -175,12 +200,13 @@ export default function Users() {
     const onSubmit = (data: UserFormData) => {
       if (user) {
         // Remove password fields if they're empty for updates
-        const updateData = { ...data };
+        const { confirmPassword, ...updateData } = data;
         if (!data.password) {
-          delete updateData.password;
-          delete updateData.confirmPassword;
+          const { password, ...finalUpdateData } = updateData;
+          updateUserMutation.mutate({ id: user.id, data: finalUpdateData });
+        } else {
+          updateUserMutation.mutate({ id: user.id, data: updateData });
         }
-        updateUserMutation.mutate({ id: user.id, data: updateData });
       } else {
         createUserMutation.mutate(data);
       }
@@ -239,7 +265,7 @@ export default function Users() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Função</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione uma função" />
@@ -263,7 +289,7 @@ export default function Users() {
                 <FormItem>
                   <FormLabel>{user ? "Nova Senha (opcional)" : "Senha"}</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} value={field.value || ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -277,7 +303,7 @@ export default function Users() {
                 <FormItem>
                   <FormLabel>{user ? "Confirmar Nova Senha" : "Confirmar Senha"}</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} value={field.value || ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -403,7 +429,7 @@ export default function Users() {
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center text-muted-foreground">
                       <Calendar className="h-4 w-4 mr-2" />
-                      <span>Cadastrado em {formatDate(user.createdAt)}</span>
+                      <span>Cadastrado em {formatDate(user.createdAt || new Date())}</span>
                     </div>
                     {getRoleBadge(user.role)}
                   </div>
