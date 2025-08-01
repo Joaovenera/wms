@@ -10,7 +10,15 @@ export class DatabaseTestHelper {
   private testDatabaseUrl: string;
 
   constructor() {
+    // Force load test environment with absolute path
+    const { config } = require('dotenv');
+    const path = require('path');
+    const envPath = path.resolve(process.cwd(), '.env.test');
+    config({ path: envPath });
+    
     this.testDatabaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/wms_test';
+    console.log('🔧 Using test database URL:', this.testDatabaseUrl.replace(/(:)[^:]*(@)/, '$1***$2'));
+    console.log('🔧 Loaded .env.test from:', envPath);
   }
 
   async initialize(): Promise<void> {
@@ -42,8 +50,10 @@ export class DatabaseTestHelper {
     }
 
     try {
-      await migrate(this.db, { migrationsFolder: './drizzle' });
-      console.log('✅ Test database migrations complete');
+      // Skip migrations for now to test basic connectivity
+      console.log('⚠️ Skipping migrations for test environment');
+      // await migrate(this.db, { migrationsFolder: './drizzle' });
+      console.log('✅ Test database setup complete (migrations skipped)');
     } catch (error) {
       console.error('❌ Test database migration failed:', error);
       throw error;

@@ -1,0 +1,468 @@
+name: E2E Testing Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  e2e-tests:
+    name: E2E Testing
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, webkit, Mobile Chrome, Mobile Safari]
+        
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: warehouse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./backend
+        run: npx playwright install --with-deps
+
+      - name: Setup test environment
+        run: |
+          cp backend/.env.example backend/.env.test
+          cp frontend/.env.example frontend/.env.test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/warehouse_test
+          REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+
+      - name: Setup test database
+        working-directory: ./backend
+        run: |
+          NODE_ENV=test npm run db:migrate
+          NODE_ENV=test npm run test:setup
+
+      - name: Build backend
+        working-directory: ./backend
+        run: npm run build
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Start backend server
+        working-directory: ./backend
+        run: |
+          NODE_ENV=test npm start &
+          sleep 10
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/warehouse_test
+          REDIS_URL: redis://localhost:6379
+          PORT: 3001
+
+      - name: Start frontend server
+        working-directory: ./frontend
+        run: |
+          npm run preview &
+          sleep 5
+        env:
+          PORT: 5173
+
+      - name: Wait for services
+        run: |
+          npx wait-on http://localhost:3001/api/health
+          npx wait-on http://localhost:5173
+
+      - name: Run E2E tests
+        working-directory: ./backend
+        run: npx playwright test --project="${{ matrix.project }}"
+        env:
+          BASE_URL: http://localhost:5173
+          API_URL: http://localhost:3001
+          CI: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: |
+            backend/test-results/
+            backend/playwright-report/
+          retention-days: 30
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-${{ matrix.project }}
+          path: backend/coverage/
+          retention-days: 30
+
+  performance-tests:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: e2e-tests
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: warehouse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd backend && npm ci
+          cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./backend
+        run: npx playwright install chromium
+
+      - name: Setup and run performance tests
+        working-directory: ./backend
+        run: npx playwright test --project=performance
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/warehouse_test
+          REDIS_URL: redis://localhost:6379
+          CI: true
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-report
+          path: backend/test-results/performance/
+          retention-days: 30
+
+  accessibility-tests:
+    name: Accessibility Testing
+    runs-on: ubuntu-latest
+    needs: e2e-tests
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: warehouse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd backend && npm ci
+          cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./backend
+        run: npx playwright install chromium
+
+      - name: Run accessibility tests
+        working-directory: ./backend
+        run: npx playwright test --project=accessibility
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/warehouse_test
+          REDIS_URL: redis://localhost:6379
+          CI: true
+
+      - name: Upload accessibility results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-report
+          path: backend/test-results/accessibility/
+          retention-days: 30
+
+  mobile-tests:
+    name: Mobile E2E Testing
+    runs-on: ubuntu-latest
+    needs: e2e-tests
+
+    strategy:
+      matrix:
+        device: [iPhone 12, Pixel 5, iPad Pro]
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: warehouse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd backend && npm ci
+          cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./backend
+        run: npx playwright install chromium webkit
+
+      - name: Run mobile tests
+        working-directory: ./backend
+        run: npx playwright test mobile-workflows.spec.ts --project="${{ matrix.device }}"
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/warehouse_test
+          REDIS_URL: redis://localhost:6379
+          CI: true
+
+      - name: Upload mobile test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-report-${{ matrix.device }}
+          path: backend/test-results/
+          retention-days: 30
+
+  visual-regression:
+    name: Visual Regression Testing
+    runs-on: ubuntu-latest
+    needs: e2e-tests
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: warehouse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd backend && npm ci
+          cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./backend
+        run: npx playwright install chromium
+
+      - name: Run visual regression tests
+        working-directory: ./backend
+        run: npx playwright test --project=visual
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/warehouse_test
+          REDIS_URL: redis://localhost:6379
+          CI: true
+
+      - name: Upload visual test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-regression-report
+          path: |
+            backend/test-results/
+            backend/test-results-visual/
+          retention-days: 30
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [e2e-tests, performance-tests, accessibility-tests, mobile-tests, visual-regression]
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results
+
+      - name: Generate test summary
+        run: |
+          echo "# E2E Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Status" >> $GITHUB_STEP_SUMMARY
+          echo "- E2E Tests: ${{ needs.e2e-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Performance Tests: ${{ needs.performance-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Accessibility Tests: ${{ needs.accessibility-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Mobile Tests: ${{ needs.mobile-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Visual Regression: ${{ needs.visual-regression.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Artifacts Generated" >> $GITHUB_STEP_SUMMARY
+          ls -la test-results/ >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync(process.env.GITHUB_STEP_SUMMARY, 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  slack-notification:
+    name: Slack Notification
+    runs-on: ubuntu-latest
+    needs: [test-summary]
+    if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+
+    steps:
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#warehouse-ci'
+          text: |
+            E2E Test Pipeline completed for ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Results: 
+            - E2E Tests: ${{ needs.e2e-tests.result }}
+            - Performance: ${{ needs.performance-tests.result }}
+            - Accessibility: ${{ needs.accessibility-tests.result }}
+            - Mobile: ${{ needs.mobile-tests.result }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

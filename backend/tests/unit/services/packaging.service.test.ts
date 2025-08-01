@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mockDbClient, resetAllMocks } from '../../helpers/mock-services';
 import { testProducts, testPallets } from '../../fixtures/test-data';
 

@@ -1,0 +1,501 @@
+/**
+ * Performance Monitoring Utilities
+ * Real-time performance tracking and optimization
+ */
+
+import React from 'react';
+
+// Performance monitoring configuration
+interface PerformanceConfig {
+  enabledMetrics: string[];
+  sampleRate: number;
+  bufferSize: number;
+  reportingInterval: number;
+  thresholds: {
+    [key: string]: number;
+  };
+}
+
+const DEFAULT_CONFIG: PerformanceConfig = {
+  enabledMetrics: ['fcp', 'lcp', 'fid', 'cls', 'ttfb', 'render'],
+  sampleRate: 1.0, // 100% sampling in development
+  bufferSize: 1000,
+  reportingInterval: 30000, // 30 seconds
+  thresholds: {
+    fcp: 1800,
+    lcp: 2500,
+    fid: 100,
+    cls: 0.1,
+    ttfb: 800,
+    render: 16
+  }
+};
+
+class PerformanceMonitor {
+  private config: PerformanceConfig;
+  private measurements: Map<string, number[]> = new Map();
+  private observers: Map<string, PerformanceObserver> = new Map();
+  private reportingTimer?: NodeJS.Timeout;
+  private isInitialized = false;
+
+  constructor(config?: Partial<PerformanceConfig>) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.setupObservers();
+  }
+
+  /**
+   * Initialize performance monitoring
+   */
+  init(): void {
+    if (this.isInitialized || typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      this.setupCoreWebVitalsObservers();
+      this.setupNavigationObserver();
+      this.setupResourceObserver();
+      this.setupRenderObserver();
+      this.startReporting();
+      
+      this.isInitialized = true;
+      console.log('🚀 Performance monitoring initialized');
+    } catch (error) {
+      console.warn('⚠️ Performance monitoring setup failed:', error);
+    }
+  }
+
+  /**
+   * Clean up observers and timers
+   */
+  destroy(): void {
+    this.observers.forEach(observer => observer.disconnect());
+    this.observers.clear();
+    
+    if (this.reportingTimer) {
+      clearInterval(this.reportingTimer);
+    }
+    
+    this.isInitialized = false;
+  }
+
+  /**
+   * Record a custom performance measurement
+   */
+  recordMeasurement(metric: string, value: number, tags?: Record<string, string>): void {
+    if (!this.shouldSample()) return;
+
+    if (!this.measurements.has(metric)) {
+      this.measurements.set(metric, []);
+    }
+
+    const measurements = this.measurements.get(metric)!;
+    measurements.push(value);
+
+    // Keep buffer size manageable
+    if (measurements.length > this.config.bufferSize) {
+      measurements.shift();
+    }
+
+    // Check thresholds and alert if exceeded
+    this.checkThreshold(metric, value);
+
+    // Add tags for additional context
+    if (tags) {
+      this.recordMeasurement(`${metric}.tagged`, value);
+    }
+  }
+
+  /**
+   * Get measurements for a specific metric
+   */
+  getMeasurements(metric: string): number[] {
+    return this.measurements.get(metric) || [];
+  }
+
+  /**
+   * Get statistical summary of measurements
+   */
+  getStats(metric: string): PerformanceStats {
+    const values = this.getMeasurements(metric);
+    
+    if (values.length === 0) {
+      return {
+        count: 0,
+        min: 0,
+        max: 0,
+        mean: 0,
+        median: 0,
+        p95: 0,
+        p99: 0
+      };
+    }
+
+    const sorted = [...values].sort((a, b) => a - b);
+    const count = values.length;
+
+    return {
+      count,
+      min: sorted[0],
+      max: sorted[count - 1],
+      mean: values.reduce((sum, val) => sum + val, 0) / count,
+      median: this.getPercentile(sorted, 0.5),
+      p95: this.getPercentile(sorted, 0.95),
+      p99: this.getPercentile(sorted, 0.99)
+    };
+  }
+
+  /**
+   * Mark the start of a performance measurement
+   */
+  markStart(name: string): void {
+    if (typeof performance !== 'undefined' && performance.mark) {
+      performance.mark(`${name}-start`);
+    }
+  }
+
+  /**
+   * Mark the end of a performance measurement and record duration
+   */
+  markEnd(name: string): number {
+    if (typeof performance !== 'undefined' && performance.mark && performance.measure) {
+      performance.mark(`${name}-end`);
+      
+      try {
+        const measure = performance.measure(name, `${name}-start`, `${name}-end`);
+        const duration = measure.duration;
+        this.recordMeasurement(name, duration);
+        return duration;
+      } catch (error) {
+        console.warn(`Failed to measure ${name}:`, error);
+        return 0;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Measure the execution time of a function
+   */
+  measureFunction<T>(name: string, fn: () => T): T {
+    this.markStart(name);
+    try {
+      const result = fn();
+      this.markEnd(name);
+      return result;
+    } catch (error) {
+      this.markEnd(name);
+      throw error;
+    }
+  }
+
+  /**
+   * Measure the execution time of an async function
+   */
+  async measureAsync<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    this.markStart(name);
+    try {
+      const result = await fn();
+      this.markEnd(name);
+      return result;
+    } catch (error) {
+      this.markEnd(name);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a comprehensive performance report
+   */
+  getReport(): PerformanceReport {
+    const report: PerformanceReport = {
+      timestamp: new Date().toISOString(),
+      metrics: {},
+      summary: {
+        totalMeasurements: 0,
+        metricsTracked: this.measurements.size,
+        thresholdViolations: 0
+      }
+    };
+
+    // Generate stats for each tracked metric
+    for (const [metric, values] of this.measurements.entries()) {
+      report.metrics[metric] = this.getStats(metric);
+      report.summary.totalMeasurements += values.length;
+
+      // Count threshold violations
+      const threshold = this.config.thresholds[metric];
+      if (threshold) {
+        const violations = values.filter(value => value > threshold).length;
+        report.summary.thresholdViolations += violations;
+      }
+    }
+
+    return report;
+  }
+
+  private setupObservers(): void {
+    // Only setup if browser supports PerformanceObserver
+    if (typeof PerformanceObserver === 'undefined') {
+      return;
+    }
+  }
+
+  private setupCoreWebVitalsObservers(): void {
+    // First Contentful Paint
+    this.createObserver('paint', (entries) => {
+      for (const entry of entries) {
+        if (entry.name === 'first-contentful-paint') {
+          this.recordMeasurement('fcp', entry.startTime);
+        }
+      }
+    });
+
+    // Largest Contentful Paint
+    this.createObserver('largest-contentful-paint', (entries) => {
+      const lastEntry = entries[entries.length - 1];
+      if (lastEntry) {
+        this.recordMeasurement('lcp', lastEntry.startTime);
+      }
+    });
+
+    // First Input Delay
+    this.createObserver('first-input', (entries) => {
+      for (const entry of entries) {
+        this.recordMeasurement('fid', entry.processingStart - entry.startTime);
+      }
+    });
+
+    // Cumulative Layout Shift
+    this.createObserver('layout-shift', (entries) => {
+      let clsValue = 0;
+      for (const entry of entries) {
+        if (!entry.hadRecentInput) {
+          clsValue += entry.value;
+        }
+      }
+      if (clsValue > 0) {
+        this.recordMeasurement('cls', clsValue);
+      }
+    });
+  }
+
+  private setupNavigationObserver(): void {
+    this.createObserver('navigation', (entries) => {
+      for (const entry of entries) {
+        const nav = entry as PerformanceNavigationTiming;
+        
+        // Time to First Byte
+        this.recordMeasurement('ttfb', nav.responseStart - nav.requestStart);
+        
+        // DOM Content Loaded
+        this.recordMeasurement('domContentLoaded', nav.domContentLoadedEventEnd - nav.navigationStart);
+        
+        // Window Load
+        this.recordMeasurement('windowLoad', nav.loadEventEnd - nav.navigationStart);
+      }
+    });
+  }
+
+  private setupResourceObserver(): void {
+    this.createObserver('resource', (entries) => {
+      for (const entry of entries) {
+        const resource = entry as PerformanceResourceTiming;
+        
+        // Resource load time
+        const loadTime = resource.responseEnd - resource.startTime;
+        this.recordMeasurement('resourceLoad', loadTime);
+        
+        // DNS lookup time
+        if (resource.domainLookupStart && resource.domainLookupEnd) {
+          const dnsTime = resource.domainLookupEnd - resource.domainLookupStart;
+          this.recordMeasurement('dnsLookup', dnsTime);
+        }
+        
+        // Connection time
+        if (resource.connectStart && resource.connectEnd) {
+          const connectTime = resource.connectEnd - resource.connectStart;
+          this.recordMeasurement('connection', connectTime);
+        }
+      }
+    });
+  }
+
+  private setupRenderObserver(): void {
+    // Custom render time observer using requestAnimationFrame
+    let lastFrameTime = performance.now();
+    
+    const measureFrame = () => {
+      const currentTime = performance.now();
+      const frameTime = currentTime - lastFrameTime;
+      
+      if (frameTime > 0) {
+        this.recordMeasurement('frameTime', frameTime);
+      }
+      
+      lastFrameTime = currentTime;
+      requestAnimationFrame(measureFrame);
+    };
+
+    requestAnimationFrame(measureFrame);
+  }
+
+  private createObserver(type: string, callback: (entries: PerformanceEntry[]) => void): void {
+    try {
+      const observer = new PerformanceObserver((list) => {
+        callback(list.getEntries());
+      });
+
+      observer.observe({ 
+        type, 
+        buffered: true 
+      });
+
+      this.observers.set(type, observer);
+    } catch (error) {
+      console.warn(`Failed to create ${type} observer:`, error);
+    }
+  }
+
+  private shouldSample(): boolean {
+    return Math.random() < this.config.sampleRate;
+  }
+
+  private checkThreshold(metric: string, value: number): void {
+    const threshold = this.config.thresholds[metric];
+    if (threshold && value > threshold) {
+      console.warn(`⚠️ Performance threshold exceeded for ${metric}: ${value} > ${threshold}`);
+      
+      // You could also trigger alerts, logging, etc. here
+      this.recordMeasurement(`${metric}.violations`, value);
+    }
+  }
+
+  private getPercentile(sortedValues: number[], percentile: number): number {
+    const index = Math.ceil(sortedValues.length * percentile) - 1;
+    return sortedValues[Math.max(0, index)];
+  }
+
+  private startReporting(): void {
+    this.reportingTimer = setInterval(() => {
+      const report = this.getReport();
+      this.onReport(report);
+    }, this.config.reportingInterval);
+  }
+
+  private onReport(report: PerformanceReport): void {
+    // In development, log to console
+    if (process.env.NODE_ENV === 'development') {
+      console.group('📊 Performance Report');
+      console.log('Timestamp:', report.timestamp);
+      console.log('Total Measurements:', report.summary.totalMeasurements);
+      console.log('Metrics Tracked:', report.summary.metricsTracked);
+      console.log('Threshold Violations:', report.summary.thresholdViolations);
+      
+      // Log key metrics
+      for (const [metric, stats] of Object.entries(report.metrics)) {
+        if (stats.count > 0) {
+          console.log(`${metric}: ${stats.mean.toFixed(2)}ms (p95: ${stats.p95.toFixed(2)}ms)`);
+        }
+      }
+      console.groupEnd();
+    }
+
+    // In production, you might send to analytics service
+    // this.sendToAnalytics(report);
+  }
+}
+
+// Type definitions
+interface PerformanceStats {
+  count: number;
+  min: number;
+  max: number;
+  mean: number;
+  median: number;
+  p95: number;
+  p99: number;
+}
+
+interface PerformanceReport {
+  timestamp: string;
+  metrics: Record<string, PerformanceStats>;
+  summary: {
+    totalMeasurements: number;
+    metricsTracked: number;
+    thresholdViolations: number;
+  };
+}
+
+// Singleton instance
+let performanceMonitor: PerformanceMonitor | null = null;
+
+/**
+ * Get the global performance monitor instance
+ */
+export function getPerformanceMonitor(config?: Partial<PerformanceConfig>): PerformanceMonitor {
+  if (!performanceMonitor) {
+    performanceMonitor = new PerformanceMonitor(config);
+    performanceMonitor.init();
+  }
+  return performanceMonitor;
+}
+
+/**
+ * React hook for performance monitoring
+ */
+export function usePerformanceMonitor() {
+  const monitor = getPerformanceMonitor();
+  
+  const measureRender = (componentName: string) => {
+    return {
+      start: () => monitor.markStart(`render.${componentName}`),
+      end: () => monitor.markEnd(`render.${componentName}`)
+    };
+  };
+
+  const measureAsync = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
+    return monitor.measureAsync(name, fn);
+  };
+
+  const recordMetric = (metric: string, value: number, tags?: Record<string, string>) => {
+    monitor.recordMeasurement(metric, value, tags);
+  };
+
+  const getStats = (metric: string) => {
+    return monitor.getStats(metric);
+  };
+
+  return {
+    measureRender,
+    measureAsync,
+    recordMetric,
+    getStats,
+    getReport: () => monitor.getReport()
+  };
+}
+
+/**
+ * HOC for measuring component render performance
+ */
+export function withPerformanceMonitoring<P extends object>(
+  WrappedComponent: React.ComponentType<P>,
+  componentName?: string
+) {
+  const name = componentName || WrappedComponent.name || 'UnknownComponent';
+  
+  return function PerformanceMonitoredComponent(props: P) {
+    const monitor = getPerformanceMonitor();
+    
+    // Measure render time
+    monitor.markStart(`render.${name}`);
+    
+    React.useEffect(() => {
+      monitor.markEnd(`render.${name}`);
+    });
+
+    return <WrappedComponent {...props} />;
+  };
+}
+
+export default PerformanceMonitor;

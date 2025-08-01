@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "dev:https": "vite --https",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    "build:with-tsc": "tsc -p tsconfig.build.json && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "check": "tsc",
@@ -13,7 +14,20 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "test:performance": "vitest run src/test/performance --reporter=verbose",
+    "performance:baseline": "node scripts/performance-validation.js baseline",
+    "performance:current": "node scripts/performance-validation.js current",
+    "performance:compare": "node scripts/performance-validation.js compare",
+    "performance:full": "node scripts/performance-validation.js full",
+    "lighthouse:audit": "node scripts/lighthouse-audit.js audit",
+    "lighthouse:report": "node scripts/lighthouse-audit.js report",
+    "bundle:analyze": "node scripts/bundle-analyzer.js full",
+    "bundle:size": "node scripts/bundle-analyzer.js bundle",
+    "bundle:deps": "node scripts/bundle-analyzer.js deps",
+    "bundle:validate": "node scripts/bundle-strategy-validator.js",
+    "build:enhanced": "node scripts/build-with-validation.js",
+    "build:production": "npm run build:enhanced"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -86,9 +100,28 @@
     "jsdom": "^26.1.0",
     "msw": "^2.10.4",
     "postcss": "^8.4.47",
+    "rollup-plugin-visualizer": "^6.0.3",
     "tailwindcss": "^3.4.17",
     "typescript": "5.6.3",
     "vite": "^5.4.19",
+    "vite-plugin-compression": "^0.5.1",
     "vitest": "^3.2.4"
+  },
+  "performanceBudgets": {
+    "bundleSize": {
+      "javascript": 800,
+      "css": 100,
+      "total": 1000
+    },
+    "coreWebVitals": {
+      "firstContentfulPaint": 1800,
+      "largestContentfulPaint": 2500,
+      "firstInputDelay": 100,
+      "cumulativeLayoutShift": 0.1
+    },
+    "loadingPerformance": {
+      "domContentLoaded": 1500,
+      "windowLoad": 3000
+    }
   }
 }

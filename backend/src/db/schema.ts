@@ -757,6 +757,112 @@ export const transferReportsRelations = relations(transferReports, ({ one }) => 
   }),
 }));
 
+// Packaging Compositions table - Store complete composition configurations
+export const packagingCompositions = pgTable("packaging_compositions", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  palletId: integer("pallet_id").notNull().references(() => pallets.id),
+  status: varchar("status", { length: 50 }).notNull().default("draft"), // draft, validated, approved, executed
+  constraints: jsonb("constraints"), // Max weight, height, volume constraints
+  result: jsonb("result"), // Complete composition result with layout, efficiency, etc.
+  efficiency: decimal("efficiency", { precision: 5, scale: 2 }), // Overall efficiency score
+  totalWeight: decimal("total_weight", { precision: 10, scale: 2 }), // Total weight in kg
+  totalVolume: decimal("total_volume", { precision: 10, scale: 6 }), // Total volume in m³
+  totalHeight: decimal("total_height", { precision: 8, scale: 2 }), // Total height in cm
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  isActive: boolean("is_active").default(true)
+});
+
+// Composition Items table - Individual products within compositions
+export const compositionItems = pgTable("composition_items", {
+  id: serial("id").primaryKey(),
+  compositionId: integer("composition_id").notNull().references(() => packagingCompositions.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  packagingTypeId: integer("packaging_type_id").references(() => packagingTypes.id),
+  quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
+  position: jsonb("position"), // 3D position {x, y, z}
+  dimensions: jsonb("dimensions"), // Product dimensions {width, length, height}
+  weight: decimal("weight", { precision: 10, scale: 3 }), // Individual weight
+  volume: decimal("volume", { precision: 10, scale: 6 }), // Individual volume
+  layer: integer("layer").default(1), // Which layer in the pallet
+  sortOrder: integer("sort_order").default(0), // Order within the composition
+  notes: text("notes"),
+  addedBy: integer("added_by").notNull().references(() => users.id),
+  addedAt: timestamp("added_at").defaultNow(),
+  isActive: boolean("is_active").default(true)
+});
+
+// Composition Reports table - Generated reports and analytics
+export const compositionReports = pgTable("composition_reports", {
+  id: serial("id").primaryKey(),
+  compositionId: integer("composition_id").notNull().references(() => packagingCompositions.id),
+  reportType: varchar("report_type", { length: 50 }).notNull(), // summary, detailed, cost_analysis, optimization
+  title: varchar("title", { length: 255 }).notNull(),
+  reportData: jsonb("report_data").notNull(), // Complete report content
+  metrics: jsonb("metrics"), // Performance metrics
+  recommendations: jsonb("recommendations"), // AI-generated recommendations
+  costAnalysis: jsonb("cost_analysis"), // Cost breakdown and analysis
+  executiveSummary: jsonb("executive_summary"), // High-level summary
+  generatedBy: integer("generated_by").notNull().references(() => users.id),
+  generatedAt: timestamp("generated_at").defaultNow(),
+  isActive: boolean("is_active").default(true)
+});
+
+// Packaging Compositions Relations
+export const packagingCompositionsRelations = relations(packagingCompositions, ({ one, many }) => ({
+  pallet: one(pallets, {
+    fields: [packagingCompositions.palletId],
+    references: [pallets.id],
+  }),
+  createdBy: one(users, {
+    fields: [packagingCompositions.createdBy],
+    references: [users.id],
+  }),
+  approvedBy: one(users, {
+    fields: [packagingCompositions.approvedBy],
+    references: [users.id],
+  }),
+  items: many(compositionItems),
+  reports: many(compositionReports),
+}));
+
+// Composition Items Relations
+export const compositionItemsRelations = relations(compositionItems, ({ one }) => ({
+  composition: one(packagingCompositions, {
+    fields: [compositionItems.compositionId],
+    references: [packagingCompositions.id],
+  }),
+  product: one(products, {
+    fields: [compositionItems.productId],
+    references: [products.id],
+  }),
+  packagingType: one(packagingTypes, {
+    fields: [compositionItems.packagingTypeId],
+    references: [packagingTypes.id],
+  }),
+  addedBy: one(users, {
+    fields: [compositionItems.addedBy],
+    references: [users.id],
+  }),
+}));
+
+// Composition Reports Relations
+export const compositionReportsRelations = relations(compositionReports, ({ one }) => ({
+  composition: one(packagingCompositions, {
+    fields: [compositionReports.compositionId],
+    references: [packagingCompositions.id],
+  }),
+  generatedBy: one(users, {
+    fields: [compositionReports.generatedBy],
+    references: [users.id],
+  }),
+}));
+
 // Zod schemas for new tables
 export const insertVehicleSchema = z.object({
   code: z.string().min(1, "Código é obrigatório"),
@@ -845,3 +951,28 @@ export type InsertPackagingType = z.infer<typeof insertPackagingTypeSchema>;
 export type PackagingType = typeof packagingTypes.$inferSelect;
 export type InsertPackagingConversionRule = z.infer<typeof insertPackagingConversionRuleSchema>;
 export type PackagingConversionRule = typeof packagingConversionRules.$inferSelect;
+
+// Packaging Composition Types
+export type PackagingComposition = typeof packagingCompositions.$inferSelect;
+export type InsertPackagingComposition = typeof packagingCompositions.$inferInsert;
+export type CompositionItem = typeof compositionItems.$inferSelect;
+export type InsertCompositionItem = typeof compositionItems.$inferInsert;
+export type CompositionReport = typeof compositionReports.$inferSelect;
+export type InsertCompositionReport = typeof compositionReports.$inferInsert;
+
+// Zod schemas for new composition tables
+export const insertPackagingCompositionSchema = createInsertSchema(packagingCompositions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCompositionItemSchema = createInsertSchema(compositionItems).omit({
+  id: true,
+  addedAt: true,
+});
+
+export const insertCompositionReportSchema = createInsertSchema(compositionReports).omit({
+  id: true,
+  generatedAt: true,
+});

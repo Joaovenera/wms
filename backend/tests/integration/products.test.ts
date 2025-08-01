@@ -1,52 +1,45 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
-import express from 'express';
+import { Express } from 'express';
+import { testAppFactory } from '../helpers/test-app-factory';
+import { TestDataFactory } from '../helpers/test-data-factory';
 import { ApiTestHelper } from '../helpers/api-test-helper';
-import { testProducts, testUsers } from '../fixtures/test-data';
-
-// This would normally import your actual app
-// import { app } from '../../src/app';
 
 describe('Products API Integration Tests', () => {
+  let app: Express;
   let apiHelper: ApiTestHelper;
-  let app: express.Application;
+  let adminUser: any;
+  let operatorUser: any;
   let adminToken: string;
   let operatorToken: string;
 
   beforeAll(async () => {
-    // Initialize test app (mock for now)
-    app = express();
-    app.use(express.json());
-    
-    // Mock routes for testing
-    app.get('/api/products', (req, res) => {
-      res.json({ products: [testProducts.electronics, testProducts.furniture] });
-    });
-    
-    app.post('/api/products', (req, res) => {
-      res.status(201).json({ id: 'new-product-id', ...req.body });
-    });
-    
-    app.get('/api/products/:id', (req, res) => {
-      const product = Object.values(testProducts).find(p => p.id === req.params.id);
-      if (product) {
-        res.json(product);
-      } else {
-        res.status(404).json({ error: 'Product not found' });
-      }
-    });
-
+    app = await testAppFactory.createApp();
     apiHelper = new ApiTestHelper(app);
-    
-    // Mock authentication tokens
-    adminToken = 'mock-admin-token';
-    operatorToken = 'mock-operator-token';
+  });
+
+  afterAll(async () => {
+    await testAppFactory.cleanup();
   });
 
   beforeEach(async () => {
-    // Reset test data
+    TestDataFactory.resetCounters();
     await global.testHelpers.db.clearAllTables();
-    await global.testHelpers.db.seedTestData();
+
+    // Create test users
+    adminUser = TestDataFactory.createUser({ role: 'admin', username: 'testadmin' });
+    operatorUser = TestDataFactory.createUser({ role: 'operator', username: 'testoperator' });
+
+    const db = global.testHelpers.db.getDb();
+    await db.insert(require('../../src/db/schema').users).values([adminUser, operatorUser]);
+
+    // Create test products
+    const testProducts = TestDataFactory.createProducts(5);
+    await db.insert(require('../../src/db/schema').products).values(testProducts);
+
+    // Mock authentication tokens
+    adminToken = 'mock-admin-token';
+    operatorToken = 'mock-operator-token';
   });
 
   describe('GET /api/products', () => {

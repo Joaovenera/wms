@@ -1,0 +1,422 @@
+name: Performance Monitoring
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run performance tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  NODE_VERSION: '18'
+  PERFORMANCE_BUDGET_FAIL_THRESHOLD: 20 # Fail if performance degrades by more than 20%
+
+jobs:
+  performance-baseline:
+    name: Establish Performance Baseline
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run baseline performance tests
+        run: |
+          cd frontend
+          node scripts/performance-validation.js baseline
+          
+      - name: Upload baseline results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-baseline-${{ github.sha }}
+          path: frontend/performance-results/baseline.json
+          retention-days: 30
+
+      - name: Save baseline to cache
+        uses: actions/cache/save@v3
+        with:
+          path: frontend/performance-results/baseline.json
+          key: performance-baseline-${{ github.ref_name }}-${{ github.sha }}
+
+  performance-validation:
+    name: Performance Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch full history for comparison
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Restore baseline performance data
+        uses: actions/cache/restore@v3
+        with:
+          path: frontend/performance-results/baseline.json
+          key: performance-baseline-${{ github.ref_name }}-
+          restore-keys: |
+            performance-baseline-main-
+
+      - name: Run current performance tests
+        run: |
+          cd frontend
+          node scripts/performance-validation.js current
+
+      - name: Generate performance comparison
+        id: performance-comparison
+        run: |
+          cd frontend
+          node scripts/performance-validation.js compare > performance-report.txt
+          
+          # Extract key metrics for GitHub Actions
+          if grep -q "❌" performance-report.txt; then
+            echo "performance_status=failed" >> $GITHUB_OUTPUT
+          elif grep -q "⚠️" performance-report.txt; then
+            echo "performance_status=warning" >> $GITHUB_OUTPUT
+          else
+            echo "performance_status=passed" >> $GITHUB_OUTPUT
+          fi
+          
+          # Save report content
+          echo "report_content<<EOF" >> $GITHUB_OUTPUT
+          cat performance-report.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results-${{ github.sha }}
+          path: |
+            frontend/performance-results/
+            frontend/performance-report.txt
+          retention-days: 7
+
+      - name: Comment PR with performance results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reportPath = 'frontend/performance-report.txt';
+            
+            if (fs.existsSync(reportPath)) {
+              const report = fs.readFileSync(reportPath, 'utf8');
+              const status = '${{ steps.performance-comparison.outputs.performance_status }}';
+              
+              let emoji = '✅';
+              let statusText = 'Performance validation passed';
+              
+              if (status === 'failed') {
+                emoji = '❌';
+                statusText = 'Performance validation failed';
+              } else if (status === 'warning') {
+                emoji = '⚠️';
+                statusText = 'Performance validation has warnings';
+              }
+              
+              const body = `${emoji} **${statusText}**
+              
+              <details>
+              <summary>Performance Report</summary>
+              
+              \`\`\`
+              ${report}
+              \`\`\`
+              
+              </details>
+              
+              📊 [View detailed performance dashboard](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+
+      - name: Fail if performance regression detected
+        if: steps.performance-comparison.outputs.performance_status == 'failed'
+        run: |
+          echo "❌ Performance regression detected!"
+          echo "Performance has degraded beyond acceptable thresholds."
+          echo "Please review the performance report and optimize before merging."
+          exit 1
+
+  lighthouse-audit:
+    name: Lighthouse Performance Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.12.x
+
+      - name: Run Lighthouse audit
+        run: |
+          cd frontend
+          node scripts/lighthouse-audit.js audit
+
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-results-${{ github.sha }}
+          path: frontend/lighthouse-results/
+          retention-days: 7
+
+      - name: Parse Lighthouse results
+        id: lighthouse-results
+        run: |
+          cd frontend
+          if [ -f lighthouse-results/summary-report.json ]; then
+            node -e "
+              const report = require('./lighthouse-results/summary-report.json');
+              const scores = report.averageScores;
+              console.log('performance_score=' + Math.round(scores.performance * 100));
+              console.log('accessibility_score=' + Math.round(scores.accessibility * 100));
+              console.log('best_practices_score=' + Math.round(scores.bestPractices * 100));
+              console.log('seo_score=' + Math.round(scores.seo * 100));
+            " >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment PR with Lighthouse results
+        if: github.event_name == 'pull_request' && steps.lighthouse-results.outputs.performance_score
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const performanceScore = '${{ steps.lighthouse-results.outputs.performance_score }}';
+            const accessibilityScore = '${{ steps.lighthouse-results.outputs.accessibility_score }}';
+            const bestPracticesScore = '${{ steps.lighthouse-results.outputs.best_practices_score }}';
+            const seoScore = '${{ steps.lighthouse-results.outputs.seo_score }}';
+            
+            const getScoreEmoji = (score) => {
+              if (score >= 90) return '🟢';
+              if (score >= 70) return '🟡';
+              return '🔴';
+            };
+            
+            const body = `🏆 **Lighthouse Performance Audit**
+            
+            | Category | Score | Status |
+            |----------|-------|--------|
+            | Performance | ${performanceScore}% | ${getScoreEmoji(performanceScore)} |
+            | Accessibility | ${accessibilityScore}% | ${getScoreEmoji(accessibilityScore)} |
+            | Best Practices | ${bestPracticesScore}% | ${getScoreEmoji(bestPracticesScore)} |
+            | SEO | ${seoScore}% | ${getScoreEmoji(seoScore)} |
+            
+            📊 [View detailed Lighthouse report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  bundle-analysis:
+    name: Bundle Size Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run bundle analysis
+        run: |
+          cd frontend
+          node scripts/bundle-analyzer.js full
+
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis-${{ github.sha }}
+          path: frontend/bundle-analysis/
+          retention-days: 7
+
+      - name: Check bundle size budget
+        id: bundle-check
+        run: |
+          cd frontend
+          if [ -f bundle-analysis/bundle-analysis.json ]; then
+            node -e "
+              const analysis = require('./bundle-analysis/bundle-analysis.json');
+              const totalSizeKB = analysis.totalSizeKB;
+              const budget = 1000; // 1MB budget
+              
+              console.log('total_size=' + totalSizeKB);
+              console.log('budget=' + budget);
+              console.log('within_budget=' + (totalSizeKB <= budget));
+              
+              if (totalSizeKB > budget) {
+                console.log('bundle_status=exceeded');
+              } else if (totalSizeKB > budget * 0.9) {
+                console.log('bundle_status=warning');
+              } else {
+                console.log('bundle_status=good');
+              }
+            " >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment PR with bundle analysis
+        if: github.event_name == 'pull_request' && steps.bundle-check.outputs.total_size
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const totalSize = '${{ steps.bundle-check.outputs.total_size }}';
+            const budget = '${{ steps.bundle-check.outputs.budget }}';
+            const status = '${{ steps.bundle-check.outputs.bundle_status }}';
+            
+            let emoji = '✅';
+            let statusText = 'Bundle size is within budget';
+            
+            if (status === 'exceeded') {
+              emoji = '❌';
+              statusText = 'Bundle size exceeds budget';
+            } else if (status === 'warning') {
+              emoji = '⚠️';
+              statusText = 'Bundle size is approaching budget limit';
+            }
+            
+            const body = `${emoji} **Bundle Size Analysis**
+            
+            - **Total Size**: ${totalSize}KB
+            - **Budget**: ${budget}KB
+            - **Usage**: ${Math.round((totalSize / budget) * 100)}%
+            - **Status**: ${statusText}
+            
+            📦 [View detailed bundle analysis](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Fail if bundle size exceeds budget
+        if: steps.bundle-check.outputs.bundle_status == 'exceeded'
+        run: |
+          echo "❌ Bundle size exceeds budget!"
+          echo "Current size: ${{ steps.bundle-check.outputs.total_size }}KB"
+          echo "Budget: ${{ steps.bundle-check.outputs.budget }}KB"
+          echo "Please optimize bundle size before merging."
+          exit 1
+
+  performance-regression-check:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+    needs: [performance-validation, lighthouse-audit, bundle-analysis]
+    if: always() && github.event_name == 'pull_request'
+    
+    steps:
+      - name: Check overall performance status
+        run: |
+          performance_status="${{ needs.performance-validation.outputs.performance_status }}"
+          lighthouse_score="${{ needs.lighthouse-audit.outputs.performance_score }}"
+          bundle_status="${{ needs.bundle-analysis.outputs.bundle_status }}"
+          
+          echo "Performance Validation: $performance_status"
+          echo "Lighthouse Score: $lighthouse_score"
+          echo "Bundle Status: $bundle_status"
+          
+          # Check if any critical issues exist
+          if [[ "$performance_status" == "failed" ]] || [[ "$bundle_status" == "exceeded" ]]; then
+            echo "❌ Critical performance issues detected!"
+            exit 1
+          elif [[ "$performance_status" == "warning" ]] || [[ "$bundle_status" == "warning" ]] || [[ "$lighthouse_score" -lt "70" ]]; then
+            echo "⚠️ Performance warnings detected. Review recommended."
+          else
+            echo "✅ All performance checks passed!"
+          fi
+
+  performance-monitoring-dashboard:
+    name: Update Performance Dashboard
+    runs-on: ubuntu-latest
+    needs: [performance-validation, lighthouse-audit, bundle-analysis]
+    if: always() && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download performance artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-results-*"
+          merge-multiple: true
+          path: performance-data/
+
+      - name: Generate performance dashboard data
+        run: |
+          # Create dashboard data structure
+          mkdir -p dashboard-data
+          
+          cat > dashboard-data/performance-summary.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}",
+            "ref": "${{ github.ref_name }}",
+            "performance_validation": "${{ needs.performance-validation.result }}",
+            "lighthouse_audit": "${{ needs.lighthouse-audit.result }}",
+            "bundle_analysis": "${{ needs.bundle-analysis.result }}"
+          }
+          EOF
+
+      - name: Upload dashboard data
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-dashboard-${{ github.sha }}
+          path: dashboard-data/
+          retention-days: 90

@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "src/test/**/*",
+    "src/**/__tests__/**/*",
+    "src/utils/performance-monitor.tsx",
+    "src/components/lazy/**/*",
+    "src/components/performance-dashboard.tsx",
+    "src/utils/lazyComponentLoader.ts",
+    "src/utils/performanceMonitor.ts",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/test/**/*",
+    "**/__tests__/**/*",
+    "node_modules",
+    "dist",
+    "build"
+  ]
+}

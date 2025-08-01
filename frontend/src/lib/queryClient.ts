@@ -72,9 +72,13 @@ export const queryClient = new QueryClient({
         return failureCount < 3;
       },
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      // Prevent suspense issues
+      suspense: false,
+      useErrorBoundary: false,
     },
     mutations: {
       retry: false,
+      useErrorBoundary: false,
     },
   },
 });

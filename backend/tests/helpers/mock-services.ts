@@ -1,136 +1,136 @@
-import { jest } from '@jest/globals';
+import { vi } from 'vitest';
 
 // Mock Redis client
 export const mockRedisClient = {
-  get: jest.fn(),
-  set: jest.fn(),
-  setex: jest.fn(),
-  del: jest.fn(),
-  exists: jest.fn(),
-  keys: jest.fn(),
-  flushdb: jest.fn(),
-  ping: jest.fn(),
-  disconnect: jest.fn(),
+  get: vi.fn(),
+  set: vi.fn(),
+  setex: vi.fn(),
+  del: vi.fn(),
+  exists: vi.fn(),
+  keys: vi.fn(),
+  flushdb: vi.fn(),
+  ping: vi.fn(),
+  disconnect: vi.fn(),
 };
 
 // Mock database client
 export const mockDbClient = {
-  query: jest.fn(),
-  select: jest.fn(),
-  insert: jest.fn(),
-  update: jest.fn(),
-  delete: jest.fn(),
-  end: jest.fn(),
-  unsafe: jest.fn(),
+  query: vi.fn(),
+  select: vi.fn(),
+  insert: vi.fn(),
+  update: vi.fn(),
+  delete: vi.fn(),
+  end: vi.fn(),
+  unsafe: vi.fn(),
 };
 
 // Mock file upload service
 export const mockFileUploadService = {
-  uploadImage: jest.fn(),
-  deleteImage: jest.fn(),
-  generateThumbnail: jest.fn(),
-  validateFile: jest.fn(),
+  uploadImage: vi.fn(),
+  deleteImage: vi.fn(),
+  generateThumbnail: vi.fn(),
+  validateFile: vi.fn(),
 };
 
 // Mock authentication service
 export const mockAuthService = {
-  login: jest.fn(),
-  logout: jest.fn(),
-  validateToken: jest.fn(),
-  hashPassword: jest.fn(),
-  comparePassword: jest.fn(),
-  generateToken: jest.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+  validateToken: vi.fn(),
+  hashPassword: vi.fn(),
+  comparePassword: vi.fn(),
+  generateToken: vi.fn(),
 };
 
 // Mock cache service  
 export const mockCacheService = {
-  get: jest.fn(),
-  set: jest.fn(),
-  delete: jest.fn(),
-  clear: jest.fn(),
-  exists: jest.fn(),
-  keys: jest.fn(),
+  get: vi.fn(),
+  set: vi.fn(),
+  delete: vi.fn(),
+  clear: vi.fn(),
+  exists: vi.fn(),
+  keys: vi.fn(),
 };
 
 // Mock logger service
 export const mockLogger = {
-  info: jest.fn(),
-  error: jest.fn(),
-  warn: jest.fn(),
-  debug: jest.fn(),
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
 };
 
 // Mock email service
 export const mockEmailService = {
-  sendEmail: jest.fn(),
-  sendNotification: jest.fn(),
-  validateEmailAddress: jest.fn(),
+  sendEmail: vi.fn(),
+  sendNotification: vi.fn(),
+  validateEmailAddress: vi.fn(),
 };
 
 // Mock metrics service
 export const mockMetricsService = {
-  increment: jest.fn(),
-  decrement: jest.fn(),
-  histogram: jest.fn(),
-  gauge: jest.fn(),
-  timing: jest.fn(),
+  increment: vi.fn(),
+  decrement: vi.fn(),
+  histogram: vi.fn(),
+  gauge: vi.fn(),
+  timing: vi.fn(),
 };
 
 // Mock websocket service
 export const mockWebSocketService = {
-  broadcast: jest.fn(),
-  sendToUser: jest.fn(),
-  sendToRoom: jest.fn(),
-  addToRoom: jest.fn(),
-  removeFromRoom: jest.fn(),
+  broadcast: vi.fn(),
+  sendToUser: vi.fn(),
+  sendToRoom: vi.fn(),
+  addToRoom: vi.fn(),
+  removeFromRoom: vi.fn(),
 };
 
 // Helper function to reset all mocks
 export const resetAllMocks = (): void => {
   Object.values(mockRedisClient).forEach(mock => {
-    if (jest.isMockFunction(mock)) {
+    if (vi.isMockFunction(mock)) {
       mock.mockReset();
     }
   });
 
   Object.values(mockDbClient).forEach(mock => {
-    if (jest.isMockFunction(mock)) {
+    if (vi.isMockFunction(mock)) {
       mock.mockReset();
     }
   });
 
   Object.values(mockFileUploadService).forEach(mock => {
-    if (jest.isMockFunction(mock)) {
+    if (vi.isMockFunction(mock)) {
       mock.mockReset();
     }
   });
 
   Object.values(mockAuthService).forEach(mock => {
-    if (jest.isMockFunction(mock)) {
+    if (vi.isMockFunction(mock)) {
       mock.mockReset();
     }
   });
 
   Object.values(mockCacheService).forEach(mock => {
-    if (jest.isMockFunction(mock)) {
+    if (vi.isMockFunction(mock)) {
       mock.mockReset();
     }
   });
 
   Object.values(mockEmailService).forEach(mock => {
-    if (jest.isMockFunction(mock)) {
+    if (vi.isMockFunction(mock)) {
       mock.mockReset();
     }
   });
 
   Object.values(mockMetricsService).forEach(mock => {
-    if (jest.isMockFunction(mock)) {
+    if (vi.isMockFunction(mock)) {
       mock.mockReset();
     }
   });
 
   Object.values(mockWebSocketService).forEach(mock => {
-    if (jest.isMockFunction(mock)) {
+    if (vi.isMockFunction(mock)) {
       mock.mockReset();
     }
   });
@@ -149,17 +149,17 @@ export const createMockRequest = (overrides: any = {}): any => ({
 
 export const createMockResponse = (): any => {
   const res: any = {};
-  res.status = jest.fn().mockReturnValue(res);
-  res.json = jest.fn().mockReturnValue(res);
-  res.send = jest.fn().mockReturnValue(res);
-  res.set = jest.fn().mockReturnValue(res);
-  res.cookie = jest.fn().mockReturnValue(res);
-  res.clearCookie = jest.fn().mockReturnValue(res);
-  res.redirect = jest.fn().mockReturnValue(res);
+  res.status = vi.fn().mockReturnValue(res);
+  res.json = vi.fn().mockReturnValue(res);
+  res.send = vi.fn().mockReturnValue(res);
+  res.set = vi.fn().mockReturnValue(res);
+  res.cookie = vi.fn().mockReturnValue(res);
+  res.clearCookie = vi.fn().mockReturnValue(res);
+  res.redirect = vi.fn().mockReturnValue(res);
   return res;
 };
 
-export const createMockNext = (): any => jest.fn();
+export const createMockNext = (): any => vi.fn();
 
 // Database mock helpers
 export const mockDbResponse = (data: any[]): any => ({
@@ -207,11 +207,11 @@ export const mockUploadedFile = {
 
 // WebSocket mock helpers
 export const mockWebSocketClient = {
-  send: jest.fn(),
-  close: jest.fn(),
+  send: vi.fn(),
+  close: vi.fn(),
   readyState: 1, // OPEN
-  on: jest.fn(),
-  emit: jest.fn(),
+  on: vi.fn(),
+  emit: vi.fn(),
 };
 
 // Error mock helpers

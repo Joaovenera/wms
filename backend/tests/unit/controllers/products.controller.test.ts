@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { 
   createMockRequest, 
   createMockResponse, 
@@ -32,7 +32,7 @@ describe('ProductsController Unit Tests', () => {
       req.query = {};
 
       // Mock controller method
-      const mockGetProducts = jest.fn().mockResolvedValue([
+      const mockGetProducts = vi.fn().mockResolvedValue([
         testProducts.electronics,
         testProducts.furniture
       ]);
@@ -52,7 +52,7 @@ describe('ProductsController Unit Tests', () => {
       req.query = { category: 'electronics' };
 
       // Mock filtered response
-      const mockGetProducts = jest.fn().mockResolvedValue([
+      const mockGetProducts = vi.fn().mockResolvedValue([
         testProducts.electronics
       ]);
 
@@ -73,7 +73,7 @@ describe('ProductsController Unit Tests', () => {
       req.query = { search: 'Electronic' };
 
       // Mock search response
-      const mockGetProducts = jest.fn().mockResolvedValue([
+      const mockGetProducts = vi.fn().mockResolvedValue([
         testProducts.electronics
       ]);
 
@@ -96,7 +96,7 @@ describe('ProductsController Unit Tests', () => {
       req.query = { page: '2', limit: '10' };
 
       // Mock paginated response
-      const mockGetProducts = jest.fn().mockResolvedValue({
+      const mockGetProducts = vi.fn().mockResolvedValue({
         products: [testProducts.furniture],
         total: 25,
         page: 2,
@@ -121,7 +121,7 @@ describe('ProductsController Unit Tests', () => {
       req.user = mockValidUser;
 
       // Mock database error
-      const mockGetProducts = jest.fn().mockRejectedValue(
+      const mockGetProducts = vi.fn().mockRejectedValue(
         new Error('Database connection failed')
       );
 
@@ -146,7 +146,7 @@ describe('ProductsController Unit Tests', () => {
       req.params = { id: testProducts.electronics.id };
 
       // Mock product retrieval
-      const mockGetProductById = jest.fn().mockResolvedValue(testProducts.electronics);
+      const mockGetProductById = vi.fn().mockResolvedValue(testProducts.electronics);
 
       const product = await mockGetProductById(req.params.id);
       res.json(product);
@@ -165,7 +165,7 @@ describe('ProductsController Unit Tests', () => {
       req.params = { id: 'non-existent-id' };
 
       // Mock not found scenario
-      const mockGetProductById = jest.fn().mockResolvedValue(null);
+      const mockGetProductById = vi.fn().mockResolvedValue(null);
 
       const product = await mockGetProductById(req.params.id);
       
@@ -183,7 +183,7 @@ describe('ProductsController Unit Tests', () => {
       req.params = { id: testProducts.inactive.id };
 
       // Mock access control for inactive products
-      const mockGetProductById = jest.fn().mockImplementation((id) => {
+      const mockGetProductById = vi.fn().mockImplementation((id) => {
         const product = testProducts.inactive;
         if (!product.isActive && req.user.role !== 'admin') {
           return null; // Hide inactive products from non-admin users
@@ -206,7 +206,7 @@ describe('ProductsController Unit Tests', () => {
       req.params = { id: testProducts.inactive.id };
 
       // Mock admin access to inactive products
-      const mockGetProductById = jest.fn().mockResolvedValue(testProducts.inactive);
+      const mockGetProductById = vi.fn().mockResolvedValue(testProducts.inactive);
 
       const product = await mockGetProductById(req.params.id);
       res.json(product);
@@ -236,7 +236,7 @@ describe('ProductsController Unit Tests', () => {
       req.body = newProductData;
 
       // Mock product creation
-      const mockCreateProduct = jest.fn().mockResolvedValue({
+      const mockCreateProduct = vi.fn().mockResolvedValue({
         id: 'new-product-id',
         ...newProductData,
         isActive: true,
@@ -263,7 +263,7 @@ describe('ProductsController Unit Tests', () => {
       req.body = { ...newProductData, code: '' }; // Missing required code
 
       // Mock validation error
-      const mockCreateProduct = jest.fn().mockImplementation((data) => {
+      const mockCreateProduct = vi.fn().mockImplementation((data) => {
         if (!data.code) {
           throw new Error('Product code is required');
         }
@@ -295,7 +295,7 @@ describe('ProductsController Unit Tests', () => {
       req.body = { ...newProductData, code: testProducts.electronics.code };
 
       // Mock duplicate code error
-      const mockCreateProduct = jest.fn().mockRejectedValue(
+      const mockCreateProduct = vi.fn().mockRejectedValue(
         new Error('Product code already exists')
       );
 
@@ -342,7 +342,7 @@ describe('ProductsController Unit Tests', () => {
       req.body = updateData;
 
       // Mock product update
-      const mockUpdateProduct = jest.fn().mockResolvedValue({
+      const mockUpdateProduct = vi.fn().mockResolvedValue({
         ...testProducts.electronics,
         ...updateData,
         updatedAt: new Date()
@@ -385,7 +385,7 @@ describe('ProductsController Unit Tests', () => {
       req.params = { id: testProducts.electronics.id };
 
       // Mock soft delete
-      const mockDeleteProduct = jest.fn().mockResolvedValue({
+      const mockDeleteProduct = vi.fn().mockResolvedValue({
         ...testProducts.electronics,
         isActive: false,
         updatedAt: new Date()

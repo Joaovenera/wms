@@ -1,0 +1,311 @@
+/**
+ * Performance monitoring utilities for lazy loading and code splitting
+ * Tracks loading times, bundle sizes, and optimization metrics
+ */
+import * as React from 'react';
+import type { ComponentType } from 'react';
+
+interface PerformanceMetric {
+  name: string;
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  metadata?: Record<string, any>;
+}
+
+interface BundleMetric {
+  chunkName: string;
+  size: number;
+  loadTime: number;
+  cached: boolean;
+}
+
+class PerformanceMonitor {
+  private metrics: Map<string, PerformanceMetric> = new Map();
+  private bundleMetrics: BundleMetric[] = [];
+  private observers: Array<(metrics: PerformanceMetric[]) => void> = [];
+
+  /**
+   * Start tracking a performance metric
+   */
+  startMetric(name: string, metadata?: Record<string, any>): void {
+    this.metrics.set(name, {
+      name,
+      startTime: performance.now(),
+      metadata
+    });
+  }
+
+  /**
+   * End tracking a performance metric
+   */
+  endMetric(name: string, additionalMetadata?: Record<string, any>): PerformanceMetric | null {
+    const metric = this.metrics.get(name);
+    if (!metric) {
+      console.warn(`Performance metric "${name}" not found`);
+      return null;
+    }
+
+    const endTime = performance.now();
+    const updatedMetric: PerformanceMetric = {
+      ...metric,
+      endTime,
+      duration: endTime - metric.startTime,
+      metadata: { ...metric.metadata, ...additionalMetadata }
+    };
+
+    this.metrics.set(name, updatedMetric);
+    this.notifyObservers();
+
+    return updatedMetric;
+  }
+
+  /**
+   * Get all completed metrics
+   */
+  getMetrics(): PerformanceMetric[] {
+    return Array.from(this.metrics.values()).filter(m => m.duration !== undefined);
+  }
+
+  /**
+   * Get specific metric by name
+   */
+  getMetric(name: string): PerformanceMetric | null {
+    return this.metrics.get(name) || null;
+  }
+
+  /**
+   * Track lazy component loading performance
+   */
+  trackLazyComponentLoad(componentName: string) {
+    const metricName = `lazy-component-${componentName}`;
+    this.startMetric(metricName, { type: 'lazy-component', componentName });
+
+    return {
+      end: (success: boolean = true, error?: Error) => {
+        this.endMetric(metricName, { 
+          success, 
+          error: error?.message,
+          componentName 
+        });
+      }
+    };
+  }
+
+  /**
+   * Track route transition performance
+   */
+  trackRouteTransition(fromRoute: string, toRoute: string) {
+    const metricName = `route-transition-${fromRoute}-to-${toRoute}`;
+    this.startMetric(metricName, { 
+      type: 'route-transition', 
+      fromRoute, 
+      toRoute 
+    });
+
+    return {
+      end: () => {
+        this.endMetric(metricName, { fromRoute, toRoute });
+      }
+    };
+  }
+
+  /**
+   * Track bundle/chunk loading
+   */
+  trackBundleLoad(chunkName: string, size?: number) {
+    const metricName = `bundle-load-${chunkName}`;
+    this.startMetric(metricName, { 
+      type: 'bundle-load', 
+      chunkName,
+      size 
+    });
+
+    return {
+      end: (cached: boolean = false) => {
+        const metric = this.endMetric(metricName, { chunkName, cached });
+        if (metric && metric.duration) {
+          this.bundleMetrics.push({
+            chunkName,
+            size: size || 0,
+            loadTime: metric.duration,
+            cached
+          });
+        }
+      }
+    };
+  }
+
+  /**
+   * Get bundle loading statistics
+   */
+  getBundleStats() {
+    const totalBundles = this.bundleMetrics.length;
+    const cachedBundles = this.bundleMetrics.filter(b => b.cached).length;
+    const avgLoadTime = this.bundleMetrics.reduce((sum, b) => sum + b.loadTime, 0) / totalBundles || 0;
+    const totalSize = this.bundleMetrics.reduce((sum, b) => sum + b.size, 0);
+
+    return {
+      totalBundles,
+      cachedBundles,
+      cacheHitRate: totalBundles > 0 ? (cachedBundles / totalBundles) * 100 : 0,
+      avgLoadTime,
+      totalSize,
+      bundleMetrics: this.bundleMetrics
+    };
+  }
+
+  /**
+   * Generate performance report
+   */
+  generateReport(): {
+    lazyComponents: PerformanceMetric[];
+    routeTransitions: PerformanceMetric[];
+    bundleLoads: PerformanceMetric[];
+    bundleStats: ReturnType<typeof this.getBundleStats>;
+    summary: {
+      totalMetrics: number;
+      avgLazyComponentLoad: number;
+      avgRouteTransition: number;
+      slowestOperation: PerformanceMetric | null;
+    };
+  } {
+    const allMetrics = this.getMetrics();
+    const lazyComponents = allMetrics.filter(m => m.metadata?.type === 'lazy-component');
+    const routeTransitions = allMetrics.filter(m => m.metadata?.type === 'route-transition');
+    const bundleLoads = allMetrics.filter(m => m.metadata?.type === 'bundle-load');
+
+    const avgLazyComponentLoad = lazyComponents.reduce((sum, m) => sum + (m.duration || 0), 0) / lazyComponents.length || 0;
+    const avgRouteTransition = routeTransitions.reduce((sum, m) => sum + (m.duration || 0), 0) / routeTransitions.length || 0;
+    const slowestOperation = allMetrics.reduce((slowest: PerformanceMetric | null, current) => 
+      (!slowest || (current.duration && current.duration > (slowest.duration || 0))) ? current : slowest
+    , null as PerformanceMetric | null);
+
+    return {
+      lazyComponents,
+      routeTransitions,
+      bundleLoads,
+      bundleStats: this.getBundleStats(),
+      summary: {
+        totalMetrics: allMetrics.length,
+        avgLazyComponentLoad,
+        avgRouteTransition,
+        slowestOperation
+      }
+    };
+  }
+
+  /**
+   * Subscribe to metric updates
+   */
+  subscribe(callback: (metrics: PerformanceMetric[]) => void): () => void {
+    this.observers.push(callback);
+    return () => {
+      const index = this.observers.indexOf(callback);
+      if (index > -1) {
+        this.observers.splice(index, 1);
+      }
+    };
+  }
+
+  /**
+   * Clear all metrics
+   */
+  clear(): void {
+    this.metrics.clear();
+    this.bundleMetrics = [];
+    this.notifyObservers();
+  }
+
+  private notifyObservers(): void {
+    const metrics = this.getMetrics();
+    this.observers.forEach(callback => callback(metrics));
+  }
+
+  /**
+   * Log performance summary to console
+   */
+  logSummary(): void {
+    const report = this.generateReport();
+    console.group('🚀 Lazy Loading Performance Summary');
+    console.log('📊 Total Metrics:', report.summary.totalMetrics);
+    console.log('⚡ Avg Lazy Component Load:', `${report.summary.avgLazyComponentLoad.toFixed(2)}ms`);
+    console.log('🔄 Avg Route Transition:', `${report.summary.avgRouteTransition.toFixed(2)}ms`);
+    console.log('📦 Bundle Cache Hit Rate:', `${report.bundleStats.cacheHitRate.toFixed(1)}%`);
+    
+    if (report.summary.slowestOperation) {
+      console.log('🐌 Slowest Operation:', report.summary.slowestOperation.name, `(${report.summary.slowestOperation.duration?.toFixed(2)}ms)`);
+    }
+
+    if (report.lazyComponents.length > 0) {
+      console.group('🧩 Lazy Components');
+      report.lazyComponents.forEach(metric => {
+        const status = metric.metadata?.success ? '✅' : '❌';
+        console.log(`${status} ${metric.metadata?.componentName}: ${metric.duration?.toFixed(2)}ms`);
+      });
+      console.groupEnd();
+    }
+
+    console.groupEnd();
+  }
+}
+
+// Global performance monitor instance
+export const performanceMonitor = new PerformanceMonitor();
+
+// Auto-log summary in development
+if (import.meta.env.DEV) {
+  // Log summary every 30 seconds in development
+  setInterval(() => {
+    const report = performanceMonitor.generateReport();
+    if (report.summary.totalMetrics > 0) {
+      performanceMonitor.logSummary();
+    }
+  }, 30000);
+}
+
+/**
+ * Higher-order function to wrap lazy imports with performance tracking
+ */
+export function withPerformanceTracking<T>(
+  componentName: string,
+  importFn: () => Promise<{ default: T }>
+): () => Promise<{ default: T }> {
+  return async () => {
+    const tracker = performanceMonitor.trackLazyComponentLoad(componentName);
+    
+    try {
+      const result = await importFn();
+      tracker.end(true);
+      return result;
+    } catch (error) {
+      tracker.end(false, error as Error);
+      throw error;
+    }
+  };
+}
+
+/**
+ * Performance tracking decorator for React components
+ */
+export function trackComponentPerformance(componentName: string) {
+  return function<T extends ComponentType<any>>(Component: T): T {
+    const TrackedComponent = (props: any) => {
+      const tracker = performanceMonitor.trackLazyComponentLoad(`render-${componentName}`);
+      
+      // Use React import that's already available
+      const { useEffect, createElement } = React;
+      
+      useEffect(() => {
+        tracker.end(true);
+      }, []);
+
+      return createElement(Component, props);
+    };
+
+    TrackedComponent.displayName = `TrackedComponent(${componentName})`;
+    return TrackedComponent as T;
+  };
+}
+
+export default PerformanceMonitor;

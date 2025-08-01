@@ -1,193 +1,341 @@
-import { vi } from 'vitest'
+import { Request, Response } from 'express';
+import { vi } from 'vitest';
 
-/**
- * Test helper utilities for WMS testing
- */
+// Type definitions for our domain models
+interface Product {
+  id: number;
+  sku: string;
+  name: string;
+  description?: string;
+  weight?: number;
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+  };
+  category?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+}
 
-export const createMockRequest = (overrides: any = {}) => ({
+interface PackagingType {
+  id: number;
+  productId: number;
+  name: string;
+  level: number;
+  baseUnitQuantity: number;
+  isBaseUnit: boolean;
+  isActive: boolean;
+  barcode?: string;
+  weight?: number;
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+}
+
+interface Pallet {
+  id: number;
+  code: string;
+  type: string;
+  material: string;
+  width: number;
+  length: number;
+  height: number;
+  maxWeight: string;
+  status: string;
+  location?: string | null;
+  observations?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+}
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  department?: string;
+  isActive: boolean;
+  lastLogin?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface UCP {
+  id: number;
+  code: string;
+  palletId: number;
+  status: string;
+  currentPositionId?: number | null;
+  totalItems: number;
+  totalWeight: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+}
+
+// Mock factory for Request objects
+export const createMockRequest = (overrides: Partial<Request> = {}): Partial<Request> => ({
   params: {},
   query: {},
   body: {},
   headers: {},
-  user: { id: 1, name: 'Test User' },
-  ...overrides
-})
+  user: { id: 1, name: 'Test User', email: 'test@example.com' },
+  ...overrides,
+});
 
-export const createMockResponse = () => {
-  const mockJson = vi.fn()
-  const mockStatus = vi.fn().mockReturnValue({ json: mockJson, send: vi.fn() })
-  const mockSend = vi.fn()
+// Mock factory for Response objects
+export const createMockResponse = (): Partial<Response> => {
+  const json = vi.fn();
+  const status = vi.fn().mockReturnValue({ 
+    json, 
+    send: vi.fn(),
+    end: vi.fn() 
+  });
+  const send = vi.fn();
+  const end = vi.fn();
 
   return {
-    json: mockJson,
-    status: mockStatus,
-    send: mockSend,
-    mockJson,
-    mockStatus,
-    mockSend
+    json,
+    status,
+    send,
+    end,
+    setHeader: vi.fn(),
+    getHeader: vi.fn(),
+    removeHeader: vi.fn(),
+  };
+};
+
+// Mock data generators
+export const generateMockProduct = (overrides: Partial<Product> = {}): Product => ({
+  id: Math.floor(Math.random() * 1000) + 1,
+  sku: `SKU-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+  name: `Test Product ${Math.floor(Math.random() * 100)}`,
+  description: 'Test product description',
+  weight: Number((Math.random() * 10).toFixed(2)),
+  dimensions: {
+    length: Number((Math.random() * 100).toFixed(2)),
+    width: Number((Math.random() * 100).toFixed(2)),
+    height: Number((Math.random() * 100).toFixed(2)),
+  },
+  category: 'Test Category',
+  isActive: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  createdBy: 1,
+  ...overrides,
+});
+
+export const generateMockPackaging = (overrides: Partial<PackagingType> = {}): PackagingType => ({
+  id: Math.floor(Math.random() * 1000) + 1,
+  productId: 1,
+  name: `Packaging ${Math.floor(Math.random() * 100)}`,
+  level: Math.floor(Math.random() * 5),
+  baseUnitQuantity: Math.floor(Math.random() * 100) + 1,
+  isBaseUnit: false,
+  isActive: true,
+  barcode: `BAR${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+  weight: Number((Math.random() * 5).toFixed(2)),
+  dimensions: {
+    length: Number((Math.random() * 50).toFixed(2)),
+    width: Number((Math.random() * 50).toFixed(2)),
+    height: Number((Math.random() * 50).toFixed(2)),
+  },
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  createdBy: 1,
+  ...overrides,
+});
+
+export const generateMockPallet = (overrides: Partial<Pallet> = {}): Pallet => ({
+  id: Math.floor(Math.random() * 1000) + 1,
+  code: `PLT${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+  type: 'PBR',
+  material: 'Madeira',
+  width: 100,
+  length: 120,
+  height: 14,
+  maxWeight: '1500.00',
+  status: 'disponivel',
+  location: null,
+  observations: null,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  createdBy: 1,
+  ...overrides,
+});
+
+export const generateMockUser = (overrides: Partial<User> = {}): User => ({
+  id: Math.floor(Math.random() * 1000) + 1,
+  name: `Test User ${Math.floor(Math.random() * 100)}`,
+  email: `test${Math.floor(Math.random() * 1000)}@example.com`,
+  role: 'operator',
+  department: 'warehouse',
+  isActive: true,
+  lastLogin: new Date().toISOString(),
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  ...overrides,
+});
+
+export const generateMockUCP = (overrides: Partial<UCP> = {}): UCP => ({
+  id: Math.floor(Math.random() * 1000) + 1,
+  code: `UCP${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+  palletId: 1,
+  status: 'ativo',
+  currentPositionId: null,
+  totalItems: 0,
+  totalWeight: '0.00',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  createdBy: 1,
+  ...overrides,
+});
+
+// Database mock helpers
+export const createMockDbQuery = () => ({
+  select: vi.fn().mockReturnThis(),
+  from: vi.fn().mockReturnThis(),
+  where: vi.fn().mockReturnThis(),
+  leftJoin: vi.fn().mockReturnThis(),
+  innerJoin: vi.fn().mockReturnThis(),
+  rightJoin: vi.fn().mockReturnThis(),
+  orderBy: vi.fn().mockReturnThis(),
+  groupBy: vi.fn().mockReturnThis(),
+  having: vi.fn().mockReturnThis(),
+  limit: vi.fn().mockReturnThis(),
+  offset: vi.fn().mockReturnThis(),
+  insert: vi.fn().mockReturnThis(),
+  values: vi.fn().mockReturnThis(),
+  update: vi.fn().mockReturnThis(),
+  set: vi.fn().mockReturnThis(),
+  delete: vi.fn().mockReturnThis(),
+  returning: vi.fn(),
+  execute: vi.fn(),
+});
+
+// Service mock helpers
+export const createMockStorageService = () => ({
+  getProducts: vi.fn(),
+  getProduct: vi.fn(),
+  getProductsWithStock: vi.fn(),
+  createProduct: vi.fn(),
+  updateProduct: vi.fn(),
+  deleteProduct: vi.fn(),
+  getProductPhotos: vi.fn(),
+  addProductPhoto: vi.fn(),
+  updateProductPhoto: vi.fn(),
+  deleteProductPhoto: vi.fn(),
+});
+
+export const createMockPackagingService = () => ({
+  getPackagingsByProduct: vi.fn(),
+  getPackagingByBarcode: vi.fn(),
+  getBasePackaging: vi.fn(),
+  convertToBaseUnits: vi.fn(),
+  convertFromBaseUnits: vi.fn(),
+  createPackaging: vi.fn(),
+  updatePackaging: vi.fn(),
+  deletePackaging: vi.fn(),
+  optimizePickingByPackaging: vi.fn(),
+  calculateConversionFactor: vi.fn(),
+  getPackagingHierarchy: vi.fn(),
+});
+
+export const createMockImageService = () => ({
+  uploadImage: vi.fn(),
+  deleteImage: vi.fn(),
+  resizeImage: vi.fn(),
+  generateThumbnail: vi.fn(),
+  validateImageFormat: vi.fn(),
+  optimizeImage: vi.fn(),
+});
+
+export const createMockWebSocketService = () => ({
+  broadcast: vi.fn(),
+  broadcastToRoom: vi.fn(),
+  sendToUser: vi.fn(),
+  joinRoom: vi.fn(),
+  leaveRoom: vi.fn(),
+  getConnectedUsers: vi.fn(),
+});
+
+// Validation helpers
+export const createValidationError = (field: string, message: string) => ({
+  field,
+  message,
+  value: null,
+});
+
+// Async helper for testing promises
+export const waitFor = (ms: number): Promise<void> => 
+  new Promise(resolve => setTimeout(resolve, ms));
+
+// Test data cleanup
+export const cleanupTestData = async () => {
+  // Clean up test database records, files, etc.
+  // Implementation depends on your cleanup strategy
+};
+
+// Error testing helpers
+export const createDatabaseError = (message: string = 'Database connection failed') => {
+  const error = new Error(message);
+  error.name = 'DatabaseError';
+  return error;
+};
+
+export const createNotFoundError = (resource: string = 'Resource') => {
+  const error = new Error(`${resource} not found`);
+  error.name = 'NotFoundError';
+  return error;
+};
+
+// Performance testing helpers
+export const measureExecutionTime = async (fn: () => Promise<any>): Promise<number> => {
+  const start = performance.now();
+  await fn();
+  const end = performance.now();
+  return end - start;
+};
+
+// Global test utilities (available in all test files)
+declare global {
+  namespace globalThis {
+    var testUtils: {
+      generateMockProduct: typeof generateMockProduct;
+      generateMockPackaging: typeof generateMockPackaging;
+      generateMockPallet: typeof generateMockPallet;
+      generateMockUser: typeof generateMockUser;
+      generateMockUCP: typeof generateMockUCP;
+      createMockRequest: typeof createMockRequest;
+      createMockResponse: typeof createMockResponse;
+      createMockDbQuery: typeof createMockDbQuery;
+      createValidationError: typeof createValidationError;
+      waitFor: typeof waitFor;
+      measureExecutionTime: typeof measureExecutionTime;
+    };
   }
 }
 
-export const createMockDatabase = () => ({
-  query: vi.fn(),
-  select: vi.fn().mockReturnValue({
-    from: vi.fn().mockReturnValue({
-      where: vi.fn().mockReturnValue({
-        limit: vi.fn().mockResolvedValue([]),
-        orderBy: vi.fn().mockResolvedValue([])
-      })
-    })
-  }),
-  insert: vi.fn().mockReturnValue({
-    values: vi.fn().mockReturnValue({
-      returning: vi.fn().mockResolvedValue([])
-    })
-  }),
-  update: vi.fn().mockReturnValue({
-    set: vi.fn().mockReturnValue({
-      where: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([])
-      })
-    })
-  }),
-  delete: vi.fn().mockReturnValue({
-    where: vi.fn().mockResolvedValue({ changes: 1 })
-  })
-})
-
-export const createMockCache = () => ({
-  get: vi.fn(),
-  set: vi.fn(),
-  del: vi.fn(),
-  clear: vi.fn()
-})
-
-export const waitFor = async (condition: () => boolean, timeout = 5000) => {
-  const start = Date.now()
-  while (!condition() && Date.now() - start < timeout) {
-    await new Promise(resolve => setTimeout(resolve, 10))
-  }
-  if (!condition()) {
-    throw new Error(`Condition not met within ${timeout}ms`)
-  }
-}
-
-export const generateTestData = {
-  product: (overrides: any = {}) => ({
-    id: Math.floor(Math.random() * 1000) + 1,
-    sku: `TEST-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-    name: `Test Product ${Math.random().toString(36).substring(7)}`,
-    description: 'Generated test product',
-    weight: Math.random() * 10,
-    dimensions: {
-      length: Math.random() * 100,
-      width: Math.random() * 100,
-      height: Math.random() * 100
-    },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides
-  }),
-
-  packaging: (overrides: any = {}) => ({
-    id: Math.floor(Math.random() * 1000) + 1,
-    productId: Math.floor(Math.random() * 100) + 1,
-    name: `Package ${Math.random().toString(36).substring(7)}`,
-    level: Math.floor(Math.random() * 5),
-    baseUnitQuantity: Math.pow(2, Math.floor(Math.random() * 4)),
-    barcode: `BC-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-    isBaseUnit: false,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides
-  }),
-
-  pallet: (overrides: any = {}) => ({
-    id: Math.floor(Math.random() * 1000) + 1,
-    code: `PAL-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-    maxWeight: 1000 + Math.random() * 1000,
-    maxHeight: 200 + Math.random() * 100,
-    currentWeight: Math.random() * 500,
-    currentHeight: Math.random() * 100,
-    status: 'active',
-    location: `${String.fromCharCode(65 + Math.floor(Math.random() * 3))}-${String(Math.floor(Math.random() * 10) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 10) + 1).padStart(2, '0')}`,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides
-  }),
-
-  transfer: (overrides: any = {}) => ({
-    id: Math.floor(Math.random() * 1000) + 1,
-    transferId: `TR-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-    fromLocation: 'A-01-01',
-    toLocation: 'B-02-03',
-    status: 'pending',
-    priority: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
-    requestedBy: Math.floor(Math.random() * 10) + 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides
-  }),
-
-  user: (overrides: any = {}) => ({
-    id: Math.floor(Math.random() * 1000) + 1,
-    name: `Test User ${Math.random().toString(36).substring(7)}`,
-    email: `test-${Math.random().toString(36).substring(7)}@example.com`,
-    role: 'operator',
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides
-  })
-}
-
-export const assertPerformance = (operation: () => Promise<any>, maxTime: number) => async () => {
-  const start = performance.now()
-  await operation()
-  const duration = performance.now() - start
-  expect(duration).toBeLessThan(maxTime)
-  return duration
-}
-
-export const createPerformanceMonitor = () => {
-  const metrics: Array<{ name: string; duration: number; timestamp: Date }> = []
-  
-  return {
-    measure: async (name: string, operation: () => Promise<any>) => {
-      const start = performance.now()
-      const result = await operation()
-      const duration = performance.now() - start
-      
-      metrics.push({ name, duration, timestamp: new Date() })
-      
-      return { result, duration }
-    },
-    
-    getMetrics: () => [...metrics],
-    
-    getAverageTime: (name: string) => {
-      const nameMetrics = metrics.filter(m => m.name === name)
-      return nameMetrics.length > 0 
-        ? nameMetrics.reduce((sum, m) => sum + m.duration, 0) / nameMetrics.length
-        : 0
-    },
-    
-    clear: () => metrics.length = 0
-  }
-}
-
-export const mockConsole = () => {
-  const originalConsole = { ...console }
-  const logs: string[] = []
-  
-  console.log = vi.fn((...args) => logs.push(args.join(' ')))
-  console.error = vi.fn((...args) => logs.push(`ERROR: ${args.join(' ')}`))
-  console.warn = vi.fn((...args) => logs.push(`WARN: ${args.join(' ')}`))
-  
-  return {
-    getLogs: () => [...logs],
-    restore: () => Object.assign(console, originalConsole),
-    clear: () => logs.length = 0
-  }
-}
+// Export utilities for global access
+globalThis.testUtils = {
+  generateMockProduct,
+  generateMockPackaging,
+  generateMockPallet,
+  generateMockUser,
+  generateMockUCP,
+  createMockRequest,
+  createMockResponse,
+  createMockDbQuery,
+  createValidationError,
+  waitFor,
+  measureExecutionTime,
+};

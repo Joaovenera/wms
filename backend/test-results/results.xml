@@ -1,0 +1,54 @@
+<testsuites id="" name="" tests="1" failures="1" skipped="0" errors="0" time="33.281901999999995">
+<testsuite name="enhanced-products-flows.spec.ts" timestamp="2025-07-31T15:11:23.595Z" hostname="chromium" tests="1" failures="1" skipped="0" time="31.591" errors="0">
+<testcase name="Enhanced Products Flow E2E › Products Page Layout and Navigation › should display products page with proper Portuguese interface" classname="enhanced-products-flows.spec.ts" time="31.591">
+<failure message="enhanced-products-flows.spec.ts:18:5 should display products page with proper Portuguese interface" type="FAILURE">
+<![CDATA[  [chromium] › enhanced-products-flows.spec.ts:18:5 › Enhanced Products Flow E2E › Products Page Layout and Navigation › should display products page with proper Portuguese interface 
+
+    Test timeout of 30000ms exceeded while running "beforeEach" hook.
+
+      2 |
+      3 | test.describe('Enhanced Products Flow E2E', () => {
+    > 4 |   test.beforeEach(async ({ page }) => {
+        |        ^
+      5 |     // Login as admin user with stored authentication state
+      6 |     await page.goto('/auth')
+      7 |     await page.fill('input[type="email"]', 'admin@warehouse.com')
+        at /home/claude-user/wms/backend/src/test/e2e/enhanced-products-flows.spec.ts:4:8
+
+    Error: page.waitForURL: Test timeout of 30000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation to "/" until "load"
+    ============================================================
+
+       8 |     await page.fill('input[type="password"]', 'admin123')
+       9 |     await page.click('button[type="submit"]')
+    > 10 |     await page.waitForURL('/')
+         |                ^
+      11 |     
+      12 |     // Navigate to products page
+      13 |     await page.goto('/products')
+        at /home/claude-user/wms/backend/src/test/e2e/enhanced-products-flows.spec.ts:10:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../test-results/enhanced-products-flows-En-3814b-proper-Portuguese-interface-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../../../test-results/enhanced-products-flows-En-3814b-proper-Portuguese-interface-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../test-results/enhanced-products-flows-En-3814b-proper-Portuguese-interface-chromium/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|enhanced-products-flows-En-3814b-proper-Portuguese-interface-chromium/test-failed-1.png]]
+
+[[ATTACHMENT|enhanced-products-flows-En-3814b-proper-Portuguese-interface-chromium/video.webm]]
+
+[[ATTACHMENT|enhanced-products-flows-En-3814b-proper-Portuguese-interface-chromium/error-context.md]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

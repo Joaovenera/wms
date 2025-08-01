@@ -264,6 +264,145 @@ export type InsertUcpHistory = Omit<UcpHistory, 'id' | 'timestamp'>;
 export type InsertMovement = Omit<Movement, 'id' | 'createdAt'>;
 export type InsertVehicle = Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>;
 
+// Composition types
+export interface CompositionProduct {
+  productId: number;
+  quantity: number;
+  packagingTypeId?: number;
+}
+
+export interface CompositionConstraints {
+  maxWeight?: number;
+  maxHeight?: number;
+  maxVolume?: number;
+}
+
+export interface CompositionRequest {
+  products: CompositionProduct[];
+  palletId?: number;
+  constraints?: CompositionConstraints;
+}
+
+export interface CompositionResult {
+  isValid: boolean;
+  efficiency: number;
+  layout: LayoutConfiguration;
+  weight: {
+    total: number;
+    limit: number;
+    utilization: number;
+  };
+  volume: {
+    total: number;
+    limit: number;
+    utilization: number;
+  };
+  height: {
+    total: number;
+    limit: number;
+    utilization: number;
+  };
+  recommendations: string[];
+  warnings: string[];
+  products: CompositionProductResult[];
+}
+
+export interface LayoutConfiguration {
+  layers: number;
+  itemsPerLayer: number;
+  totalItems: number;
+  arrangement: ProductArrangement[];
+}
+
+export interface ProductArrangement {
+  productId: number;
+  packagingTypeId: number;
+  quantity: number;
+  position: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  dimensions: {
+    width: number;
+    length: number;
+    height: number;
+  };
+}
+
+export interface CompositionProductResult {
+  productId: number;
+  packagingTypeId: number;
+  quantity: number;
+  totalWeight: number;
+  totalVolume: number;
+  efficiency: number;
+  canFit: boolean;
+  issues: string[];
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  violations: ValidationViolation[];
+  warnings: string[];
+  metrics: {
+    totalWeight: number;
+    totalVolume: number;
+    totalHeight: number;
+    efficiency: number;
+  };
+}
+
+export interface ValidationViolation {
+  type: 'weight' | 'volume' | 'height' | 'compatibility';
+  severity: 'error' | 'warning';
+  message: string;
+  affectedProducts: number[];
+}
+
+export interface CompositionReport {
+  id: number;
+  timestamp: Date;
+  composition: CompositionResult;
+  metrics: {
+    spaceUtilization: number;
+    weightUtilization: number;
+    heightUtilization: number;
+    overallEfficiency: number;
+  };
+  recommendations: RecommendationItem[];
+  costAnalysis?: {
+    packagingCost: number;
+    handlingCost: number;
+    spaceCost: number;
+    totalCost: number;
+  };
+}
+
+export interface RecommendationItem {
+  type: 'optimization' | 'alternative' | 'warning';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  message: string;
+  impact?: string;
+  actionRequired?: boolean;
+}
+
+export interface PackagingComposition {
+  id: number;
+  name: string;
+  description?: string;
+  products: CompositionProduct[];
+  palletId: number;
+  constraints?: CompositionConstraints;
+  result: CompositionResult;
+  status: 'draft' | 'validated' | 'approved' | 'executed';
+  createdBy: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  // Relations
+  pallet?: Pallet;
+}
+
 // Auth types
 export type LoginData = {
   email: string;

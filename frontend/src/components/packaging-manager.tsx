@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "./ui/textarea";
 import { Badge } from "./ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Package, Barcode, Edit, Trash2, TreePine } from "lucide-react";
+import { Plus, Package, Barcode, Edit, Trash2, TreePine, Users, Settings } from "lucide-react";
 import { 
   useProductPackaging, 
   useProductPackagingHierarchy, 
@@ -16,8 +17,10 @@ import {
   useUpdatePackaging, 
   useDeletePackaging 
 } from "../hooks/usePackaging";
+import { useCompositions } from "../hooks/useComposition";
 import { PackagingType, Product } from "../types/api";
 import { insertPackagingTypeSchema } from "../types/schemas";
+import { CompositionManager } from "./composition-manager";
 import { z } from "zod";
 
 interface PackagingManagerProps {
@@ -39,10 +42,12 @@ export function PackagingManager({ product }: PackagingManagerProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingPackaging, setEditingPackaging] = useState<PackagingType | null>(null);
   const [showHierarchy, setShowHierarchy] = useState(false);
+  const [activeTab, setActiveTab] = useState("packaging");
   const { toast } = useToast();
 
   const { data: packagingData, isLoading } = useProductPackaging(product.id);
   const { data: hierarchyData } = useProductPackagingHierarchy(product.id);
+  const { data: compositions, isLoading: compositionsLoading } = useCompositions();
   const createPackaging = useCreatePackaging();
   const updatePackaging = useUpdatePackaging();
   const deletePackaging = useDeletePackaging();
@@ -200,25 +205,52 @@ export function PackagingManager({ product }: PackagingManagerProps) {
   const packagings = (packagingData as any)?.packagings || [];
   const stock = (packagingData as any)?.stock || [];
   const consolidated = (packagingData as any)?.consolidated;
+  
+  // Filter compositions that include this product
+  const productCompositions = compositions?.filter(comp => 
+    comp.products.some(p => p.productId === product.id)
+  ) || [];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Embalagens - {product.name}</h3>
+          <h3 className="text-lg font-semibold">Gerenciamento - {product.name}</h3>
           <p className="text-sm text-muted-foreground">
-            Gerencie as diferentes configurações de embalagem do produto
+            Gerencie embalagens e composições do produto
           </p>
         </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            onClick={() => setShowHierarchy(!showHierarchy)}
-          >
-            <TreePine className="h-4 w-4 mr-2" />
-            {showHierarchy ? "Lista" : "Hierarquia"}
-          </Button>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="packaging" className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            Embalagens
+          </TabsTrigger>
+          <TabsTrigger value="compositions" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Composições
+            {productCompositions.length > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {productCompositions.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="packaging" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowHierarchy(!showHierarchy)}
+              >
+                <TreePine className="h-4 w-4 mr-2" />
+                {showHierarchy ? "Lista" : "Hierarquia"}
+              </Button>
+            </div>
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -344,10 +376,9 @@ export function PackagingManager({ product }: PackagingManagerProps) {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+          </div>
 
-      {/* Estoque Consolidado */}
+          {/* Estoque Consolidado */}
       {consolidated && (
         <Card>
           <CardHeader>
@@ -509,6 +540,120 @@ export function PackagingManager({ product }: PackagingManagerProps) {
           </form>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="compositions" className="space-y-4">
+          {/* Product Compositions Overview */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Composições com {product.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {compositionsLoading ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  Carregando composições...
+                </div>
+              ) : productCompositions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium mb-2">Nenhuma composição encontrada</p>
+                  <p className="text-sm">
+                    Este produto ainda não faz parte de nenhuma composição.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {productCompositions.map((composition) => {
+                    const productInComposition = composition.products.find(p => p.productId === product.id);
+                    return (
+                      <div key={composition.id} className="border rounded-lg p-3 bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium">{composition.name}</span>
+                              <Badge variant={composition.result.isValid ? "default" : "destructive"}>
+                                {composition.result.isValid ? "Válida" : "Inválida"}
+                              </Badge>
+                              <Badge variant="outline">
+                                {composition.status === 'draft' ? 'Rascunho' :
+                                 composition.status === 'validated' ? 'Validado' :
+                                 composition.status === 'approved' ? 'Aprovado' : 'Executado'}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Quantidade nesta composição: {productInComposition?.quantity} unidades
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Eficiência: {(composition.result.efficiency * 100).toFixed(1)}% • 
+                              {composition.products.length} produtos • 
+                              ID: {composition.id}
+                            </div>
+                          </div>
+                          <div className="text-right text-sm">
+                            <div className="font-medium">
+                              {(composition.result.weight.utilization * 100).toFixed(1)}% peso
+                            </div>
+                            <div className="text-muted-foreground">
+                              {(composition.result.volume.utilization * 100).toFixed(1)}% volume
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Integration Actions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Ações de Composição
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 flex flex-col items-start gap-2"
+                  onClick={() => setActiveTab("compositions")}
+                >
+                  <div className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    <span className="font-medium">Nova Composição</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground text-left">
+                    Criar uma nova composição incluindo este produto
+                  </span>
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 flex flex-col items-start gap-2"
+                  disabled={productCompositions.length === 0}
+                >
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    <span className="font-medium">Otimizar Existente</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground text-left">
+                    Otimizar composições existentes com este produto
+                  </span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Full Composition Manager */}
+          <CompositionManager />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

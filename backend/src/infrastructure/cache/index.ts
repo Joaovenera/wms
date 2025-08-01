@@ -70,5 +70,26 @@ export const cache = {
   strategies,
 } as const;
 
+// Advanced cache services
+export { intelligentCache, IntelligentCacheService } from './intelligent-cache.service.js';
+export type { QueryCacheMetadata, CacheWarmingConfig } from './intelligent-cache.service.js';
+
+export { cacheAsideService, CacheAsideService } from './cache-aside.service.js';
+
+// Decorators and utilities
+export {
+  QueryCache,
+  CacheInvalidation,
+  CacheWarm,
+  ConditionalCache,
+  RefreshCache,
+  MultiLevelCache,
+  CacheOperations,
+} from './query-cache.decorator.js';
+export type { QueryCacheOptions } from './query-cache.decorator.js';
+
+// Controller for management endpoints
+export { intelligentCacheController, IntelligentCacheController } from './intelligent-cache.controller.js';
+
 // Export unified cache interface as default
 export default cache;
