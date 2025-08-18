@@ -72,7 +72,10 @@ export class EnhancedProductsController {
       volatility: 'medium',
       dependencies: ['products', 'photos'],
       useL1Cache: true,
-      condition: (productId: number, page: number, limit: number) => limit <= 20 && page <= 5,
+      condition: (...args: any[]) => {
+        const [, page, limit] = args;
+        return (limit ?? 0) <= 20 && (page ?? 0) <= 5;
+      },
     },
     // Admin or bulk access
     bulkAccess: {
@@ -80,7 +83,10 @@ export class EnhancedProductsController {
       volatility: 'medium',
       dependencies: ['products', 'photos'],
       useL1Cache: false, // Don't fill L1 with bulk data
-      condition: (productId: number, page: number, limit: number) => limit > 20 || page > 5,
+      condition: (...args: any[]) => {
+        const [, page, limit] = args;
+        return (limit ?? 0) > 20 || (page ?? 0) > 5;
+      },
     },
     // Primary photo only (very frequent)
     primaryOnly: {
@@ -88,7 +94,10 @@ export class EnhancedProductsController {
       volatility: 'low',
       dependencies: ['products', 'photos'],
       useL1Cache: true,
-      condition: (productId: number, page: number, limit: number, onlyPrimary: boolean) => onlyPrimary,
+      condition: (...args: any[]) => {
+        const [,, , onlyPrimary] = args;
+        return Boolean(onlyPrimary);
+      },
     },
   })
   async getProductPhotos(req: Request, res: Response): Promise<void> {

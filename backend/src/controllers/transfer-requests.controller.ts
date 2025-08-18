@@ -167,7 +167,7 @@ export const transferRequestsController = {
       }
       
       // Calcular capacidade efetiva (90% da capacidade total)
-      const effectiveCapacity = parseFloat(vehicle[0].cubicCapacity) * 0.9;
+      const effectiveCapacity = Number(vehicle[0].cubicCapacity || '0') * 0.9;
       
       const transferData = {
         code: generateTransferRequestCode(),

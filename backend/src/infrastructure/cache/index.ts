@@ -72,7 +72,6 @@ export const cache = {
 
 // Advanced cache services
 export { intelligentCache, IntelligentCacheService } from './intelligent-cache.service.js';
-export type { QueryCacheMetadata, CacheWarmingConfig } from './intelligent-cache.service.js';
 
 export { cacheAsideService, CacheAsideService } from './cache-aside.service.js';
 

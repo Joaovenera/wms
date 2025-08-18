@@ -51,6 +51,30 @@ router.post('/', isAuthenticated, async (req: any, res) => {
   }
 });
 
+router.put('/:id', isAuthenticated, async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = insertPalletStructureSchema.safeParse({
+      ...req.body,
+      createdBy: req.user.id,
+    });
+    
+    if (!result.success) {
+      const validationError = fromZodError(result.error);
+      return res.status(400).json({ message: validationError.message });
+    }
+
+    const structure = await storage.updatePalletStructure(id, result.data);
+    if (!structure) {
+      return res.status(404).json({ message: "Pallet structure not found" });
+    }
+    res.json(structure);
+  } catch (error) {
+    console.error("Error updating pallet structure:", error);
+    res.status(500).json({ message: "Failed to update pallet structure" });
+  }
+});
+
 router.delete('/:id', isAuthenticated, async (req, res) => {
   try {
     const id = parseInt(req.params.id);

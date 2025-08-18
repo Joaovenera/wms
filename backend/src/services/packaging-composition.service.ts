@@ -114,7 +114,8 @@ export interface ValidationViolation {
   affectedProducts: number[];
 }
 
-export interface CompositionReport {
+// Rename local interface to avoid conflict with exported type name
+export interface GeneratedCompositionReport {
   id: number;
   timestamp: Date;
   composition: CompositionResult;
@@ -337,17 +338,21 @@ export class PackagingCompositionService {
       .where(eq(packagingCompositions.isActive, true));
 
     if (status) {
-      query = query.where(and(
-        eq(packagingCompositions.isActive, true),
-        eq(packagingCompositions.status, status)
-      ));
+      query = db.select()
+        .from(packagingCompositions)
+        .where(and(
+          eq(packagingCompositions.isActive, true),
+          eq(packagingCompositions.status, status)
+        ));
     }
 
     if (userId) {
-      query = query.where(and(
-        eq(packagingCompositions.isActive, true),
-        eq(packagingCompositions.createdBy, userId)
-      ));
+      query = db.select()
+        .from(packagingCompositions)
+        .where(and(
+          eq(packagingCompositions.isActive, true),
+          eq(packagingCompositions.createdBy, userId)
+        ));
     }
 
     const compositions = await query
@@ -377,7 +382,7 @@ export class PackagingCompositionService {
       includeCostAnalysis?: boolean;
     } = {},
     userId: number
-  ): Promise<CompositionReport> {
+  ): Promise<GeneratedCompositionReport> {
     // Get composition from database
     const compositionData = await this.getCompositionById(compositionId);
     
@@ -464,7 +469,7 @@ export class PackagingCompositionService {
       })
       .returning();
 
-    return report[0];
+    return report[0] as any;
   }
 
   /**
@@ -557,7 +562,7 @@ export class PackagingCompositionService {
   /**
    * Get pallet by ID
    */
-  private async getPalletById(palletId: number): Promise<Pallet> {
+  protected async getPalletById(palletId: number): Promise<Pallet> {
     const result = await db.select()
       .from(pallets)
       .where(eq(pallets.id, palletId))
@@ -608,7 +613,7 @@ export class PackagingCompositionService {
   /**
    * Perform calculations for weight, volume, and efficiency
    */
-  private async performCalculations(productDetails: any[], pallet: Pallet, constraints?: CompositionConstraints) {
+  protected async performCalculations(productDetails: any[], pallet: Pallet, constraints?: CompositionConstraints) {
     const totalWeight = productDetails.reduce((sum, pd) => 
       sum + (pd.weight * pd.quantity), 0);
     
@@ -664,7 +669,7 @@ export class PackagingCompositionService {
   /**
    * Optimize layout arrangement
    */
-  private async optimizeLayout(productDetails: any[], pallet: Pallet, calculations: any): Promise<LayoutConfiguration> {
+  protected async optimizeLayout(productDetails: any[], pallet: Pallet, calculations: any): Promise<LayoutConfiguration> {
     // Simple layout optimization - could be enhanced with more sophisticated algorithms
     const totalItems = productDetails.reduce((sum, pd) => sum + pd.quantity, 0);
     const palletArea = Number(pallet.width) * Number(pallet.length);

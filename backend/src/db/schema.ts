@@ -102,6 +102,7 @@ export const products = pgTable("products", {
   category: varchar("category"),
   brand: varchar("brand"),
   unit: varchar("unit").notNull(), // un, kg, l, etc.
+  unitsPerPackage: decimal("units_per_package", { precision: 10, scale: 3 }).default('1'), // quantidade por unidade de embalagem
   weight: decimal("weight", { precision: 10, scale: 3 }), // kg
   dimensions: jsonb("dimensions"), // {width, length, height}
   barcode: varchar("barcode"),

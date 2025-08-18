@@ -176,6 +176,23 @@ export interface OptimizedPickingPlan {
   canFulfill: boolean;
 }
 
+// Loading Item type - unified interface for all loading execution components
+export interface LoadingItem {
+  id: number;
+  transferRequestItemId: number;
+  productId: number;
+  productName: string;
+  productSku: string;
+  requestedQuantity: string;
+  loadedQuantity: string;
+  notLoadedQuantity: string;
+  divergenceReason?: string | null;
+  divergenceComments?: string | null;
+  scannedAt?: Date | string | null;
+  confirmedAt?: Date | string | null;
+  confirmedBy?: number | null;
+}
+
 // UCP Item types
 export interface UcpItem {
   id: number;

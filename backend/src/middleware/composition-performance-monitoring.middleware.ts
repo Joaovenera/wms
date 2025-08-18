@@ -100,7 +100,7 @@ export function monitorCachePerformance(req: Request, res: Response, next: NextF
   if (!context) return next();
 
   // Override cache methods to track performance
-  const originalGet = intelligentCache.get;
+  const originalGet = (intelligentCache as any).get;
   (intelligentCache as any).get = async function(key: string, options?: any) {
     const cacheStart = Date.now();
     const result = await originalGet.call(this, key, options);

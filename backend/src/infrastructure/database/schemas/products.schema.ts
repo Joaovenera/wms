@@ -73,14 +73,14 @@ export const productPhotoHistory = pgTable("product_photo_history", {
 });
 
 // Packaging Types table - Hierarquia de embalagens
-export const packagingTypes = pgTable("packaging_types", {
+export const packagingTypes: any = pgTable("packaging_types", {
   id: serial("id").primaryKey(),
   productId: integer("product_id").notNull().references(() => products.id),
   name: varchar("name", { length: 100 }).notNull(),
   barcode: varchar("barcode", { length: 255 }),
   baseUnitQuantity: decimal("base_unit_quantity", { precision: 10, scale: 3 }).notNull(),
   isBaseUnit: boolean("is_base_unit").default(false),
-  parentPackagingId: integer("parent_packaging_id").references(() => packagingTypes.id),
+  parentPackagingId: integer("parent_packaging_id").references(() => (packagingTypes as any).id),
   level: integer("level").notNull().default(1),
   dimensions: jsonb("dimensions"),
   isActive: boolean("is_active").default(true),

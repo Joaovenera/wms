@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { LoadingExecutionScreen } from "../components/loading-execution-screen";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,9 +12,16 @@ import {
   Play, 
   Clock, 
   CheckCircle, 
-  AlertTriangle
+  AlertTriangle,
+  Activity
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import ErrorBoundary from "../components/ErrorBoundary";
+import { LoadingExecutionSkeleton } from "../components/LoadingExecutionSkeleton";
+import { PerformanceMonitor } from "../components/PerformanceMonitor";
+import RetryComponent, { useRetry, retryPresets } from "../components/RetryMechanism";
+import { VirtualScrollList } from "../components/VirtualScrollList";
+import { useVirtualization } from "../hooks/useVirtualization";
 
 interface TransferRequest {
   id: number;
@@ -38,69 +45,162 @@ interface LoadingExecution {
   operatorName: string;
 }
 
-export default function LoadingExecutionPage() {
+const LoadingExecutionPageContent = () => {
   const [selectedExecutionId, setSelectedExecutionId] = useState<number | null>(null);
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [selectedTransferRequest, setSelectedTransferRequest] = useState<TransferRequest | null>(null);
   const [startObservations, setStartObservations] = useState("");
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [optimisticUpdates, setOptimisticUpdates] = useState<Set<number>>(new Set());
+  const [retryCount, setRetryCount] = useState(0);
+  const [performanceMetrics, setPerformanceMetrics] = useState(null);
 
   const queryClient = useQueryClient();
 
-  // Fetch approved transfer requests (ready for loading)
-  const { data: approvedRequests, isLoading: approvedLoading } = useQuery({
+  // Enhanced error recovery with exponential backoff
+  const getBackoffDelay = useCallback((attempt: number) => {
+    return Math.min(1000 * Math.pow(2, attempt), 30000); // Max 30 seconds
+  }, []);
+
+  // Optimized fetch approved transfer requests with smart polling and error recovery
+  const { data: approvedRequests, isLoading: approvedLoading, error: approvedError } = useQuery({
     queryKey: ['/api/transfer-requests', { status: 'aprovado' }],
     queryFn: async () => {
-      const res = await apiRequest('GET', '/api/transfer-requests?status=aprovado');
-      return await res.json();
+      try {
+        const res = await apiRequest('GET', '/api/transfer-requests?status=aprovado');
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        setApiError(null);
+        return await res.json();
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Erro ao carregar pedidos aprovados';
+        setApiError(errorMessage);
+        setRetryCount(prev => prev + 1);
+        // Store error metrics for performance monitoring
+        setPerformanceMetrics(prev => ({
+          ...prev,
+          errors: (prev?.errors || 0) + 1,
+          lastError: { message: errorMessage, timestamp: Date.now() }
+        }));
+        throw error;
+      }
     },
+    refetchInterval: (data, query) => {
+      // Smart polling with adaptive frequency
+      if (query?.state?.error) return getBackoffDelay(retryCount); // Exponential backoff on error
+      if (!data || data.length === 0) return 10000; // 10s if no data
+      const isActive = document.visibilityState === 'visible';
+      return isActive ? 15000 : 60000; // Reduce frequency when tab is not visible
+    },
+    staleTime: 5000, // Consider data fresh for 5 seconds
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 
-  // Fetch pending loading executions
-  const { data: pendingExecutions, isLoading: pendingLoading } = useQuery({
+  // Optimized fetch pending loading executions
+  const { data: pendingExecutions, isLoading: pendingLoading, error: pendingError } = useQuery({
     queryKey: ['/api/loading-executions/pending'],
     queryFn: async () => {
-      const res = await apiRequest('GET', '/api/loading-executions/pending');
-      return await res.json();
+      try {
+        const res = await apiRequest('GET', '/api/loading-executions/pending');
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return await res.json();
+      } catch (error) {
+        setApiError(error instanceof Error ? error.message : 'Erro ao carregar execuções pendentes');
+        throw error;
+      }
     },
+    refetchInterval: (data, query) => {
+      if (query?.state?.error) return 30000;
+      if (!data || data.length === 0) return 20000; // Less frequent if no pending executions
+      return 10000; // More frequent if there are pending executions
+    },
+    staleTime: 3000,
+    gcTime: 5 * 60 * 1000,
   });
 
-  // Start loading execution
+  // Enhanced start loading execution with optimistic updates
   const startExecutionMutation = useMutation({
     mutationFn: async (data: { transferRequestId: number; observations?: string }) => {
       const res = await apiRequest('POST', '/api/loading-executions', data);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
       return await res.json();
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/loading-executions'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/transfer-requests'] });
+    onMutate: async (variables) => {
+      // Optimistic update: add to optimistic updates set
+      setOptimisticUpdates(prev => new Set(prev).add(variables.transferRequestId));
+      
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['/api/loading-executions'] });
+      await queryClient.cancelQueries({ queryKey: ['/api/transfer-requests'] });
+      
+      return { transferRequestId: variables.transferRequestId };
+    },
+    onSuccess: (data, variables, context) => {
+      // Reset retry count on success
+      setRetryCount(0);
+      
+      // Remove from optimistic updates
+      setOptimisticUpdates(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(variables.transferRequestId);
+        return newSet;
+      });
+      
+      // Update cache efficiently
+      queryClient.setQueryData(['/api/loading-executions/pending'], (old: any) => {
+        return old ? [...old, data] : [data];
+      });
+      
+      // Remove from approved requests
+      queryClient.setQueryData(['/api/transfer-requests', { status: 'aprovado' }], (old: any) => {
+        return old ? old.filter((req: any) => req.id !== variables.transferRequestId) : [];
+      });
+      
       setSelectedExecutionId(data.id);
       setShowStartDialog(false);
       setSelectedTransferRequest(null);
       setStartObservations("");
+      setApiError(null);
+    },
+    onError: (error, variables, context) => {
+      // Remove from optimistic updates on error
+      setOptimisticUpdates(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(variables.transferRequestId);
+        return newSet;
+      });
+      
+      setApiError(error instanceof Error ? error.message : 'Erro ao iniciar execução');
     }
   });
 
-  const handleStartExecution = (request: TransferRequest) => {
+  const handleStartExecution = useCallback((request: TransferRequest) => {
     setSelectedTransferRequest(request);
     setShowStartDialog(true);
-  };
+  }, []);
 
-  const handleConfirmStart = () => {
+  const handleConfirmStart = useCallback(() => {
     if (!selectedTransferRequest) return;
     
     startExecutionMutation.mutate({
       transferRequestId: selectedTransferRequest.id,
       observations: startObservations
     });
-  };
+  }, [selectedTransferRequest, startObservations, startExecutionMutation]);
 
-  const handleExecutionComplete = () => {
+  const handleExecutionComplete = useCallback(() => {
     setSelectedExecutionId(null);
-    queryClient.invalidateQueries({ queryKey: ['/api/loading-executions'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/transfer-requests'] });
-  };
+    // Efficient cache updates instead of full invalidation
+    queryClient.refetchQueries({ queryKey: ['/api/loading-executions/pending'] });
+    queryClient.refetchQueries({ queryKey: ['/api/transfer-requests', { status: 'aprovado' }] });
+  }, [queryClient]);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = useCallback((dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
@@ -108,20 +208,43 @@ export default function LoadingExecutionPage() {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
+  }, []);
+
+  // Memoized filtered requests (exclude optimistically updated ones)
+  const filteredApprovedRequests = useMemo(() => {
+    if (!approvedRequests) return [];
+    return approvedRequests.filter((req: TransferRequest) => !optimisticUpdates.has(req.id));
+  }, [approvedRequests, optimisticUpdates]);
+
+  // Error retry configuration
+  const retryApprovedRequests = useRetry(
+    () => queryClient.refetchQueries({ queryKey: ['/api/transfer-requests', { status: 'aprovado' }] }),
+    retryPresets.network
+  );
+
+  const retryPendingExecutions = useRetry(
+    () => queryClient.refetchQueries({ queryKey: ['/api/loading-executions/pending'] }),
+    retryPresets.network
+  );
 
   // Se há uma execução selecionada, mostrar a tela de execução
   if (selectedExecutionId) {
     return (
       <div className="container mx-auto p-6">
         <div className="mb-6">
-          <Button
-            variant="outline"
-            onClick={() => setSelectedExecutionId(null)}
-            className="mb-4"
-          >
-            ← Voltar à Lista
-          </Button>
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant="outline"
+              onClick={() => setSelectedExecutionId(null)}
+            >
+              ← Voltar à Lista
+            </Button>
+            
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Activity className="h-4 w-4" />
+              <span>Dashboard Avançado Ativo</span>
+            </div>
+          </div>
         </div>
         <LoadingExecutionScreen 
           executionId={selectedExecutionId}
@@ -154,9 +277,20 @@ export default function LoadingExecutionPage() {
         </CardHeader>
         <CardContent>
           {pendingLoading ? (
-            <div className="text-center py-4">
-              <div className="text-sm text-gray-500">Carregando execuções...</div>
-            </div>
+            <LoadingExecutionSkeleton type="list" count={2} />
+          ) : pendingError ? (
+            <RetryComponent
+              operation={retryPendingExecutions.execute}
+              options={retryPresets.network}
+              trigger={
+                <div className="text-center py-8">
+                  <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                  <p className="text-red-500 mb-2">Erro ao carregar execuções</p>
+                  <p className="text-sm text-gray-500 mb-4">{apiError}</p>
+                </div>
+              }
+              showProgress={true}
+            />
           ) : !pendingExecutions || pendingExecutions.length === 0 ? (
             <div className="text-center py-8">
               <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -213,10 +347,21 @@ export default function LoadingExecutionPage() {
         </CardHeader>
         <CardContent>
           {approvedLoading ? (
-            <div className="text-center py-4">
-              <div className="text-sm text-gray-500">Carregando pedidos...</div>
-            </div>
-          ) : !approvedRequests || approvedRequests.length === 0 ? (
+            <LoadingExecutionSkeleton type="list" count={3} />
+          ) : approvedError ? (
+            <RetryComponent
+              operation={retryApprovedRequests.execute}
+              options={retryPresets.network}
+              trigger={
+                <div className="text-center py-8">
+                  <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                  <p className="text-red-500 mb-2">Erro ao carregar pedidos aprovados</p>
+                  <p className="text-sm text-gray-500 mb-4">{apiError}</p>
+                </div>
+              }
+              showProgress={true}
+            />
+          ) : !filteredApprovedRequests || filteredApprovedRequests.length === 0 ? (
             <div className="text-center py-8">
               <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">Nenhum pedido aprovado para carregamento</p>
@@ -226,7 +371,7 @@ export default function LoadingExecutionPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {approvedRequests.map((request: TransferRequest) => (
+              {filteredApprovedRequests.map((request: TransferRequest) => (
                 <div key={request.id} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
@@ -343,5 +488,14 @@ export default function LoadingExecutionPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+};
+
+export default function LoadingExecutionPage() {
+  return (
+    <ErrorBoundary context="Loading Execution Page">
+      <LoadingExecutionPageContent />
+      <PerformanceMonitor enabled={process.env.NODE_ENV === 'development'} />
+    </ErrorBoundary>
   );
 }

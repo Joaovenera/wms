@@ -15,7 +15,7 @@
  * SAFETY: This script only fixes obvious inconsistencies and logs all changes.
  */
 
-import { db } from '../db/index.js';
+import { db } from '../db';
 import { positions, ucps } from '../db/schema.js';
 import { eq, and, isNull, isNotNull } from 'drizzle-orm';
 
@@ -137,18 +137,20 @@ async function fixPositionConsistency(report: InconsistencyReport, dryRun: boole
 async function detectDuplicateUcpsInSamePosition(): Promise<void> {
   console.log('\n🔍 Checking for multiple active UCPs in same position...');
 
-  const duplicatePositions = await db
-    .select({
-      positionId: ucps.positionId,
-      count: db.raw('count(*)').as('count')
-    })
+  // Drizzle doesn't support db.raw here; simplify check by scanning and aggregating in memory
+  const activeWithPositions = await db
+    .select({ positionId: ucps.positionId })
     .from(ucps)
-    .where(and(
-      eq(ucps.status, 'active'),
-      isNotNull(ucps.positionId)
-    ))
-    .groupBy(ucps.positionId)
-    .having(db.raw('count(*) > 1'));
+    .where(and(eq(ucps.status, 'active'), isNotNull(ucps.positionId)));
+
+  const counts = new Map<number, number>();
+  for (const row of activeWithPositions) {
+    const pid = row.positionId as number;
+    counts.set(pid, (counts.get(pid) || 0) + 1);
+  }
+  const duplicatePositions = Array.from(counts.entries())
+    .filter(([, c]) => c > 1)
+    .map(([positionId, count]) => ({ positionId, count }));
 
   if (duplicatePositions.length > 0) {
     console.log('\n🚨 CRITICAL ERROR: Multiple active UCPs found in same positions:');

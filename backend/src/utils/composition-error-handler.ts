@@ -470,7 +470,8 @@ export class CompositionErrorHandler {
     // Store in cache for error analytics
     try {
       const errorKey = `error_log:${error.timestamp.getTime()}`;
-      await intelligentCache.set(errorKey, logData, { ttl: 86400 }); // 24 hours
+      // Use cache service via query-level cache to avoid missing direct set()
+      await intelligentCache.cacheQuery(errorKey, [], async () => logData, { ttl: 86400 });
     } catch (cacheError) {
       console.error('Failed to cache error log:', cacheError);
     }

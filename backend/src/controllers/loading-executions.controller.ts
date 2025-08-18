@@ -210,7 +210,7 @@ export const loadingExecutionsController = {
   async scanAndConfirmItem(req: AuthenticatedRequest, res: Response) {
     try {
       const { id } = req.params;
-      const { productId, quantity, scannedCode } = req.body;
+      const { productId, quantity, scannedCode, isEdit = false } = req.body;
       
       // Verificar se a execução existe e está em andamento
       const [execution] = await db.select()
@@ -240,21 +240,34 @@ export const loadingExecutionsController = {
       }
       
       const quantityNum = parseFloat(quantity);
-      const currentLoaded = parseFloat(loadingItem.loadedQuantity);
       const requested = parseFloat(loadingItem.requestedQuantity);
       
-      // Verificar se não excede a quantidade solicitada
-      if (currentLoaded + quantityNum > requested) {
-        return res.status(400).json({ 
-          error: 'Quantidade excede o solicitado',
-          requested,
-          currentLoaded,
-          attempting: quantityNum
-        });
-      }
+      let newLoadedQuantity: number;
+      let newNotLoadedQuantity: number;
       
-      const newLoadedQuantity = currentLoaded + quantityNum;
-      const newNotLoadedQuantity = requested - newLoadedQuantity;
+      if (isEdit) {
+        // Modo edição: substituir a quantidade carregada
+        if (quantityNum > requested) {
+          return res.status(400).json({ 
+            error: 'Quantidade excede o solicitado',
+            requested,
+            attempting: quantityNum
+          });
+        }
+        newLoadedQuantity = quantityNum;
+        newNotLoadedQuantity = requested - quantityNum;
+      } else {
+        // Modo scan: definir quantidade absoluta (igual ao modo edição)
+        if (quantityNum > requested) {
+          return res.status(400).json({ 
+            error: 'Quantidade excede o solicitado',
+            requested,
+            attempting: quantityNum
+          });
+        }
+        newLoadedQuantity = quantityNum;
+        newNotLoadedQuantity = requested - quantityNum;
+      }
       
       // Atualizar o item
       const [updatedItem] = await db.update(loadingItems)
@@ -268,15 +281,36 @@ export const loadingExecutionsController = {
         .where(eq(loadingItems.id, loadingItem.id))
         .returning();
       
-      logger.info(`Item scanned and confirmed in loading execution`, { 
+      // Buscar o item atualizado com todos os campos necessários (incluindo productName e productSku)
+      const [completeItem] = await db.select({
+        id: loadingItems.id,
+        transferRequestItemId: loadingItems.transferRequestItemId,
+        productId: loadingItems.productId,
+        requestedQuantity: loadingItems.requestedQuantity,
+        loadedQuantity: loadingItems.loadedQuantity,
+        notLoadedQuantity: loadingItems.notLoadedQuantity,
+        divergenceReason: loadingItems.divergenceReason,
+        divergenceComments: loadingItems.divergenceComments,
+        scannedAt: loadingItems.scannedAt,
+        confirmedAt: loadingItems.confirmedAt,
+        productName: products.name,
+        productSku: products.sku
+      })
+      .from(loadingItems)
+      .leftJoin(products, eq(loadingItems.productId, products.id))
+      .where(eq(loadingItems.id, loadingItem.id))
+      .limit(1);
+      
+      logger.info(`Item ${isEdit ? 'edited' : 'scanned and confirmed'} in loading execution`, { 
         userId: req.user!.id,
         loadingExecutionId: parseInt(id),
         productId,
         quantity: quantityNum,
+        isEdit,
         scannedCode
       });
       
-      res.json(updatedItem);
+      res.json(completeItem);
     } catch (error) {
       logger.error('Error scanning and confirming item:', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
@@ -312,6 +346,26 @@ export const loadingExecutionsController = {
         return res.status(404).json({ error: 'Item não encontrado' });
       }
       
+      // Buscar o item atualizado com todos os campos necessários (incluindo productName e productSku)
+      const [completeItem] = await db.select({
+        id: loadingItems.id,
+        transferRequestItemId: loadingItems.transferRequestItemId,
+        productId: loadingItems.productId,
+        requestedQuantity: loadingItems.requestedQuantity,
+        loadedQuantity: loadingItems.loadedQuantity,
+        notLoadedQuantity: loadingItems.notLoadedQuantity,
+        divergenceReason: loadingItems.divergenceReason,
+        divergenceComments: loadingItems.divergenceComments,
+        scannedAt: loadingItems.scannedAt,
+        confirmedAt: loadingItems.confirmedAt,
+        productName: products.name,
+        productSku: products.sku
+      })
+      .from(loadingItems)
+      .leftJoin(products, eq(loadingItems.productId, products.id))
+      .where(eq(loadingItems.id, parseInt(itemId)))
+      .limit(1);
+      
       logger.info(`Divergence registered for loading item`, { 
         userId: req.user!.id,
         loadingExecutionId: parseInt(id),
@@ -320,7 +374,7 @@ export const loadingExecutionsController = {
         divergenceComments
       });
       
-      res.json(updatedItem);
+      res.json(completeItem);
     } catch (error) {
       logger.error('Error registering divergence:', error);
       res.status(500).json({ error: 'Erro interno do servidor' });

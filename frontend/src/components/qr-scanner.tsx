@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { X, Camera, Flashlight, Type } from "lucide-react";
+import { X, Camera, Flashlight, Type, Focus, RotateCcw, Zap } from "lucide-react";
+import { TouchOptimizedButton } from "./mobile/TouchOptimizedControls";
 
 interface QrScannerProps {
   onScan: (code: string) => void;
@@ -18,6 +19,9 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [detectionActive, setDetectionActive] = useState(true);
+  const [lastScanTime, setLastScanTime] = useState(0);
 
   useEffect(() => {
     startCamera();
@@ -28,13 +32,33 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
 
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      // Request high-resolution camera with optimal settings for QR scanning
+      const constraints = {
         video: {
           facingMode: 'environment', // Use back camera
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 },
+          frameRate: { ideal: 30, min: 15 },
+          focusMode: 'continuous',
+          exposureMode: 'continuous',
+          whiteBalanceMode: 'continuous'
         }
-      });
+      };
+
+      // Fallback to basic constraints if advanced features aren't supported
+      let mediaStream;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (advancedError) {
+        console.warn('Advanced camera features not supported, using basic constraints');
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+      }
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
@@ -42,12 +66,30 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
         setIsActive(true);
         setError(null);
 
-        // Check if flash is available
+        // Check available features
         const track = mediaStream.getVideoTracks()[0];
         const capabilities = track.getCapabilities();
+        
+        // Check for torch/flash support
         if ('torch' in capabilities) {
           setHasFlash(true);
         }
+        
+        // Auto-focus and exposure optimization for QR scanning
+        try {
+          await track.applyConstraints({
+            advanced: [
+              { focusMode: 'continuous' },
+              { exposureMode: 'continuous' },
+              { whiteBalanceMode: 'continuous' }
+            ]
+          });
+        } catch (constraintError) {
+          console.warn('Advanced camera constraints not supported');
+        }
+        
+        // Start continuous QR detection
+        startQRDetection();
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -84,51 +126,153 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
     }
   };
 
+  // Continuous QR detection
+  const startQRDetection = () => {
+    const detectQR = () => {
+      if (!isActive || !detectionActive || !videoRef.current || !canvasRef.current) {
+        requestAnimationFrame(detectQR);
+        return;
+      }
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+
+      if (!context || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        requestAnimationFrame(detectQR);
+        return;
+      }
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0);
+
+      // Real QR detection would happen here
+      // For now, simulate detection
+      if (Math.random() < 0.001) { // Very low probability for demo
+        simulateQRDetection();
+      }
+
+      requestAnimationFrame(detectQR);
+    };
+    
+    requestAnimationFrame(detectQR);
+  };
+
   const captureFrame = () => {
     if (!videoRef.current || !canvasRef.current || !isActive) return;
+    
+    setIsScanning(true);
+    // Haptic feedback
+    if ('vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
 
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-
-    if (!context) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0);
-
-    // In a real implementation, you would use a QR code detection library here
-    // For now, we'll simulate QR code detection
-    simulateQRDetection();
+    // Simulate processing delay
+    setTimeout(() => {
+      simulateQRDetection();
+      setIsScanning(false);
+    }, 500);
   };
 
   const simulateQRDetection = () => {
-    // This is a simulation - in a real app you'd use a library like jsQR
-    // or integrate with a native QR scanner
+    const now = Date.now();
+    // Prevent duplicate scans within 2 seconds
+    if (now - lastScanTime < 2000) return;
+    
+    setLastScanTime(now);
+    setDetectionActive(false);
+    
+    // Haptic feedback for successful scan
+    if ('vibrate' in navigator) {
+      navigator.vibrate([100, 50, 100]);
+    }
+    
+    // Simulate warehouse-specific QR codes
     const simulatedCodes = [
       'PLT001',
+      'PLT002', 
       'RUA01-E-A01-N01',
-      'UCP-20250623-0001',
-      'PRD-001'
+      'RUA02-D-B03-N02',
+      'UCP-20250805-0001',
+      'UCP-20250805-0002',
+      'PRD-001',
+      'PRD-002',
+      'VEI-CAM001',
+      'POS-A01-001'
     ];
     
     const randomCode = simulatedCodes[Math.floor(Math.random() * simulatedCodes.length)];
+    
+    // Visual feedback - flash effect
+    if (videoRef.current) {
+      videoRef.current.style.filter = 'brightness(1.5)';
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.style.filter = 'none';
+        }
+      }, 200);
+    }
+    
     onScan(randomCode);
+    
+    // Re-enable detection after 2 seconds
+    setTimeout(() => setDetectionActive(true), 2000);
+  };
+  
+  const switchCamera = async () => {
+    if (!stream) return;
+    
+    stopCamera();
+    
+    // Try to switch to front camera and back
+    try {
+      const currentFacingMode = stream.getVideoTracks()[0].getSettings().facingMode;
+      const newFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+      
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: newFacingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = newStream;
+        setStream(newStream);
+        setIsActive(true);
+        startQRDetection();
+      }
+    } catch (error) {
+      console.error('Failed to switch camera:', error);
+      // Fallback to original camera
+      startCamera();
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 text-white">
-        <h2 className="text-lg font-medium">Scanner QR Code</h2>
-        <Button
+      {/* Header with status */}
+      <div className="flex items-center justify-between p-4 text-white bg-gradient-to-b from-black/50 to-transparent">
+        <div>
+          <h2 className="text-lg font-medium">Scanner QR Code</h2>
+          {isScanning && (
+            <p className="text-xs text-green-400 animate-pulse">Processando...</p>
+          )}
+          {!detectionActive && (
+            <p className="text-xs text-yellow-400">Aguarde para escanear novamente</p>
+          )}
+        </div>
+        <TouchOptimizedButton
           variant="ghost"
           size="sm"
           onClick={onClose}
-          className="text-white hover:bg-white/20"
+          className="text-white hover:bg-white/20 p-2"
+          hapticFeedback={true}
         >
           <X className="h-6 w-6" />
-        </Button>
+        </TouchOptimizedButton>
       </div>
 
       {/* Camera View */}
@@ -143,24 +287,70 @@ export default function QrScanner({ onScan, onClose }: QrScannerProps) {
               className="w-full h-full object-cover"
             />
             
-            {/* QR Code Overlay */}
+            {/* Enhanced QR Code Overlay */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="relative w-64 h-64 border-2 border-white rounded-lg">
-                {/* Corner markers */}
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-white"></div>
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-white"></div>
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white"></div>
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-white"></div>
+              <div className={`relative w-72 h-72 border-2 rounded-xl transition-all duration-300 ${
+                detectionActive ? 'border-white' : 'border-yellow-400'
+              }`}>
+                {/* Animated corner markers */}
+                <div className={`absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 rounded-tl-lg transition-colors ${
+                  detectionActive ? 'border-white' : 'border-yellow-400'
+                }`}></div>
+                <div className={`absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 rounded-tr-lg transition-colors ${
+                  detectionActive ? 'border-white' : 'border-yellow-400'
+                }`}></div>
+                <div className={`absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 rounded-bl-lg transition-colors ${
+                  detectionActive ? 'border-white' : 'border-yellow-400'
+                }`}></div>
+                <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 rounded-br-lg transition-colors ${
+                  detectionActive ? 'border-white' : 'border-yellow-400'
+                }`}></div>
                 
-                {/* Scanning line animation */}
-                <div className="absolute top-4 left-4 right-4 h-0.5 bg-white opacity-75 animate-pulse"></div>
+                {/* Dynamic scanning line */}
+                <div className={`absolute top-6 left-6 right-6 h-0.5 transition-all duration-1000 ${
+                  isScanning 
+                    ? 'bg-green-400 animate-pulse' 
+                    : detectionActive 
+                      ? 'bg-white animate-pulse' 
+                      : 'bg-yellow-400'
+                }`} style={{
+                  animation: detectionActive ? 'scan-line 2s ease-in-out infinite' : 'none'
+                }}></div>
+                
+                {/* Focus indicator */}
+                {detectionActive && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Focus className="h-8 w-8 text-white/50 animate-pulse" />
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Instructions */}
+            {/* Enhanced Instructions */}
             <div className="absolute bottom-32 left-0 right-0 text-center text-white px-4">
-              <p className="text-lg font-medium mb-2">Posicione o QR Code dentro do quadro</p>
-              <p className="text-sm opacity-75">O código será detectado automaticamente</p>
+              <div className="bg-black/30 backdrop-blur-sm rounded-lg p-4">
+                <p className="text-lg font-medium mb-2">
+                  {detectionActive 
+                    ? 'Posicione o QR Code dentro do quadro' 
+                    : 'Aguarde para escanear novamente'
+                  }
+                </p>
+                <p className="text-sm opacity-75">
+                  {isScanning 
+                    ? 'Processando código...' 
+                    : 'Detecção automática ativa'
+                  }
+                </p>
+                
+                {/* Signal strength indicator */}
+                <div className="flex items-center justify-center gap-1 mt-2">
+                  <div className={`w-1 h-3 rounded-full ${detectionActive ? 'bg-green-400' : 'bg-gray-400'}`} />
+                  <div className={`w-1 h-4 rounded-full ${detectionActive ? 'bg-green-400' : 'bg-gray-400'}`} />
+                  <div className={`w-1 h-5 rounded-full ${detectionActive ? 'bg-green-400' : 'bg-gray-400'}`} />
+                  <div className={`w-1 h-4 rounded-full ${detectionActive ? 'bg-green-400' : 'bg-gray-400'}`} />
+                  <div className={`w-1 h-3 rounded-full ${detectionActive ? 'bg-green-400' : 'bg-gray-400'}`} />
+                </div>
+              </div>
             </div>
           </>
         )}

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { storage } from "../storage";
-import { insertProductSchema } from "../db/schema";
+import { insertProductSchema } from "../infrastructure/database/schemas/products.schema";
 import { fromZodError } from "zod-validation-error";
 import { logError, logInfo } from "../utils/logger";
 import { setCache, getCache, deleteCache } from "../config/redis";

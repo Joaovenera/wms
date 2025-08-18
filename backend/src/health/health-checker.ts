@@ -50,12 +50,11 @@ class HealthChecker {
 
       // Initialize Redis connection
       if (process.env.REDIS_URL) {
-        this.redis = new Redis(process.env.REDIS_URL, {
-          retryDelayOnFailover: 100,
+        this.redis = new Redis(process.env.REDIS_URL as string, {
           enableReadyCheck: false,
           maxRetriesPerRequest: 1,
           lazyConnect: true,
-        });
+        } as any);
       }
     } catch (error) {
       console.error('Failed to initialize health check connections:', error);

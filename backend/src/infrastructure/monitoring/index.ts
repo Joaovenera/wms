@@ -9,7 +9,7 @@
  */
 
 // Health monitoring exports
-export { healthService, HealthService } from './health.service.js';
+import { healthService, HealthService } from './health.service.js';
 export type { 
   HealthStatus, 
   HealthCheck, 
@@ -17,7 +17,7 @@ export type {
 } from './health.service.js';
 
 // Metrics exports
-export { metricsService, MetricsService } from './metrics.service.js';
+import { metricsService, MetricsService } from './metrics.service.js';
 export type {
   RequestMetrics,
   ErrorMetrics,
@@ -30,24 +30,24 @@ export type {
 export const monitoring = {
   // Health monitoring
   health: {
-    check: healthService.performHealthCheck.bind(healthService),
-    quick: healthService.getQuickHealth.bind(healthService),
-    last: healthService.getLastHealthCheck.bind(healthService),
-    start: healthService.startMonitoring.bind(healthService),
-    stop: healthService.stopMonitoring.bind(healthService),
-    uptime: healthService.getUptime.bind(healthService),
+    check: () => healthService.performHealthCheck(),
+    quick: () => healthService.getQuickHealth(),
+    last: () => healthService.getLastHealthCheck(),
+    start: () => healthService.startMonitoring(),
+    stop: () => healthService.stopMonitoring(),
+    uptime: () => healthService.getUptime(),
   },
   
   // Metrics collection
   metrics: {
-    recordRequest: metricsService.recordRequest.bind(metricsService),
-    recordError: metricsService.recordError.bind(metricsService),
-    updateBusiness: metricsService.updateBusinessMetrics.bind(metricsService),
-    getAggregated: metricsService.getAggregatedMetrics.bind(metricsService),
-    getPerformance: metricsService.getPerformanceSnapshot.bind(metricsService),
-    getErrors: metricsService.getErrorSummary.bind(metricsService),
-    export: metricsService.exportMetrics.bind(metricsService),
-    cleanup: metricsService.cleanup.bind(metricsService),
+    recordRequest: (data: any) => metricsService.recordRequest(data),
+    recordError: (data: any) => metricsService.recordError(data),
+    updateBusiness: (data: any) => metricsService.updateBusinessMetrics(data),
+    getAggregated: () => metricsService.getAggregatedMetrics(),
+    getPerformance: () => metricsService.getPerformanceSnapshot(),
+    getErrors: () => metricsService.getErrorSummary(),
+    export: () => metricsService.exportMetrics(),
+    cleanup: () => metricsService.cleanup(),
   },
 } as const;
 

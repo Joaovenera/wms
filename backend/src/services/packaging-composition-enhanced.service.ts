@@ -67,12 +67,16 @@ export class PackagingCompositionEnhancedService extends PackagingCompositionSer
     const layout = await this.optimizeLayoutAdvanced(productDetails, pallet, calculations);
     
     // Deep constraint validation with predictive analysis
-    const validation = await this.validateConstraintsEnhanced(calculations, pallet, request.constraints);
+    const validation = await this.validateCompositionConstraints({
+      products: request.products,
+      palletId: pallet.id,
+      constraints: request.constraints,
+    });
     
     // Machine learning-powered recommendations
     const recommendations = await this.generateEnhancedRecommendations(calculations, validation, layout);
     
-    return {
+      return {
       isValid: validation.isValid,
       efficiency: calculations.efficiency,
       layout,
@@ -86,7 +90,7 @@ export class PackagingCompositionEnhancedService extends PackagingCompositionSer
         optimizationStrategy: 'advanced',
         confidenceScore: this.calculateConfidenceScore(calculations),
         alternativeCount: await this.countAlternatives(request),
-        stabilityAnalysis: layout.stability
+          stabilityAnalysis: layout.stability
       }
     } as any;
   }
@@ -202,7 +206,7 @@ export class PackagingCompositionEnhancedService extends PackagingCompositionSer
         totalVolume: calculations.volume.total,
         totalHeight: calculations.height.total,
         efficiency: calculations.efficiency,
-        stabilityScore,
+        // stabilityScore is part of enhanced metrics in base service; omit here
         riskLevel: this.assessRiskLevel(violations, warnings, stabilityScore)
       }
     };

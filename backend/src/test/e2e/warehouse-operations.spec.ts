@@ -56,30 +56,30 @@ test.describe('Warehouse Operations E2E', () => {
       await page.click('[data-testid=save-packaging-button]')
       
       // Box packaging
-      await page.click '[data-testid=create-packaging-button]')
-      await page.fill('[data-testid=packaging-name-input]', 'Box')
-      await page.fill('[data-testid=packaging-quantity-input]', '12')
-      await page.fill('[data-testid=packaging-barcode-input]', `BOX-${Date.now()}`)
-      await page.click('[data-testid=save-packaging-button]')
+      await page.click('[data-testid=create-packaging-button]')
+      await page.fill('[data-testid=packaging-name-input]', 'Box');
+      await page.fill('[data-testid=packaging-quantity-input]', '12');
+      await page.fill('[data-testid=packaging-barcode-input]', `BOX-${Date.now()}`);
+      await page.click('[data-testid=save-packaging-button]');
       
       // Verify packaging created
-      await expect(page.locator('text=Unit')).toBeVisible()
-      await expect(page.locator('text=Box')).toBeVisible()
+      await expect(page.locator('text=Unit')).toBeVisible();
+      await expect(page.locator('text=Box')).toBeVisible();
       
       // Update product
-      await page.click('[data-testid=edit-product-button]')
-      await page.fill('[data-testid=product-description-input]', 'Updated lifecycle test')
-      await page.click('[data-testid=save-product-button]')
+      await page.click('[data-testid=edit-product-button]');
+      await page.fill('[data-testid=product-description-input]', 'Updated lifecycle test');
+      await page.click('[data-testid=save-product-button]');
       
       // Verify update
-      await expect(page.locator('text=Updated lifecycle test')).toBeVisible()
+      await expect(page.locator('text=Updated lifecycle test')).toBeVisible();
       
       // Delete product
-      await page.click(`[data-testid=delete-product-${productSku}]`)
-      await page.click('[data-testid=confirm-delete-button]')
+      await page.click(`[data-testid=delete-product-${productSku}]`);
+      await page.click('[data-testid=confirm-delete-button]');
       
       // Verify deletion
-      await expect(page.locator(`[data-testid=product-row-${productSku}]`)).not.toBeVisible()
+      await expect(page.locator(`[data-testid=product-row-${productSku}]`)).not.toBeVisible();
     })
 
     test('should handle bulk product operations', async ({ page }) => {

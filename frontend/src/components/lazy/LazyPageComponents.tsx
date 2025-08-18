@@ -10,7 +10,6 @@ export const LazyDashboard = React.lazy(() => import('@/pages/dashboard'));
 export const LazyPallets = React.lazy(() => import('@/pages/pallets'));
 export const LazyPortaPaletes = React.lazy(() => import('@/pages/porta-paletes'));
 export const LazyPositions = React.lazy(() => import('@/pages/positions'));
-export const LazyPalletStructures = React.lazy(() => import('@/pages/pallet-structures'));
 export const LazyUCPs = React.lazy(() => import('@/pages/ucps'));
 export const LazyProducts = React.lazy(() => import('@/pages/products'));
 export const LazyUsers = React.lazy(() => import('@/pages/users'));
@@ -22,6 +21,7 @@ export const LazyTransferReports = React.lazy(() => import('@/pages/transfer-rep
 export const LazyMobileHome = React.lazy(() => import('@/pages/mobile/pallets'));
 export const LazyMobileScanner = React.lazy(() => import('@/pages/mobile/scanner'));
 export const LazyMobilePallets = React.lazy(() => import('@/pages/mobile/pallets'));
+export const LazyMobileProducts = React.lazy(() => import('@/pages/mobile/products'));
 export const LazyMobileLayout = React.lazy(() => import('@/components/layout/mobile-layout'));
 export const LazyDesktopLayout = React.lazy(() => import('@/components/layout/desktop-layout'));
 
@@ -30,7 +30,6 @@ export default {
   LazyPallets,
   LazyPortaPaletes,
   LazyPositions,
-  LazyPalletStructures,
   LazyUCPs,
   LazyProducts,
   LazyUsers,
@@ -42,6 +41,7 @@ export default {
   LazyMobileHome,
   LazyMobileScanner,
   LazyMobilePallets,
+  LazyMobileProducts,
   LazyMobileLayout,
   LazyDesktopLayout
 };

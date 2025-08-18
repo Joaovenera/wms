@@ -1,3 +1,7 @@
+import { db, pool, checkDatabaseHealth, closeDatabaseConnection, getDatabaseMetrics } from './database/database.js';
+import { repositories } from './database/repositories/index.js';
+import { cache, cacheService, strategies, strategicCache } from './cache/index.js';
+import monitoring from './monitoring/index.js';
 /**
  * Infrastructure Layer Barrel Export
  * 
@@ -12,14 +16,14 @@
 export { db, pool, checkDatabaseHealth, closeDatabaseConnection, getDatabaseMetrics } from './database/database.js';
 export { repositories } from './database/repositories/index.js';
 export type { RepositoryContainer } from './database/repositories/index.js';
-export * from './database/schemas/index.js';
+// Avoid re-exporting database schemas to keep infra barrel lean
 
 // Cache exports
 export { cache, cacheService, strategies, strategicCache } from './cache/index.js';
 export type { CacheOptions, CacheStats, CacheStrategy } from './cache/index.js';
 
 // Monitoring exports
-export { monitoring, healthService, metricsService } from './monitoring/index.js';
+export { default as monitoring } from './monitoring/index.js';
 export type { 
   HealthStatus, 
   HealthCheck, 

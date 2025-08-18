@@ -195,7 +195,10 @@ export function ProductSearchSelector({
                                 SKU: {product.sku}
                               </Badge>
                             </div>
-                            {product.dimensions && (
+                            {product.dimensions && 
+                             product.dimensions.length > 0 && 
+                             product.dimensions.width > 0 && 
+                             product.dimensions.height > 0 && (
                               <p className="text-sm text-gray-600 mt-2">
                                 Dimensões: {product.dimensions.length}cm × {product.dimensions.width}cm × {product.dimensions.height}cm
                               </p>

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { packagingController } from "../controllers/packaging.controller";
 import { validatePayload } from "../middleware/payload.middleware";
 import { isAuthenticated } from "../middleware/auth.middleware";
@@ -53,7 +53,7 @@ router.post('/convert', packagingController.convertQuantity.bind(packagingContro
  * POST /api/packaging
  * Create new packaging type
  */
-router.post('/', packagingController.createPackaging.bind(packagingController));
+router.post('/', (req: Request, res: Response) => packagingController.createPackaging(req as any, res));
 
 /**
  * PUT /api/packaging/:id
@@ -73,6 +73,32 @@ router.delete('/:id', packagingController.deletePackaging.bind(packagingControll
  */
 router.get('/:id', packagingController.getPackagingById.bind(packagingController));
 
+// HIERARCHY VALIDATION ROUTES
+
+/**
+ * GET /api/packaging/products/:productId/validate-hierarchy
+ * Validate packaging hierarchy integrity for a product
+ */
+router.get('/products/:productId/validate-hierarchy', packagingController.validateHierarchyIntegrity.bind(packagingController));
+
+/**
+ * GET /api/packaging/:packagingId/hierarchy-path
+ * Get complete hierarchy path for a packaging
+ */
+router.get('/:packagingId/hierarchy-path', packagingController.getHierarchyPath.bind(packagingController));
+
+/**
+ * POST /api/packaging/convert-between
+ * Convert quantities between packaging types with detailed conversion path
+ */
+router.post('/convert-between', packagingController.convertBetweenPackagings.bind(packagingController));
+
+/**
+ * POST /api/packaging/create-example-hierarchy
+ * Create example 3-level hierarchy for testing (1 → 2 → 10 units)
+ */
+router.post('/create-example-hierarchy', packagingController.createExampleHierarchy.bind(packagingController));
+
 // COMPOSITION ROUTES
 
 /**
@@ -86,7 +112,7 @@ router.post(
   validateCompositionRequest,
   validateBusinessRules,
   optimizeForPerformance,
-  packagingController.calculateOptimalComposition.bind(packagingController)
+  (req: Request, res: Response) => packagingController.calculateOptimalComposition(req, res)
 );
 
 /**
@@ -98,7 +124,7 @@ router.post(
   sanitizeCompositionRequest,
   validateValidationRequest,
   validateBusinessRules,
-  packagingController.validateComposition.bind(packagingController)
+  (req: Request, res: Response) => packagingController.validateComposition(req, res)
 );
 
 /**
@@ -108,7 +134,7 @@ router.post(
 router.post(
   '/composition/report',
   validateReportRequest,
-  packagingController.generateCompositionReport.bind(packagingController)
+  (req: Request, res: Response) => packagingController.generateCompositionReport(req, res)
 );
 
 // COMPOSITION PERSISTENCE ROUTES
@@ -123,7 +149,7 @@ router.post(
   sanitizeCompositionRequest,
   validateCompositionRequest,
   validateBusinessRules,
-  packagingController.saveComposition.bind(packagingController)
+  (req: Request, res: Response) => packagingController.saveComposition(req as any, res)
 );
 
 /**
@@ -142,7 +168,7 @@ router.get('/composition/:id', packagingController.getComposition.bind(packaging
  * PATCH /api/packaging/composition/:id/status
  * Update composition status
  */
-router.patch('/composition/:id/status', packagingController.updateCompositionStatus.bind(packagingController));
+router.patch('/composition/:id/status', (req: Request, res: Response) => packagingController.updateCompositionStatus(req as any, res));
 
 /**
  * DELETE /api/packaging/composition/:id
@@ -159,7 +185,7 @@ router.delete('/composition/:id', packagingController.deleteComposition.bind(pac
 router.post(
   '/composition/assemble',
   rateLimit(5, 60000), // 5 assembly operations per minute
-  packagingController.assembleComposition.bind(packagingController)
+  (req: Request, res: Response) => packagingController.assembleComposition(req as any, res)
 );
 
 /**
@@ -169,7 +195,7 @@ router.post(
 router.post(
   '/composition/disassemble',
   rateLimit(5, 60000), // 5 disassembly operations per minute
-  packagingController.disassembleComposition.bind(packagingController)
+  (req: Request, res: Response) => packagingController.disassembleComposition(req as any, res)
 );
 
 export default router;

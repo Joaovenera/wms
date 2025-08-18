@@ -69,8 +69,11 @@ export const vehiclesController = {
     try {
       // Calcular cubicCapacity automaticamente a partir das dimensões
       const { cargoAreaLength, cargoAreaWidth, cargoAreaHeight } = req.body;
-      const calculatedCubicCapacity = cargoAreaLength && cargoAreaWidth && cargoAreaHeight 
-        ? (parseFloat(cargoAreaLength) * parseFloat(cargoAreaWidth) * parseFloat(cargoAreaHeight)).toString()
+      const lengthNum = Number(cargoAreaLength);
+      const widthNum = Number(cargoAreaWidth);
+      const heightNum = Number(cargoAreaHeight);
+      const calculatedCubicCapacity = Number.isFinite(lengthNum) && Number.isFinite(widthNum) && Number.isFinite(heightNum)
+        ? (lengthNum * widthNum * heightNum).toString()
         : '0';
 
       const validatedData = insertVehicleSchema.parse({
@@ -100,7 +103,12 @@ export const vehiclesController = {
       }
       
       const [newVehicle] = await db.insert(vehicles)
-        .values(validatedData)
+        .values({
+          ...validatedData,
+          cargoAreaLength: String(validatedData.cargoAreaLength),
+          cargoAreaWidth: String(validatedData.cargoAreaWidth),
+          cargoAreaHeight: String(validatedData.cargoAreaHeight),
+        })
         .returning();
       
       logger.info(`Vehicle created: ${newVehicle.code}`, { 

@@ -344,7 +344,10 @@ export default function ProductDetailsModal({
                           <span className="font-mono">{productData.barcode}</span>
                         </div>
                       )}
-                      {productData.dimensions && (
+                      {productData.dimensions && 
+                       productData.dimensions.length > 0 && 
+                       productData.dimensions.width > 0 && 
+                       productData.dimensions.height > 0 && (
                         <div className="flex justify-between">
                           <span className="text-gray-600">Dimensões:</span>
                           <span>

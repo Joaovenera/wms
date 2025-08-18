@@ -13,6 +13,7 @@ import { z, ZodSchema, ZodError } from 'zod';
 import { ValidationError } from '../../../utils/exceptions/index.js';
 import { logError } from '../../../utils/logger.js';
 import { metricsService } from '../../../infrastructure/monitoring/index.js';
+import { type User } from '../../../db/schema.js';
 
 export interface ValidationSchemas {
   body?: ZodSchema<any>;
@@ -48,15 +49,11 @@ export function validate(schemas: ValidationSchemas) {
       const validationTime = Date.now() - startTime;
       
       if (error instanceof ZodError) {
-        const validationError = new ValidationError(
-          'Validation failed',
-          { 
-            issues: error.issues.map(issue => ({
-              path: issue.path.join('.'),
-              message: issue.message,
-              code: issue.code,
-            }))
-          }
+        const validationError = new ValidationError('Validation failed',
+          error.issues.map(issue => ({
+            field: issue.path.join('.'),
+            message: issue.message,
+          }))
         );
 
         // Record validation error metrics
@@ -64,7 +61,7 @@ export function validate(schemas: ValidationSchemas) {
           error: 'Validation Error',
           route: req.route?.path || req.path,
           method: req.method,
-          userId: req.user?.id,
+          userId: (req.user as User | undefined)?.id,
         });
 
         metricsService.recordRequest({
@@ -75,18 +72,18 @@ export function validate(schemas: ValidationSchemas) {
           timestamp: new Date().toISOString(),
           userAgent: req.get('User-Agent'),
           ip: req.ip,
-          userId: req.user?.id,
+          userId: (req.user as User | undefined)?.id,
         });
 
         logError('Request validation failed', {
           path: req.path,
           method: req.method,
-          errors: validationError.details,
+          errors: validationError.errors,
         });
 
         res.status(400).json({
           message: 'Validation failed',
-          errors: validationError.details,
+          errors: validationError.errors,
         });
         return;
       }

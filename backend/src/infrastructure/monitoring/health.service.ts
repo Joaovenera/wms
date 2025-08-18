@@ -143,8 +143,8 @@ export class HealthService {
       status: overallStatus,
       timestamp,
       uptime,
-      version: appConfig.version,
-      environment: appConfig.nodeEnv,
+      version: '1.0.0',
+      environment: appConfig.env,
       checks,
       metrics,
     };
@@ -388,8 +388,8 @@ export class HealthService {
 
     return {
       database: {
-        connections: database.connections,
-        latency: 0, // Will be set from health check
+        connections: 'connections' in database ? database.connections : database.poolStats,
+        latency: 0,
       },
       cache: {
         hits: cacheData.hits,

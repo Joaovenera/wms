@@ -212,7 +212,10 @@ export function ProductSearchField({
                           SKU: {product.sku}
                         </Badge>
                       </div>
-                      {product.dimensions && (
+                      {product.dimensions && 
+                       product.dimensions.length > 0 && 
+                       product.dimensions.width > 0 && 
+                       product.dimensions.height > 0 && (
                         <p className="text-xs text-gray-600 mt-1">
                           {product.dimensions.length}×{product.dimensions.width}×{product.dimensions.height}cm
                         </p>

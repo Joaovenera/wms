@@ -2,7 +2,6 @@ import {
   users,
   pallets,
   positions,
-  products,
   productPhotos,
   productPhotoHistory,
   ucps,
@@ -18,7 +17,6 @@ import {
   type Position,
   type InsertPosition,
   type Product,
-  type InsertProduct,
   type ProductPhoto,
   type InsertProductPhoto,
   type ProductPhotoHistory,
@@ -36,6 +34,7 @@ import {
   type PalletStructure,
   type InsertPalletStructure,
 } from "./db/schema.js";
+import { products, type InsertProduct } from "./db/schema";
 import { db } from "./db";
 import { imageService } from "./services/image.service";
 import { eq, desc, sql, and, like, or, isNull, ne } from "drizzle-orm";
@@ -127,14 +126,16 @@ export interface IStorage {
   // Pallet availability for UCP
   getAvailablePalletsForUcp(): Promise<Pallet[]>;
 
-  // Pallet code generation
-  getNextPalletCode(): Promise<string>;
-
   // Pallet Structure operations
   getPalletStructures(): Promise<PalletStructure[]>;
   getPalletStructure(id: number): Promise<PalletStructure | undefined>;
   createPalletStructure(structure: InsertPalletStructure): Promise<PalletStructure>;
+  updatePalletStructure(id: number, structure: Partial<InsertPalletStructure>): Promise<PalletStructure | undefined>;
   deletePalletStructure(id: number): Promise<boolean>;
+
+  // Pallet code generation
+  getNextPalletCode(): Promise<string>;
+
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2050,6 +2051,15 @@ export class DatabaseStorage implements IStorage {
 
       return structure;
     });
+  }
+
+  async updatePalletStructure(id: number, structureData: Partial<InsertPalletStructure>): Promise<PalletStructure | undefined> {
+    const [updated] = await db
+      .update(palletStructures)
+      .set(structureData)
+      .where(eq(palletStructures.id, id))
+      .returning();
+    return updated;
   }
 
   async deletePalletStructure(id: number): Promise<boolean> {

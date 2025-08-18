@@ -362,7 +362,7 @@ class CompositionSystemSetup {
       console.log(`   • Total Compositions: ${compositionsList.total}`);
       
       // Get cache statistics
-      const cacheStats = await packagingCompositionService.getCacheStatistics();
+      const cacheStats = await compositionCacheService.getCacheStats();
       console.log(`   • Cache Keys: ${cacheStats.totalKeys}`);
       console.log(`   • Cache Hit Rate: ${(cacheStats.hitRate * 100).toFixed(1)}%`);
       

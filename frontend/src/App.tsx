@@ -18,7 +18,6 @@ import {
   LazyPallets,
   LazyPortaPaletes,
   LazyPositions,
-  LazyPalletStructures,
   LazyUCPs,
   LazyProducts,
   LazyUsers,
@@ -30,6 +29,7 @@ import {
   LazyMobileHome,
   LazyMobileScanner,
   LazyMobilePallets,
+  LazyMobileProducts,
   LazyMobileLayout,
   LazyDesktopLayout
 } from "@/components/lazy/LazyPageComponents";
@@ -57,6 +57,7 @@ function Router() {
           <Route path="/" component={LazyMobileHome} />
           <Route path="/pallets" component={LazyMobilePallets} />
           <Route path="/scanner" component={LazyMobileScanner} />
+          <Route path="/products" component={LazyMobileProducts} />
           <Route component={NotFound} />
         </Switch>
       </LazyMobileLayout>
@@ -70,7 +71,6 @@ function Router() {
         <Route path="/pallets" component={LazyPallets} />
         <Route path="/porta-paletes" component={LazyPortaPaletes} />
         <Route path="/positions" component={LazyPositions} />
-        <Route path="/pallet-structures" component={LazyPalletStructures} />
         <Route path="/ucps" component={LazyUCPs} />
         <Route path="/products" component={LazyProducts} />
         <Route path="/vehicles" component={LazyVehicles} />

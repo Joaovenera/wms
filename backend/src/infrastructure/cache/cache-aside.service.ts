@@ -98,7 +98,6 @@ export class CacheAsideService extends EventEmitter {
       // Try to get from cache first
       const result = await intelligentCache.cacheQuery(
         key,
-        'cache-aside',
         args,
         async () => {
           // Cache miss - load data
@@ -118,7 +117,7 @@ export class CacheAsideService extends EventEmitter {
         },
         {
           dependencies,
-          volatility,
+          volatility: volatility as any,
           useL1Cache,
         }
       );
@@ -137,7 +136,7 @@ export class CacheAsideService extends EventEmitter {
         totalTime: `${totalTime}ms`,
       });
 
-      return result;
+      return result as T;
     } catch (error) {
       logError('Cache-aside get error', {
         key,

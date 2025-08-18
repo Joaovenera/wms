@@ -19,6 +19,7 @@ import vehiclesRoutes from "./vehicles.routes";
 import transferRequestsRoutes from "./transfer-requests.routes";
 import loadingExecutionsRoutes from "./loading-executions.routes";
 import transferReportsRoutes from "./transfer-reports.routes";
+import compositionsRoutes from "./compositions.routes";
 import testRoutes from "./test.routes";
 import healthRoutes from "./health.routes";
 
@@ -42,6 +43,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/transfer-requests', transferRequestsRoutes);
   app.use('/api/loading-executions', loadingExecutionsRoutes);
   app.use('/api/transfer-reports', transferReportsRoutes);
+  app.use('/api/compositions', compositionsRoutes);
   app.use('/api/test', testRoutes);
   app.use('/api', healthRoutes);
 

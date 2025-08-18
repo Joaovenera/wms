@@ -15,12 +15,17 @@ import {
   useProductPackagingHierarchy, 
   useCreatePackaging, 
   useUpdatePackaging, 
-  useDeletePackaging 
+  useDeletePackaging,
+  useValidateHierarchyIntegrity,
+  useCreateExampleHierarchy,
+  useValidateDimensions,
+  useCalculateAutomaticLevel
 } from "../hooks/usePackaging";
 import { useCompositions } from "../hooks/useComposition";
 import { PackagingType, Product } from "../types/api";
 import { insertPackagingTypeSchema } from "../types/schemas";
 import { CompositionManager } from "./composition-manager";
+import { PackagingHierarchyTree } from "./packaging-hierarchy-tree";
 import { z } from "zod";
 
 interface PackagingManagerProps {
@@ -47,10 +52,14 @@ export function PackagingManager({ product }: PackagingManagerProps) {
 
   const { data: packagingData, isLoading } = useProductPackaging(product.id);
   const { data: hierarchyData } = useProductPackagingHierarchy(product.id);
+  const { data: validationData } = useValidateHierarchyIntegrity(product.id);
   const { data: compositions, isLoading: compositionsLoading } = useCompositions();
   const createPackaging = useCreatePackaging();
   const updatePackaging = useUpdatePackaging();
   const deletePackaging = useDeletePackaging();
+  const createExampleHierarchy = useCreateExampleHierarchy();
+  const validateDimensions = useValidateDimensions();
+  const calculateLevel = useCalculateAutomaticLevel();
 
   const [formData, setFormData] = useState<PackagingFormData>({
     name: "",
@@ -61,6 +70,11 @@ export function PackagingManager({ product }: PackagingManagerProps) {
     dimensions: "",
   });
 
+  const [dimensionValidation, setDimensionValidation] = useState<{
+    isValid: boolean;
+    message?: string;
+  } | null>(null);
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -70,6 +84,76 @@ export function PackagingManager({ product }: PackagingManagerProps) {
       level: 1,
       dimensions: "",
     });
+    setDimensionValidation(null);
+  };
+
+  // Função para criar hierarquia de exemplo
+  const handleCreateExampleHierarchy = async () => {
+    try {
+      await createExampleHierarchy.mutateAsync(product.id);
+      toast({
+        title: "Sucesso",
+        description: "Hierarquia de exemplo criada com sucesso! (1 → 2 → 10 unidades)",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao criar hierarquia de exemplo",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Função para validar dimensões em tempo real
+  const handleDimensionsChange = async (dimensions: string, parentPackagingId?: number) => {
+    if (!dimensions || !parentPackagingId) {
+      setDimensionValidation(null);
+      return;
+    }
+
+    try {
+      const childDims = JSON.parse(dimensions);
+      const parentPkg = packagings.find((p: any) => p.id === parentPackagingId);
+      
+      if (parentPkg?.dimensions) {
+        const result = await validateDimensions.mutateAsync({
+          childDimensions: childDims,
+          parentDimensions: parentPkg.dimensions
+        });
+        setDimensionValidation(result);
+      }
+    } catch (error) {
+      setDimensionValidation({
+        isValid: false,
+        message: "Formato de dimensões inválido. Use JSON válido."
+      });
+    }
+  };
+
+  // Função para calcular nível automaticamente
+  const handleParentChange = async (parentId: string) => {
+    const parentPackagingId = parentId !== "none" ? parseInt(parentId) : undefined;
+    
+    setFormData(prev => ({
+      ...prev,
+      parentPackagingId,
+    }));
+
+    if (parentPackagingId) {
+      try {
+        const newLevel = await calculateLevel.mutateAsync(parentPackagingId);
+        setFormData(prev => ({ ...prev, level: newLevel }));
+      } catch (error) {
+        console.error("Erro ao calcular nível:", error);
+      }
+    } else {
+      setFormData(prev => ({ ...prev, level: 1 }));
+    }
+
+    // Validar dimensões se disponíveis
+    if (formData.dimensions) {
+      await handleDimensionsChange(formData.dimensions, parentPackagingId);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -249,6 +333,32 @@ export function PackagingManager({ product }: PackagingManagerProps) {
                 <TreePine className="h-4 w-4 mr-2" />
                 {showHierarchy ? "Lista" : "Hierarquia"}
               </Button>
+              
+              {packagings.length === 0 && (
+                <Button
+                  variant="outline"
+                  onClick={handleCreateExampleHierarchy}
+                  disabled={createExampleHierarchy.isPending}
+                >
+                  <Package className="h-4 w-4 mr-2" />
+                  {createExampleHierarchy.isPending ? "Criando..." : "Criar Exemplo (1→2→10)"}
+                </Button>
+              )}
+              
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  console.log("hierarchyData:", hierarchyData);
+                  console.log("validationData:", validationData);
+                  console.log("packagingData:", packagingData);
+                  console.log("packagings:", packagings);
+                  (window as any).debugMode = !(window as any).debugMode;
+                  console.log("Debug mode:", (window as any).debugMode);
+                }}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Debug {(window as any).debugMode ? "OFF" : "ON"}
+              </Button>
             </div>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
@@ -303,14 +413,7 @@ export function PackagingManager({ product }: PackagingManagerProps) {
                   <Label htmlFor="parentPackaging">Embalagem Pai</Label>
                   <Select
                     value={formData.parentPackagingId?.toString() || "none"}
-                    onValueChange={(value) => 
-                      setFormData({ 
-                        ...formData, 
-                        parentPackagingId: value !== "none" ? parseInt(value) : undefined,
-                        level: value !== "none" ? 
-                          (packagings.find((p: any) => p.id === parseInt(value))?.level || 1) + 1 : 1
-                      })
-                    }
+                    onValueChange={handleParentChange}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione a embalagem pai (opcional)" />
@@ -343,9 +446,25 @@ export function PackagingManager({ product }: PackagingManagerProps) {
                   <Textarea
                     id="dimensions"
                     value={formData.dimensions}
-                    onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-                    placeholder='{"width": 10, "height": 5, "length": 15}'
+                    onChange={(e) => {
+                      const dimensions = e.target.value;
+                      setFormData({ ...formData, dimensions });
+                      handleDimensionsChange(dimensions, formData.parentPackagingId);
+                    }}
+                    placeholder='{"length": 15, "width": 10, "height": 5, "weight": 0.1}'
+                    className={dimensionValidation && !dimensionValidation.isValid ? "border-red-500" : ""}
                   />
+                  {dimensionValidation && (
+                    <div className={`text-xs mt-1 ${
+                      dimensionValidation.isValid ? "text-green-600" : "text-red-600"
+                    }`}>
+                      {dimensionValidation.message || 
+                       (dimensionValidation.isValid ? "Dimensões válidas ✓" : "Dimensões inválidas")}
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Formato: {"{"}"length": 15, "width": 10, "height": 5, "weight": 0.1{"}"}
+                  </div>
                 </div>
 
                 <div className="flex items-center space-x-2">
@@ -403,20 +522,29 @@ export function PackagingManager({ product }: PackagingManagerProps) {
         </Card>
       )}
 
+      {/* Debug - mostrar dados brutos - só se Debug estiver ativo */}
+      {showHierarchy && (window as any).debugMode && (
+        <div className="mb-4 p-4 bg-gray-100 rounded">
+          <h4 className="font-bold">Debug - Dados da Hierarquia:</h4>
+          <pre className="text-xs bg-white p-2 mt-2 rounded">
+            {JSON.stringify(hierarchyData, null, 2)}
+          </pre>
+          <h4 className="font-bold mt-2">Debug - Dados de Validação:</h4>
+          <pre className="text-xs bg-white p-2 mt-2 rounded">
+            {JSON.stringify(validationData, null, 2)}
+          </pre>
+        </div>
+      )}
+
       {/* Lista ou Hierarquia de Embalagens */}
       {showHierarchy ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Hierarquia de Embalagens</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(hierarchyData as any) && (hierarchyData as any).length > 0 ? (
-              renderHierarchy(hierarchyData as any)
-            ) : (
-              <p className="text-muted-foreground">Nenhuma embalagem cadastrada</p>
-            )}
-          </CardContent>
-        </Card>
+        <PackagingHierarchyTree
+          hierarchy={(hierarchyData as any)?.data?.hierarchy || (hierarchyData as any)?.hierarchy || []}
+          metadata={(hierarchyData as any)?.data?.metadata || (hierarchyData as any)?.metadata}
+          validation={(validationData as any) || { isValid: true, errors: [], warnings: [] }}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
       ) : (
         <div className="space-y-3">
           {packagings.map((packaging: any) => {

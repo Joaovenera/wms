@@ -185,8 +185,7 @@ export function validateCompositionPayload<T extends z.ZodType>(
           details: error.errors.map(err => ({
             field: err.path.join('.'),
             message: err.message,
-            received: err.received,
-            expected: err.expected
+            // Zod v3 does not guarantee 'received'/'expected' on all issues
           }))
         });
       }
@@ -596,7 +595,7 @@ export function rateLimit(maxRequests: number = 10, windowMs: number = 60000, co
   
   return (req: Request, res: Response, next: NextFunction) => {
     const clientId = req.ip || 'unknown';
-    const userId = req.user?.id || 'anonymous';
+    const userId = (req.user as any)?.id || 'anonymous';
     const clientKey = `${clientId}:${userId}`;
     const now = Date.now();
     
@@ -856,12 +855,12 @@ async function getProductDetailsForValidation(products: any[]) {
   const productIds = products.map((p: any) => p.productId);
   
   const productsData = await db.select()
-    .from(products)
-    .where(inArray(products.id, productIds));
+    .from(products as any)
+    .where(inArray((products as any).id, productIds));
     
   const packagingData = await db.select()
-    .from(packagingTypes)
-    .where(inArray(packagingTypes.productId, productIds));
+    .from(packagingTypes as any)
+    .where(inArray((packagingTypes as any).productId, productIds));
     
   return productsData.map(product => {
     const productPackaging = packagingData.filter(pkg => pkg.productId === product.id);

@@ -535,6 +535,12 @@ export const intelligentCache = {
   },
   get invalidateByDependency() {
     return getIntelligentCache().invalidateByDependency;
+  },
+  get getAnalytics() {
+    return getIntelligentCache().getAnalytics.bind(getIntelligentCache());
+  },
+  get clear() {
+    return getIntelligentCache().clear.bind(getIntelligentCache());
   }
 };
 

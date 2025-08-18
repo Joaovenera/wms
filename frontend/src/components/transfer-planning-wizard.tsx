@@ -13,6 +13,8 @@ import { ProductSearchWithStock } from "./product-search-with-stock";
 import { LocationSelector } from "./location-selector";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import { 
   Truck, 
   Package, 
@@ -20,7 +22,15 @@ import {
   Trash2, 
   Send,
   AlertTriangle,
-  Loader2
+  Loader2,
+  CheckCircle,
+  Info,
+  Save,
+  ArrowRight,
+  MapPin,
+  Calculator,
+  Clock,
+  Package2
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -95,18 +105,30 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
   const createTransferMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest('POST', '/api/transfer-requests', data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Erro ao criar transferência');
+      }
       return await res.json();
+    },
+    onError: (error) => {
+      console.error('Error creating transfer:', error);
     }
-    // Invalidação será feita manualmente no handleCreateTransfer
   });
 
   // Add item to transfer request
   const addItemMutation = useMutation({
     mutationFn: async ({ transferId, itemData }: { transferId: number, itemData: any }) => {
       const res = await apiRequest('POST', `/api/transfer-requests/${transferId}/items`, itemData);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Erro ao adicionar item');
+      }
       return await res.json();
+    },
+    onError: (error) => {
+      console.error('Error adding item:', error);
     }
-    // Não invalidamos aqui para evitar reload durante a criação
   });
 
   // Função para calcular cubagem do produto
@@ -273,17 +295,35 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
     setItemQuantity("");
   }, [selectedProduct]);
 
+  // Calculate progress for wizard
+  const wizardProgress = () => {
+    let progress = 0;
+    if (transferType) progress += 20;
+    if (selectedVehicle) progress += 25;
+    if (fromLocation && toLocation) progress += 25;
+    if (transferItems.length > 0) progress += 30;
+    return progress;
+  };
+
+  const isFormValid = selectedVehicle && transferItems.length > 0 && !isOverCapacity;
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <Card>
+      {/* Progress Header */}
+      <Card className="border-blue-200 bg-blue-50/30">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Truck className="h-5 w-5" />
-            Nova Transferência
-          </CardTitle>
-          <CardDescription>
-            Configure os detalhes da transferência com validação de estoque
+          <div className="flex items-center justify-between mb-2">
+            <CardTitle className="flex items-center gap-2 text-blue-900">
+              <Truck className="h-5 w-5" />
+              Nova Transferência
+            </CardTitle>
+            <div className="text-sm text-blue-700 font-medium">
+              {wizardProgress().toFixed(0)}% completo
+            </div>
+          </div>
+          <Progress value={wizardProgress()} className="mb-3" />
+          <CardDescription className="text-blue-700">
+            Configure os detalhes da transferência com validação de estoque em tempo real
           </CardDescription>
         </CardHeader>
       </Card>
@@ -535,69 +575,270 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
 
       {/* Add Item Dialog */}
       <Dialog open={showAddItemDialog} onOpenChange={setShowAddItemDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-7xl w-[95vw] max-h-[98vh] h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Adicionar Item à Transferência</DialogTitle>
-            <CardDescription>
+            <DialogTitle className="text-2xl flex items-center gap-2">
+              <Plus className="h-6 w-6" />
+              Adicionar Item à Transferência
+            </DialogTitle>
+            <CardDescription className="text-lg">
               Selecione um produto em estoque e defina a quantidade a ser transferida
             </CardDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            <ProductSearchWithStock
-              onProductSelect={setSelectedProduct}
-              selectedProduct={selectedProduct}
-              showOnlyInStock={true}
-            />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 h-full">
+            {/* Left Column - Product Selection */}
+            <div className="space-y-6 min-h-0">
+              <div className="space-y-3">
+                <Label className="text-lg font-medium">Seleção de Produto</Label>
+                <ProductSearchWithStock
+                  onProductSelect={setSelectedProduct}
+                  selectedProduct={selectedProduct}
+                  showOnlyInStock={true}
+                />
+              </div>
 
-            {selectedProduct && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantidade</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    value={itemQuantity}
-                    onChange={(e) => handleQuantityChange(e.target.value)}
-                    placeholder="Digite a quantidade"
-                    min="0.01"
-                    step="0.01"
-                  />
-                  {quantityError && (
-                    <p className="text-sm text-red-500 flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      {quantityError}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-500">
-                    Estoque disponível: {getAvailableStockForProduct(selectedProduct.id, selectedProduct.totalStock || 0)} {selectedProduct.unit}
-                  </p>
-                </div>
+              {/* Product Details Card */}
+              {selectedProduct && (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <Package className="h-6 w-6 text-blue-600" />
+                      Detalhes do Produto
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <Label className="text-base font-medium text-gray-600">Nome</Label>
+                        <p className="text-base font-semibold">{selectedProduct.name}</p>
+                      </div>
+                      <div>
+                        <Label className="text-base font-medium text-gray-600">SKU</Label>
+                        <p className="text-base font-semibold">{selectedProduct.sku}</p>
+                      </div>
+                      <div>
+                        <Label className="text-base font-medium text-gray-600">ID</Label>
+                        <p className="text-base font-semibold">{selectedProduct.id}</p>
+                      </div>
+                      <div>
+                        <Label className="text-base font-medium text-gray-600">Unidade</Label>
+                        <p className="text-base font-semibold">{selectedProduct.unit}</p>
+                      </div>
+                    </div>
+                    
+                    {selectedProduct.dimensions && (
+                      <div className="pt-3 border-t">
+                        <Label className="text-base font-medium text-gray-600">Dimensões</Label>
+                        <p className="text-base">
+                          {selectedProduct.dimensions.length} × {selectedProduct.dimensions.width} × {selectedProduct.dimensions.height} cm
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="itemNotes">Observações</Label>
-                  <Textarea
-                    id="itemNotes"
-                    value={itemNotes}
-                    onChange={(e) => setItemNotes(e.target.value)}
-                    placeholder="Observações sobre este item..."
-                    rows={2}
-                  />
-                </div>
+            {/* Right Column - Quantity and Notes or Welcome State */}
+            <div className="space-y-6 min-h-0">
+              {selectedProduct ? (
+                <>
+                  {/* Stock Information */}
+                  <Card className="border-green-200 bg-green-50">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <CheckCircle className="h-6 w-6 text-green-600" />
+                        Informações de Estoque
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-base font-medium text-gray-600">Estoque Disponível</Label>
+                          <p className="text-3xl font-bold text-green-700">
+                            {getAvailableStockForProduct(selectedProduct.id, selectedProduct.totalStock || 0)} {selectedProduct.unit}
+                          </p>
+                        </div>
+                        <Badge variant="default" className="bg-green-600 text-lg px-4 py-2">
+                          Em Estoque
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                {selectedProduct.dimensions && itemQuantity && !quantityError && (
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-700">
-                      <strong>Cubagem calculada:</strong> {' '}
-                      {calculateCubicVolume(selectedProduct, parseFloat(itemQuantity)).toFixed(3)} m³
-                    </p>
+                  {/* Quantity Input */}
+                  <div className="space-y-4">
+                    <Label htmlFor="quantity" className="text-lg font-medium">Quantidade</Label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const currentQty = parseFloat(itemQuantity) || 0;
+                          const newQty = Math.max(0, currentQty - 1);
+                          handleQuantityChange(newQty.toString());
+                        }}
+                        className="h-16 text-xl font-bold"
+                      >
+                        -1
+                      </Button>
+                      <Input
+                        id="quantity"
+                        type="number"
+                        value={itemQuantity}
+                        onChange={(e) => handleQuantityChange(e.target.value)}
+                        placeholder="0.00"
+                        min="0.01"
+                        step="0.01"
+                        className="h-16 text-center text-xl font-semibold"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const currentQty = parseFloat(itemQuantity) || 0;
+                          const maxQty = getAvailableStockForProduct(selectedProduct.id, selectedProduct.totalStock || 0);
+                          const newQty = Math.min(maxQty, currentQty + 1);
+                          handleQuantityChange(newQty.toString());
+                        }}
+                        className="h-16 text-xl font-bold"
+                      >
+                        +1
+                      </Button>
+                    </div>
+                    
+                    {/* Quick Quantity Buttons */}
+                    <div className="grid grid-cols-4 gap-3">
+                      {[0.25, 0.5, 1, 5].map((qty) => (
+                        <Button
+                          key={qty}
+                          variant="outline"
+                          size="lg"
+                          onClick={() => {
+                            const currentQty = parseFloat(itemQuantity) || 0;
+                            const newQty = currentQty + qty;
+                            const maxQty = getAvailableStockForProduct(selectedProduct.id, selectedProduct.totalStock || 0);
+                            handleQuantityChange(Math.min(maxQty, newQty).toString());
+                          }}
+                          className="h-12 text-base"
+                        >
+                          +{qty}
+                        </Button>
+                      ))}
+                    </div>
+
+                    {quantityError && (
+                      <Alert className="border-red-200 bg-red-50 text-red-800">
+                        <AlertTriangle className="h-5 w-5" />
+                        <AlertDescription className="text-base">{quantityError}</AlertDescription>
+                      </Alert>
+                    )}
                   </div>
-                )}
-              </>
-            )}
+
+                  {/* Notes */}
+                  <div className="space-y-3">
+                    <Label htmlFor="itemNotes" className="text-lg font-medium">Observações</Label>
+                    <Textarea
+                      id="itemNotes"
+                      value={itemNotes}
+                      onChange={(e) => setItemNotes(e.target.value)}
+                      placeholder="Observações sobre este item..."
+                      rows={4}
+                      className="resize-none text-base"
+                    />
+                  </div>
+
+                  {/* Calculated Volume */}
+                  {selectedProduct.dimensions && itemQuantity && !quantityError && (
+                    <Card className="border-blue-200 bg-blue-50">
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Calculator className="h-5 w-5 text-blue-600" />
+                            <span className="font-medium text-blue-900 text-lg">Cubagem Calculada</span>
+                          </div>
+                          <span className="text-2xl font-bold text-blue-700">
+                            {calculateCubicVolume(selectedProduct, parseFloat(itemQuantity)).toFixed(3)} m³
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                /* Welcome State - When no product is selected */
+                <div className="h-full flex flex-col items-center justify-center space-y-8 p-8">
+                  {/* Welcome Card */}
+                  <Card className="w-full max-w-md border-dashed border-2 border-gray-300 bg-gray-50/50">
+                    <CardContent className="pt-8 pb-8">
+                      <div className="text-center space-y-4">
+                        <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Package className="h-8 w-8 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                            Selecione um Produto
+                          </h3>
+                          <p className="text-gray-600 text-base leading-relaxed">
+                            Use a pesquisa acima para encontrar e selecionar um produto em estoque que deseja adicionar à transferência.
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Quick Tips */}
+                  <Card className="w-full max-w-md border-gray-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Info className="h-5 w-5 text-blue-600" />
+                        Dicas Rápidas
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <p className="text-sm text-gray-600">
+                          Pesquise por <strong>ID</strong>, <strong>SKU</strong> ou <strong>nome</strong> do produto
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <p className="text-sm text-gray-600">
+                          Apenas produtos com <strong>estoque disponível</strong> são exibidos
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <p className="text-sm text-gray-600">
+                          Após selecionar, defina a <strong>quantidade</strong> e <strong>observações</strong>
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Recent Products (if available) */}
+                  <Card className="w-full max-w-md border-gray-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-gray-600" />
+                        Produtos Recentes
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center py-4">
+                        <Package2 className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500">
+                          Produtos usados recentemente aparecerão aqui para acesso rápido
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-3 pt-6">
             <Button
               variant="outline"
               onClick={() => {
@@ -607,14 +848,17 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                 setItemNotes("");
                 setQuantityError("");
               }}
+              className="min-w-[140px] h-12 text-base"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleAddItem}
               disabled={!selectedProduct || !itemQuantity || !!quantityError}
+              className="min-w-[140px] h-12 text-base"
             >
-              Adicionar
+              <Plus className="h-5 w-5 mr-2" />
+              Adicionar Item
             </Button>
           </DialogFooter>
         </DialogContent>

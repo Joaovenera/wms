@@ -33,7 +33,6 @@ export default function DesktopLayout({ children }: DesktopLayoutProps) {
     { name: "Pallets", href: "/pallets", icon: Package },
     { name: "Porta Paletes", href: "/porta-paletes", icon: Building2 },
     { name: "Posições", href: "/positions", icon: MapPin },
-    { name: "Estruturas", href: "/pallet-structures", icon: Building2 },
     { name: "UCPs", href: "/ucps", icon: Box },
     { name: "Produtos", href: "/products", icon: Package2 },
     { name: "Veículos", href: "/vehicles", icon: Truck },

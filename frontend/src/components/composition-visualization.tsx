@@ -195,9 +195,13 @@ export function CompositionVisualization({
                         >
                           <div className="font-medium">P{item.productId}</div>
                           <div className="text-gray-600">Qty: {item.quantity}</div>
-                          <div className="text-gray-500">
-                            {item.dimensions.width}×{item.dimensions.length}cm
-                          </div>
+                          {item.dimensions && 
+                           item.dimensions.width > 0 && 
+                           item.dimensions.length > 0 && (
+                            <div className="text-gray-500">
+                              {item.dimensions.width}×{item.dimensions.length}cm
+                            </div>
+                          )}
                         </div>
                       );
                     })}

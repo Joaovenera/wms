@@ -25,10 +25,11 @@ export class PackagingController {
       const productId = parseInt(req.params.productId);
       
       if (isNaN(productId)) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           error: 'ID do produto inválido',
           code: 'INVALID_PRODUCT_ID'
         });
+        return;
       }
 
       const [packagings, stockByPackaging, consolidatedStock] = await Promise.all([
@@ -62,10 +63,11 @@ export class PackagingController {
       const productId = parseInt(req.params.productId);
       
       if (isNaN(productId)) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           error: 'ID do produto inválido',
           code: 'INVALID_PRODUCT_ID'
         });
+        return;
       }
 
       const hierarchy = await packagingService.getPackagingHierarchy(productId);
@@ -102,18 +104,20 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       if (error instanceof Error && error.message.includes('não encontrada')) {
-        return res.status(404).json({ 
+        res.status(404).json({ 
           error: error.message,
           code: 'PACKAGING_NOT_FOUND'
         });
+        return;
       }
       
       console.error('Erro ao buscar embalagem por código de barras:', error);
@@ -144,11 +148,12 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       console.error('Erro ao otimizar separação:', error);
@@ -190,18 +195,20 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       if (error instanceof Error && error.message.includes('não encontrado')) {
-        return res.status(404).json({ 
+        res.status(404).json({ 
           error: error.message,
           code: 'PACKAGING_NOT_FOUND'
         });
+        return;
       }
       
       console.error('Erro ao converter quantidade:', error);
@@ -221,7 +228,7 @@ export class PackagingController {
       
       const packaging = await packagingService.createPackaging({
         ...validatedData,
-        createdBy: req.user.id
+        createdBy: (req.user.id as any)
       });
       
       res.status(201).json({
@@ -230,21 +237,23 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       if (error instanceof Error && (
         error.message.includes('já existe') || 
         error.message.includes('já existe')
       )) {
-        return res.status(409).json({ 
+        res.status(409).json({ 
           error: error.message,
           code: 'PACKAGING_ALREADY_EXISTS'
         });
+        return;
       }
       
       console.error('Erro ao criar embalagem:', error);
@@ -265,10 +274,11 @@ export class PackagingController {
       const id = parseInt(req.params.id);
       
       if (isNaN(id)) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           error: 'ID da embalagem inválido',
           code: 'INVALID_PACKAGING_ID'
         });
+        return;
       }
 
       const validatedData = updatePackagingSchema.parse(req.body);
@@ -280,25 +290,28 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       if (error instanceof Error) {
         if (error.message.includes('não encontrada')) {
-          return res.status(404).json({ 
+          res.status(404).json({ 
             error: error.message,
             code: 'PACKAGING_NOT_FOUND'
           });
+          return;
         }
         if (error.message.includes('já existe')) {
-          return res.status(409).json({ 
+          res.status(409).json({ 
             error: error.message,
             code: 'PACKAGING_ALREADY_EXISTS'
           });
+          return;
         }
       }
       
@@ -318,10 +331,11 @@ export class PackagingController {
       const id = parseInt(req.params.id);
       
       if (isNaN(id)) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           error: 'ID da embalagem inválido',
           code: 'INVALID_PACKAGING_ID'
         });
+        return;
       }
 
       await packagingService.deletePackaging(id);
@@ -330,16 +344,18 @@ export class PackagingController {
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('não encontrada')) {
-          return res.status(404).json({ 
+          res.status(404).json({ 
             error: error.message,
             code: 'PACKAGING_NOT_FOUND'
           });
+          return;
         }
         if (error.message.includes('possui itens associados')) {
-          return res.status(409).json({ 
+          res.status(409).json({ 
             error: error.message,
             code: 'PACKAGING_HAS_ITEMS'
           });
+          return;
         }
       }
       
@@ -359,20 +375,22 @@ export class PackagingController {
       const id = parseInt(req.params.id);
       
       if (isNaN(id)) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           error: 'ID da embalagem inválido',
           code: 'INVALID_PACKAGING_ID'
         });
+        return;
       }
 
       // This method should be improved to get specific packaging by ID
       const packagings = await packagingService.getPackagingsByProduct(id);
       
       if (!packagings.length) {
-        return res.status(404).json({ 
+        res.status(404).json({ 
           error: 'Embalagem não encontrada',
           code: 'PACKAGING_NOT_FOUND'
         });
+        return;
       }
 
       res.json({
@@ -400,7 +418,7 @@ export class PackagingController {
     useL1Cache: true,
     condition: (result: any) => result.success && result.data?.isValid
   })
-  async calculateOptimalComposition(req: Request, res: Response) {
+  async calculateOptimalComposition(req: Request, res: Response): Promise<void> {
     const compositionSchema = z.object({
       products: z.array(z.object({
         productId: z.number().int().positive(),
@@ -439,11 +457,12 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       console.error('Erro ao calcular composição:', error);
@@ -457,7 +476,7 @@ export class PackagingController {
   /**
    * Generate composition report
    */
-  async generateCompositionReport(req: Request, res: Response) {
+  async generateCompositionReport(req: Request, res: Response): Promise<void> {
     const reportSchema = z.object({
       compositionId: z.number().int().positive(),
       includeMetrics: z.boolean().default(true),
@@ -469,7 +488,8 @@ export class PackagingController {
       
       const report = await packagingCompositionService.generateCompositionReport(
         compositionId, 
-        { includeMetrics, includeRecommendations }
+        { includeMetrics, includeRecommendations },
+        (req as any).user?.id || 0
       );
       
       res.json({
@@ -478,11 +498,12 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       console.error('Erro ao gerar relatório de composição:', error);
@@ -496,7 +517,7 @@ export class PackagingController {
   /**
    * Validate packaging composition constraints
    */
-  async validateComposition(req: Request, res: Response) {
+  async validateComposition(req: Request, res: Response): Promise<void> {
     const validationSchema = z.object({
       products: z.array(z.object({
         productId: z.number().int().positive(),
@@ -517,11 +538,12 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       console.error('Erro ao validar composição:', error);
@@ -537,7 +559,7 @@ export class PackagingController {
   /**
    * Save composition to database
    */
-  async saveComposition(req: AuthenticatedRequest, res: Response) {
+  async saveComposition(req: AuthenticatedRequest, res: Response): Promise<void> {
     const saveCompositionSchema = z.object({
       name: z.string().min(1, 'Nome é obrigatório'),
       description: z.string().optional(),
@@ -576,11 +598,12 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       console.error('Erro ao salvar composição:', error);
@@ -594,24 +617,26 @@ export class PackagingController {
   /**
    * Get composition by ID
    */
-  async getComposition(req: Request, res: Response) {
+  async getComposition(req: Request, res: Response): Promise<void> {
     try {
       const id = parseInt(req.params.id);
       
       if (isNaN(id)) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           error: 'ID da composição inválido',
           code: 'INVALID_COMPOSITION_ID'
         });
+        return;
       }
 
       const composition = await packagingCompositionService.getCompositionById(id);
       
       if (!composition) {
-        return res.status(404).json({ 
+        res.status(404).json({ 
           error: 'Composição não encontrada',
           code: 'COMPOSITION_NOT_FOUND'
         });
+        return;
       }
 
       res.json({
@@ -630,7 +655,7 @@ export class PackagingController {
   /**
    * List compositions with pagination
    */
-  async listCompositions(req: Request, res: Response) {
+  async listCompositions(req: Request, res: Response): Promise<void> {
     const listCompositionsSchema = z.object({
       page: z.number().int().positive().default(1),
       limit: z.number().int().min(1).max(100).default(20),
@@ -660,11 +685,12 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Parâmetros inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       console.error('Erro ao listar composições:', error);
@@ -678,7 +704,7 @@ export class PackagingController {
   /**
    * Update composition status
    */
-  async updateCompositionStatus(req: AuthenticatedRequest, res: Response) {
+  async updateCompositionStatus(req: AuthenticatedRequest, res: Response): Promise<void> {
     const updateStatusSchema = z.object({
       status: z.enum(['draft', 'validated', 'approved', 'executed'])
     });
@@ -687,10 +713,11 @@ export class PackagingController {
       const id = parseInt(req.params.id);
       
       if (isNaN(id)) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           error: 'ID da composição inválido',
           code: 'INVALID_COMPOSITION_ID'
         });
+        return;
       }
 
       const { status } = updateStatusSchema.parse(req.body);
@@ -707,18 +734,20 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       if (error instanceof Error && error.message.includes('não encontrada')) {
-        return res.status(404).json({ 
+        res.status(404).json({ 
           error: error.message,
           code: 'COMPOSITION_NOT_FOUND'
         });
+        return;
       }
 
       console.error('Erro ao atualizar status da composição:', error);
@@ -732,7 +761,7 @@ export class PackagingController {
   /**
    * Assemble composition (create UCP from composition)
    */
-  async assembleComposition(req: AuthenticatedRequest, res: Response) {
+  async assembleComposition(req: AuthenticatedRequest, res: Response): Promise<void> {
     const assembleSchema = z.object({
       compositionId: z.number().int().positive(),
       targetUcpId: z.number().int().positive()
@@ -753,26 +782,29 @@ export class PackagingController {
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Dados inválidos',
           code: 'VALIDATION_ERROR',
           details: error.errors
         });
+        return;
       }
 
       if (error instanceof Error) {
         if (error.message.includes('não encontrada') || error.message.includes('não encontrado')) {
-          return res.status(404).json({ 
+          res.status(404).json({ 
             error: error.message,
             code: 'COMPOSITION_NOT_FOUND'
           });
+          return;
         }
         
         if (error.message.includes('aprovadas') || error.message.includes('insuficiente')) {
-          return res.status(400).json({ 
+          res.status(400).json({ 
             error: error.message,
             code: 'BUSINESS_RULE_VIOLATION'
           });
+          return;
         }
       }
 
@@ -787,7 +819,7 @@ export class PackagingController {
   /**
    * Disassemble composition
    */
-  async disassembleComposition(req: AuthenticatedRequest, res: Response) {
+  async disassembleComposition(req: AuthenticatedRequest, res: Response): Promise<void> {
     const disassembleSchema = z.object({
       compositionId: z.number().int().positive(),
       targetUcps: z.array(z.object({
@@ -821,17 +853,19 @@ export class PackagingController {
 
       if (error instanceof Error) {
         if (error.message.includes('não encontrada') || error.message.includes('não encontrado')) {
-          return res.status(404).json({ 
+          res.status(404).json({ 
             error: error.message,
             code: 'COMPOSITION_NOT_FOUND'
           });
+          return;
         }
         
         if (error.message.includes('executadas') || error.message.includes('maior que')) {
-          return res.status(400).json({ 
+          res.status(400).json({ 
             error: error.message,
             code: 'BUSINESS_RULE_VIOLATION'
           });
+          return;
         }
       }
 
@@ -846,15 +880,16 @@ export class PackagingController {
   /**
    * Delete composition (soft delete)
    */
-  async deleteComposition(req: Request, res: Response) {
+  async deleteComposition(req: Request, res: Response): Promise<void> {
     try {
       const id = parseInt(req.params.id);
       
       if (isNaN(id)) {
-        return res.status(400).json({ 
+        res.status(400).json({ 
           error: 'ID da composição inválido',
           code: 'INVALID_COMPOSITION_ID'
         });
+        return;
       }
 
       await packagingCompositionService.deleteComposition(id);
@@ -862,17 +897,17 @@ export class PackagingController {
       // Invalidate related caches
       await Promise.all([
         compositionCacheService.invalidateProductCache(id),
-        intelligentCache.invalidateByDependency('composition'),
-        this.invalidateCache()
+        intelligentCache.invalidateByDependency('composition')
       ]);
       
       res.status(204).send();
     } catch (error) {
       if (error instanceof Error && error.message.includes('não encontrada')) {
-        return res.status(404).json({ 
+        res.status(404).json({ 
           error: error.message,
           code: 'COMPOSITION_NOT_FOUND'
         });
+        return;
       }
       
       console.error('Erro ao remover composição:', error);
@@ -888,7 +923,7 @@ export class PackagingController {
   /**
    * Get cache statistics and performance metrics
    */
-  async getCacheStats(req: Request, res: Response) {
+  async getCacheStats(req: Request, res: Response): Promise<void> {
     try {
       const [compositionStats, intelligentStats] = await Promise.all([
         compositionCacheService.getCacheStats(),
@@ -915,7 +950,7 @@ export class PackagingController {
   /**
    * Warm up cache with common composition requests
    */
-  async warmupCache(req: Request, res: Response) {
+  async warmupCache(req: Request, res: Response): Promise<void> {
     try {
       const { force = false } = req.query;
 
@@ -956,7 +991,7 @@ export class PackagingController {
   /**
    * Clear composition cache
    */
-  async clearCache(req: Request, res: Response) {
+  async clearCache(req: Request, res: Response): Promise<void> {
     try {
       const { type = 'all' } = req.query;
 
@@ -996,7 +1031,7 @@ export class PackagingController {
   /**
    * Invalidate cache by dependency
    */
-  async invalidateCacheByDependency(req: Request, res: Response) {
+  async invalidateCacheByDependency(req: Request, res: Response): Promise<void> {
     try {
       const { dependency } = req.params;
       const { cascade = false } = req.query;
@@ -1032,7 +1067,7 @@ export class PackagingController {
   /**
    * Performance benchmark endpoint
    */
-  async performanceBenchmark(req: Request, res: Response) {
+  async performanceBenchmark(req: Request, res: Response): Promise<void> {
     try {
       const testRequest = {
         products: [
@@ -1073,6 +1108,157 @@ export class PackagingController {
       });
     } catch (error) {
       console.error('Erro no benchmark de performance:', error);
+      res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  }
+
+  // HIERARCHY VALIDATION ENDPOINTS
+
+  /**
+   * Validate packaging hierarchy integrity for a product
+   */
+  async validateHierarchyIntegrity(req: Request, res: Response) {
+    try {
+      const productId = parseInt(req.params.productId);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ 
+          error: 'ID do produto inválido',
+          code: 'INVALID_PRODUCT_ID'
+        });
+      }
+
+      const validation = await packagingService.validateHierarchyIntegrity(productId);
+      
+      res.json({
+        success: true,
+        data: validation
+      });
+    } catch (error) {
+      console.error('Erro ao validar integridade da hierarquia:', error);
+      res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  }
+
+  /**
+   * Get hierarchy path for a specific packaging
+   */
+  async getHierarchyPath(req: Request, res: Response) {
+    try {
+      const packagingId = parseInt(req.params.packagingId);
+      
+      if (isNaN(packagingId)) {
+        return res.status(400).json({ 
+          error: 'ID da embalagem inválido',
+          code: 'INVALID_PACKAGING_ID'
+        });
+      }
+
+      const path = await packagingService.getHierarchyPath(packagingId);
+      
+      res.json({
+        success: true,
+        data: path
+      });
+    } catch (error) {
+      console.error('Erro ao buscar caminho da hierarquia:', error);
+      res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  }
+
+  /**
+   * Convert quantities between packaging types with detailed path
+   */
+  async convertBetweenPackagings(req: Request, res: Response) {
+    const convertSchema = z.object({
+      fromPackagingId: z.number().int().positive('ID da embalagem origem deve ser positivo'),
+      toPackagingId: z.number().int().positive('ID da embalagem destino deve ser positivo'),
+      quantity: z.number().positive('Quantidade deve ser positiva')
+    });
+
+    try {
+      const { fromPackagingId, toPackagingId, quantity } = convertSchema.parse(req.body);
+      
+      const conversion = await packagingService.convertBetweenPackagings(fromPackagingId, toPackagingId, quantity);
+      
+      res.json({
+        success: true,
+        data: conversion
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({
+          error: 'Dados inválidos',
+          code: 'VALIDATION_ERROR',
+          details: error.errors
+        });
+        return;
+      }
+
+      if (error instanceof Error && (
+        error.message.includes('não encontrada') || 
+        error.message.includes('mesmo produto')
+      )) {
+        return res.status(400).json({ 
+          error: error.message,
+          code: 'CONVERSION_ERROR'
+        });
+      }
+      
+      console.error('Erro ao converter entre embalagens:', error);
+      res.status(500).json({ 
+        error: 'Erro interno do servidor',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+  }
+
+  /**
+   * Create example hierarchy for testing (1 → 2 → 10 units)
+   */
+  async createExampleHierarchy(req: Request, res: Response) {
+    const exampleSchema = z.object({
+      productId: z.number().int().positive('ID do produto deve ser positivo')
+    });
+
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const { productId } = exampleSchema.parse(req.body);
+      
+      const hierarchy = await packagingService.createExampleHierarchy(productId, authReq.user.id);
+      
+      res.json({
+        success: true,
+        data: hierarchy,
+        message: 'Hierarquia de exemplo criada com sucesso (1 → 2 → 10 unidades)'
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({
+          error: 'Dados inválidos',
+          code: 'VALIDATION_ERROR',
+          details: error.errors
+        });
+        return;
+      }
+
+      if (error instanceof Error && error.message.includes('existe uma embalagem')) {
+        return res.status(400).json({ 
+          error: error.message,
+          code: 'HIERARCHY_CONFLICT'
+        });
+      }
+      
+      console.error('Erro ao criar hierarquia de exemplo:', error);
       res.status(500).json({ 
         error: 'Erro interno do servidor',
         code: 'INTERNAL_ERROR'

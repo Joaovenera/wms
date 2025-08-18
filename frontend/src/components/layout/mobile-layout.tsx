@@ -16,7 +16,7 @@ export default function MobileLayout({ children }: MobileLayoutProps) {
     { name: "Início", href: "/", icon: Home },
     { name: "Pallets", href: "/pallets", icon: Box },
     { name: "Scanner", href: "/scanner", icon: QrCode },
-    { name: "Estoque", href: "/inventory", icon: Package },
+    { name: "Estoque", href: "/products", icon: Package },
     { name: "Perfil", href: "/profile", icon: User },
   ];
 
