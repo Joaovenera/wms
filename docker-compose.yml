@@ -1,16 +1,16 @@
 services:
   # PostgreSQL 17 Database - Optimized for Development
   postgres:
-    image: postgres:17-alpine
-    container_name: wms-postgres
+    image: ${POSTGRES_IMAGE}
+    container_name: ${POSTGRES_CONTAINER_NAME}
     environment:
-      POSTGRES_DB: warehouse
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       # PostgreSQL 17 performance optimizations
       POSTGRES_INITDB_ARGS: "--data-checksums --encoding=UTF8 --locale=C"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -49,10 +49,10 @@ services:
 
   # Redis Cache
   redis:
-    image: redis:7-alpine
-    container_name: wms-redis
+    image: ${REDIS_IMAGE}
+    container_name: ${REDIS_CONTAINER_NAME}
     ports:
-      - "6379:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -68,22 +68,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: wms-backend
+    container_name: ${BACKEND_CONTAINER_NAME}
     environment:
-      NODE_ENV: development
-      PORT: 3000
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/warehouse
-      REDIS_URL: redis://redis:6379
-      SESSION_SECRET: bbj0RdMK3cHRVM/BSM1kZQwzVk1yswZA/VUfuO9iTB/aNyCqhqyyhLEYDbfx33bHfjHC3zcUH0JaOpzL8OEMgA==
-      FRONTEND_URL: http://localhost:5173
-      COOKIE_DOMAIN: localhost
-      USE_HTTPS: false
-      SECURE_COOKIES: false
-      LOG_LEVEL: debug
-      ENABLE_CONSOLE_LOGGING: true
-      ENABLE_FILE_LOGGING: true
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      SESSION_SECRET: ${SESSION_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN}
+      USE_HTTPS: ${USE_HTTPS}
+      SECURE_COOKIES: ${SECURE_COOKIES}
+      LOG_LEVEL: ${LOG_LEVEL}
+      ENABLE_CONSOLE_LOGGING: ${ENABLE_CONSOLE_LOGGING}
+      ENABLE_FILE_LOGGING: ${ENABLE_FILE_LOGGING}
     ports:
-      - "3000:5000"
+      - "127.0.0.1:${BACKEND_HOST_PORT}:${BACKEND_CONTAINER_PORT}"
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -108,11 +108,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: wms-frontend
+    container_name: ${FRONTEND_CONTAINER_NAME}
     environment:
-      VITE_API_URL: http://localhost:3000
+      VITE_API_URL: ${VITE_API_URL}
     ports:
-      - "5173:5173"
+      - "127.0.0.1:${FRONTEND_PORT}:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules

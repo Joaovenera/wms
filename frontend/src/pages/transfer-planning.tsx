@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TransferPlanningWizard } from "../components/transfer-planning-wizard";
+import { ArrivalWizard } from "../components/arrival-wizard";
+import { ContainerArrivalWizard } from "../components/container-arrival-wizard";
+import { ContainerList } from "../components/container-list";
+import { ContainerDashboard } from "../components/container-dashboard";
 import { TransferDetailsModal } from "../components/transfer-details-modal";
 import { TransferCard } from "../components/transfer-card";
 import { TransferListSkeleton } from "../components/transfer-list-skeleton";
@@ -27,7 +31,10 @@ import {
   RefreshCw,
   Download,
   BarChart3,
-  Loader2
+  Loader2,
+  PackageOpen,
+  ArrowDown,
+  Ship
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -48,7 +55,7 @@ interface TransferRequest {
 
 export default function TransferPlanningPage() {
   const [activeTab, setActiveTab] = useState("planning");
-  const [showNewTransfer, setShowNewTransfer] = useState(false);
+  const [pageMode, setPageMode] = useState<"list" | "new-transfer" | "new-arrival" | "new-container">("list");
   const [selectedTransferId, setSelectedTransferId] = useState<number | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -116,8 +123,20 @@ export default function TransferPlanningPage() {
   };
 
   const handleTransferCreated = () => {
-    setShowNewTransfer(false);
+    setPageMode("list");
     setActiveTab("planning");
+    refetch();
+  };
+
+  const handleArrivalCreated = () => {
+    setPageMode("list");
+    setActiveTab("planning");
+    refetch();
+  };
+
+  const handleContainerCreated = () => {
+    setPageMode("list");
+    setActiveTab("containers");
     refetch();
   };
 
@@ -135,25 +154,35 @@ export default function TransferPlanningPage() {
   const allRequests = transferRequests || [];
   const filteredRequests = getFilteredRequests(allRequests);
   
-  const planningRequests = filteredRequests.filter((req: TransferRequest) => 
+  // Separar transferências (saídas) de chegadas baseado nas notes
+  const transferOnlyRequests = filteredRequests.filter((req: TransferRequest) => 
+    !req.notes?.includes('CHEGADA DE MERCADORIA')
+  );
+  
+  const arrivalOnlyRequests = filteredRequests.filter((req: TransferRequest) => 
+    req.notes?.includes('CHEGADA DE MERCADORIA')
+  );
+  
+  const planningRequests = transferOnlyRequests.filter((req: TransferRequest) => 
     req.status === 'planejamento'
   );
   
-  const approvedRequests = filteredRequests.filter((req: TransferRequest) => 
+  const approvedRequests = transferOnlyRequests.filter((req: TransferRequest) => 
     ['aprovado', 'carregamento'].includes(req.status)
   );
   
-  const transitRequests = filteredRequests.filter((req: TransferRequest) => 
+  const transitRequests = transferOnlyRequests.filter((req: TransferRequest) => 
     ['transito', 'finalizado'].includes(req.status)
   );
   
   const getStatusCounts = () => {
-    if (!transferRequests) return { planning: 0, approved: 0, transit: 0, all: 0 };
+    if (!transferRequests) return { planning: 0, approved: 0, transit: 0, arrivals: 0, all: 0 };
     
     return {
-      planning: transferRequests.filter((req: TransferRequest) => req.status === 'planejamento').length,
-      approved: transferRequests.filter((req: TransferRequest) => ['aprovado', 'carregamento'].includes(req.status)).length,
-      transit: transferRequests.filter((req: TransferRequest) => ['transito', 'finalizado'].includes(req.status)).length,
+      planning: transferOnlyRequests.filter((req: TransferRequest) => req.status === 'planejamento').length,
+      approved: transferOnlyRequests.filter((req: TransferRequest) => ['aprovado', 'carregamento'].includes(req.status)).length,
+      transit: transferOnlyRequests.filter((req: TransferRequest) => ['transito', 'finalizado'].includes(req.status)).length,
+      arrivals: arrivalOnlyRequests.length,
       all: transferRequests.length
     };
   };
@@ -178,12 +207,12 @@ export default function TransferPlanningPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
-          {showNewTransfer ? (
+          {pageMode === "new-transfer" ? (
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowNewTransfer(false)}
+                onClick={() => setPageMode("list")}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -196,16 +225,58 @@ export default function TransferPlanningPage() {
                 </p>
               </div>
             </div>
+          ) : pageMode === "new-arrival" ? (
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPageMode("list")}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Voltar
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+                  <PackageOpen className="h-8 w-8 text-green-600" />
+                  Nova Chegada de Mercadoria
+                </h1>
+                <p className="text-muted-foreground">
+                  Registre a chegada de mercadorias com controle de cubagem
+                </p>
+              </div>
+            </div>
+          ) : pageMode === "new-container" ? (
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPageMode("list")}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Voltar
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+                  <Ship className="h-8 w-8 text-blue-600" />
+                  Novo Container
+                </h1>
+                <p className="text-muted-foreground">
+                  Registre a chegada de container com documentação fotográfica completa
+                </p>
+              </div>
+            </div>
           ) : (
             <>
-              <h1 className="text-3xl font-bold tracking-tight">Transferências</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Transferências e Chegadas</h1>
               <p className="text-muted-foreground">
-                Gerencie pedidos de transferência com controle de cubagem
+                Gerencie transferências e chegadas de mercadoria com controle de cubagem
               </p>
               {isLoading && (
                 <div className="flex items-center gap-2 text-sm text-blue-600">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  Carregando transferências...
+                  Carregando dados...
                 </div>
               )}
             </>
@@ -213,7 +284,7 @@ export default function TransferPlanningPage() {
         </div>
         
         <div className="flex items-center gap-3">
-          {!showNewTransfer && (
+          {pageMode === "list" && (
             <>
               <Button
                 variant="outline"
@@ -246,20 +317,40 @@ export default function TransferPlanningPage() {
             </>
           )}
           
-          {!showNewTransfer && (
-            <Button
-              onClick={() => setShowNewTransfer(true)}
-              className="flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Nova Transferência
-            </Button>
+          {pageMode === "list" && (
+            <>
+              <Button
+                onClick={() => setPageMode("new-transfer")}
+                className="flex items-center gap-2"
+              >
+                <Truck className="h-4 w-4" />
+                Nova Transferência
+              </Button>
+              <Button
+                onClick={() => setPageMode("new-arrival")}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <PackageOpen className="h-4 w-4" />
+                Nova Chegada
+              </Button>
+              <Button
+                onClick={() => setPageMode("new-container")}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                <Ship className="h-4 w-4" />
+                Novo Container
+              </Button>
+            </>
           )}
         </div>
       </div>
 
-      {showNewTransfer ? (
+      {pageMode === "new-transfer" ? (
         <TransferPlanningWizard onTransferCreated={handleTransferCreated} />
+      ) : pageMode === "new-arrival" ? (
+        <ArrivalWizard onArrivalCreated={handleArrivalCreated} />
+      ) : pageMode === "new-container" ? (
+        <ContainerArrivalWizard onContainerCreated={handleContainerCreated} />
       ) : (
         <>
           {/* Search and Filters */}
@@ -329,9 +420,9 @@ export default function TransferPlanningPage() {
         </>
       )}
 
-      {!showNewTransfer && (
+      {pageMode === "list" && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="planning" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               <span className="hidden sm:inline">Planejamento</span>
@@ -354,6 +445,22 @@ export default function TransferPlanningPage() {
               <span className="sm:hidden">Trâns.</span>
               <Badge variant="secondary" className="ml-1 text-xs">
                 {isLoading ? "..." : statusCounts.transit}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="arrivals" className="flex items-center gap-2">
+              <PackageOpen className="h-4 w-4 text-green-600" />
+              <span className="hidden sm:inline">Chegadas</span>
+              <span className="sm:hidden">Cheg.</span>
+              <Badge variant="secondary" className="ml-1 text-xs bg-green-100 text-green-800">
+                {isLoading ? "..." : statusCounts.arrivals}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="containers" className="flex items-center gap-2">
+              <Ship className="h-4 w-4 text-blue-600" />
+              <span className="hidden sm:inline">Containers</span>
+              <span className="sm:hidden">Cont.</span>
+              <Badge variant="secondary" className="ml-1 text-xs bg-blue-100 text-blue-800">
+                {isLoading ? "..." : "0"}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="all" className="flex items-center gap-2">
@@ -399,10 +506,16 @@ export default function TransferPlanningPage() {
                     }
                   </p>
                   {!searchTerm && statusFilter === "all" && (
-                    <Button onClick={() => setShowNewTransfer(true)} className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      Nova Transferência
-                    </Button>
+                    <div className="flex gap-2 justify-center">
+                      <Button onClick={() => setPageMode("new-transfer")} className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Nova Transferência
+                      </Button>
+                      <Button onClick={() => setPageMode("new-arrival")} className="flex items-center gap-2 bg-green-600 hover:bg-green-700">
+                        <PackageOpen className="h-4 w-4" />
+                        Nova Chegada
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -565,10 +678,16 @@ export default function TransferPlanningPage() {
                       </Button>
                     </div>
                   ) : (
-                    <Button onClick={() => setShowNewTransfer(true)} className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      Nova Transferência
-                    </Button>
+                    <div className="flex gap-2 justify-center">
+                      <Button onClick={() => setPageMode("new-transfer")} className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Nova Transferência
+                      </Button>
+                      <Button onClick={() => setPageMode("new-arrival")} className="flex items-center gap-2 bg-green-600 hover:bg-green-700">
+                        <PackageOpen className="h-4 w-4" />
+                        Nova Chegada
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -584,6 +703,78 @@ export default function TransferPlanningPage() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="arrivals" className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <PackageOpen className="h-5 w-5 text-green-600" />
+                  Chegadas de Mercadoria
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Registros de chegada e recebimento de mercadorias
+                </p>
+              </div>
+              {arrivalOnlyRequests.length > 0 && (
+                <Badge variant="outline" className="text-green-700 border-green-300">
+                  {arrivalOnlyRequests.length} chegada{arrivalOnlyRequests.length !== 1 ? 's' : ''}
+                </Badge>
+              )}
+            </div>
+            
+            {isLoading ? (
+              <TransferListSkeleton />
+            ) : arrivalOnlyRequests.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <PackageOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {searchTerm || statusFilter !== "all" ? "Nenhum resultado encontrado" : "Nenhuma chegada registrada"}
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    {searchTerm || statusFilter !== "all" 
+                      ? "Tente ajustar os filtros de busca"
+                      : "Clique em 'Nova Chegada' para registrar a primeira chegada de mercadoria"
+                    }
+                  </p>
+                  {!searchTerm && statusFilter === "all" && (
+                    <Button onClick={() => setPageMode("new-arrival")} className="flex items-center gap-2 bg-green-600 hover:bg-green-700">
+                      <PackageOpen className="h-4 w-4" />
+                      Nova Chegada
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {arrivalOnlyRequests.map((request: TransferRequest) => (
+                  <div key={request.id} className="relative">
+                    <div className="absolute top-3 right-3 z-10">
+                      <Badge className="bg-green-100 text-green-800 border-green-300">
+                        <ArrowDown className="h-3 w-3 mr-1" />
+                        Chegada
+                      </Badge>
+                    </div>
+                    <TransferCard
+                      request={request}
+                      onViewDetails={handleViewDetails}
+                      showActions={true}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="containers" className="space-y-6">
+            <ContainerDashboard 
+              onNewContainer={() => setPageMode("new-container")}
+            />
+            <ContainerList 
+              showActions={true}
+              compactView={false}
+            />
           </TabsContent>
         </Tabs>
       )}
