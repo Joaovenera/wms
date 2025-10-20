@@ -1,6 +1,7 @@
 import express from 'express';
 import { isRedisConnected, getRedisStats, clearCache } from '../config/redis.js';
 import { isPostgresConnected, getPostgresStats, checkDatabaseHealth } from '../config/postgres.js';
+import { performHealthCheck, quickHealthCheck } from '../config/database-health.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
@@ -204,6 +205,242 @@ router.post('/health/cache/clear', async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to clear cache'
+    });
+  }
+});
+
+// Comprehensive database health check endpoint
+router.get('/health/database/comprehensive', async (req, res) => {
+  try {
+    const healthResult = await performHealthCheck();
+    
+    const statusCode = healthResult.status === 'healthy' ? 200 : 
+                      healthResult.status === 'degraded' ? 206 : 503;
+    
+    res.status(statusCode).json({
+      ...healthResult,
+      endpoint: 'comprehensive',
+      message: `Database health check completed - Status: ${healthResult.status.toUpperCase()}`
+    });
+  } catch (error) {
+    logger.error('Comprehensive health check error:', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      endpoint: 'comprehensive',
+      error: 'Comprehensive health check failed',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Quick database validation endpoint
+router.get('/health/database/quick', async (req, res) => {
+  try {
+    const quickResult = await quickHealthCheck();
+    
+    if (quickResult.healthy) {
+      res.json({
+        status: 'healthy',
+        endpoint: 'quick',
+        message: 'Quick health check passed',
+        issues: [],
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(503).json({
+        status: 'unhealthy',
+        endpoint: 'quick',
+        message: 'Quick health check found issues',
+        issues: quickResult.criticalIssues,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    logger.error('Quick health check error:', error);
+    res.status(503).json({
+      status: 'error',
+      endpoint: 'quick',
+      message: 'Quick health check failed',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Database readiness endpoint for container orchestration
+router.get('/health/database/ready', async (req, res) => {
+  try {
+    const healthResult = await performHealthCheck();
+    
+    // More strict readiness criteria
+    const isReady = healthResult.status === 'healthy' && 
+                   healthResult.overall.tablesExisting >= 40 && // At least 40 tables
+                   healthResult.overall.tablesWithData >= 5 &&   // At least 5 tables with data
+                   healthResult.details.errors.length === 0;
+    
+    if (isReady) {
+      res.json({
+        status: 'ready',
+        endpoint: 'readiness',
+        message: 'Database is ready for operations',
+        tablesCount: healthResult.overall.tablesExisting,
+        tablesWithData: healthResult.overall.tablesWithData,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(503).json({
+        status: 'not_ready',
+        endpoint: 'readiness',
+        message: 'Database is not ready for operations',
+        issues: healthResult.recommendations.slice(0, 3),
+        tablesCount: healthResult.overall.tablesExisting,
+        expectedTables: healthResult.overall.tablesTotal,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    logger.error('Database readiness check error:', error);
+    res.status(503).json({
+      status: 'error',
+      endpoint: 'readiness',
+      message: 'Database readiness check failed',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Manual migration trigger endpoint (POST for safety)
+router.post('/health/database/migrate', async (req, res) => {
+  try {
+    logger.info('🔄 Manual migration triggered via API...');
+    
+    // Import migration functions
+    const { autoMigrate } = await import('../scripts/auto-migrate.js');
+    const { setupCompleteDatabase } = await import('../scripts/setup-complete-database.js');
+    
+    // Run migration
+    const migrationResult = await autoMigrate();
+    if (!migrationResult.success) {
+      return res.status(500).json({
+        status: 'error',
+        endpoint: 'migrate',
+        message: 'Migration failed',
+        error: migrationResult.error,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Run initial data setup
+    const setupResult = await setupCompleteDatabase();
+    const totalItems = Object.values(setupResult.itemsCreated).reduce((a, b) => a + b, 0);
+    
+    // Final health check
+    const finalHealth = await quickHealthCheck();
+    
+    res.json({
+      status: 'success',
+      endpoint: 'migrate',
+      message: 'Manual migration completed successfully',
+      results: {
+        migration: {
+          tablesCreated: migrationResult.tablesCreated,
+          timeElapsed: migrationResult.timeElapsed
+        },
+        setup: {
+          itemsCreated: totalItems,
+          timeElapsed: setupResult.timeElapsed,
+          errors: setupResult.errors
+        },
+        finalHealth: {
+          healthy: finalHealth.healthy,
+          issues: finalHealth.criticalIssues
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Manual migration error:', error);
+    res.status(500).json({
+      status: 'error',
+      endpoint: 'migrate',
+      message: 'Manual migration failed',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Database statistics endpoint
+router.get('/health/database/stats', async (req, res) => {
+  try {
+    const healthResult = await performHealthCheck();
+    
+    // Calculate statistics
+    const stats = {
+      tables: {
+        total: healthResult.overall.tablesTotal,
+        existing: healthResult.overall.tablesExisting,
+        withData: healthResult.overall.tablesWithData,
+        missing: healthResult.details.missingTables.length,
+        completionPercentage: Math.round((healthResult.overall.tablesExisting / healthResult.overall.tablesTotal) * 100)
+      },
+      categories: {
+        coreSystem: {
+          total: healthResult.details.coreSystemTables.length,
+          existing: healthResult.details.coreSystemTables.filter(t => t.exists).length,
+          withData: healthResult.details.coreSystemTables.filter(t => t.hasData).length
+        },
+        waveManagement: {
+          total: healthResult.details.waveManagementTables.length,
+          existing: healthResult.details.waveManagementTables.filter(t => t.exists).length,
+          withData: healthResult.details.waveManagementTables.filter(t => t.hasData).length
+        },
+        qualityControl: {
+          total: healthResult.details.qualityControlTables.length,
+          existing: healthResult.details.qualityControlTables.filter(t => t.exists).length,
+          withData: healthResult.details.qualityControlTables.filter(t => t.hasData).length
+        },
+        stockManagement: {
+          total: healthResult.details.stockManagementTables.length,
+          existing: healthResult.details.stockManagementTables.filter(t => t.exists).length,
+          withData: healthResult.details.stockManagementTables.filter(t => t.hasData).length
+        },
+        resourcePlanning: {
+          total: healthResult.details.resourcePlanningTables.length,
+          existing: healthResult.details.resourcePlanningTables.filter(t => t.exists).length,
+          withData: healthResult.details.resourcePlanningTables.filter(t => t.hasData).length
+        }
+      },
+      integrity: {
+        foreignKeys: healthResult.overall.foreignKeysValid,
+        indexes: healthResult.overall.indexesPresent,
+        extensions: healthResult.overall.extensionsActive
+      },
+      performance: {
+        queryTime: healthResult.performance.queryTime,
+        connectionPool: healthResult.performance.connectionPoolStats
+      }
+    };
+    
+    res.json({
+      status: healthResult.status,
+      endpoint: 'stats',
+      message: 'Database statistics retrieved successfully',
+      statistics: stats,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Database statistics error:', error);
+    res.status(500).json({
+      status: 'error',
+      endpoint: 'stats',
+      message: 'Failed to retrieve database statistics',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
     });
   }
 });

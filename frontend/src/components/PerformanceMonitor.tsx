@@ -124,9 +124,25 @@ export function PerformanceMonitor({
         });
 
         try {
-          observer.observe({ entryTypes: ['first-input', 'layout-shift', 'largest-contentful-paint'] });
+          // Check which types are supported and only observe those
+          const supportedTypes = [];
+          
+          if (PerformanceObserver.supportedEntryTypes.includes('first-input')) {
+            supportedTypes.push('first-input');
+          }
+          if (PerformanceObserver.supportedEntryTypes.includes('layout-shift')) {
+            supportedTypes.push('layout-shift');
+          }
+          if (PerformanceObserver.supportedEntryTypes.includes('largest-contentful-paint')) {
+            supportedTypes.push('largest-contentful-paint');
+          }
+          
+          if (supportedTypes.length > 0) {
+            observer.observe({ entryTypes: supportedTypes });
+          }
         } catch (e) {
-          // Some browsers might not support all entry types
+          // Silently ignore if PerformanceObserver is not supported
+          console.warn('PerformanceObserver not fully supported:', e);
         }
       }
 
@@ -285,7 +301,7 @@ export function PerformanceMonitor({
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleError);
     };
-  }, [enabled, collectMetrics, trackError]);
+  }, [enabled]);
 
   const formatTime = (time: number) => {
     return `${time.toFixed(0)}ms`;

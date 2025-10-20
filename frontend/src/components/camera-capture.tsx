@@ -1,465 +1,248 @@
-import { useState, useRef, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Camera, X, RotateCw, Check, Upload, AlertTriangle } from "lucide-react";
+import { X, Camera, RefreshCcw, AlertTriangle, Loader2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface CameraCaptureProps {
-  onCapture: (imageData: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  onCapture: (blob: Blob) => void;
+  facingMode?: "user" | "environment";
 }
 
-export default function CameraCapture({
-  onCapture,
-  isOpen,
-  onClose,
-}: CameraCaptureProps) {
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [facingMode, setFacingMode] = useState<"user" | "environment">(
-    "environment",
-  );
-  const [isLoading, setIsLoading] = useState(false);
+export function CameraCapture({ isOpen, onClose, onCapture, facingMode = "environment" }: CameraCaptureProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [mode, setMode] = useState<"user" | "environment">(facingMode);
   const [error, setError] = useState<string | null>(null);
-  const [showFileUpload, setShowFileUpload] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
 
-  // Verificar se estamos em HTTPS ou localhost
-  const isSecureContext = window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-  const startCamera = useCallback(async () => {
-    // Verificar se o contexto é seguro
-    if (!isSecureContext) {
-      setError("A câmera requer HTTPS para funcionar. Use a opção de upload de arquivo.");
-      setShowFileUpload(true);
-      return;
-    }
-
-    // Para completamente todas as tracks antes de iniciar uma nova
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        track.stop();
-      });
-      setStream(null);
-    }
-
-    // Limpa o vídeo atual
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    setShowFileUpload(false);
-
-    try {
-      // Pequeno delay para garantir que as tracks anteriores foram liberadas
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      console.log("Iniciando câmera com facingMode:", facingMode);
-
-      const constraints = {
-        video: {
-          facingMode: { exact: facingMode },
-          width: { ideal: 1920, max: 3840 },
-          height: { ideal: 1080, max: 2160 },
-        },
-      };
-
-      let mediaStream;
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (exactError) {
-        // Se falhar com exact, tenta sem exact
-        console.log("Tentando sem exact facingMode");
-        const fallbackConstraints = {
-          video: {
-            facingMode: facingMode,
-            width: { ideal: 1920, max: 3840 },
-            height: { ideal: 1080, max: 2160 },
-          },
-        };
-        mediaStream =
-          await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-      }
-
-      console.log("Stream obtido:", mediaStream);
-      setStream(mediaStream);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.onloadedmetadata = () => {
-          if (videoRef.current) {
-            videoRef.current
-              .play()
-              .then(() => {
-                setIsLoading(false);
-                console.log("Câmera pronta");
-              })
-              .catch(console.error);
-          }
-        };
-      }
-    } catch (error) {
-      console.error("Erro ao acessar a câmera:", error);
-      
-      // Verificar se é um erro de permissão
-      if (error instanceof Error) {
-        if (error.name === 'NotAllowedError') {
-          setError("Permissão de câmera negada. Verifique as configurações do navegador.");
-        } else if (error.name === 'NotFoundError') {
-          setError("Nenhuma câmera encontrada no dispositivo.");
-        } else if (error.name === 'NotSupportedError') {
-          setError("Câmera não suportada neste dispositivo.");
-        } else {
-          setError("Não foi possível acessar a câmera. Verifique as permissões.");
-        }
-      } else {
-        setError("Erro desconhecido ao acessar a câmera.");
-      }
-      
-      setShowFileUpload(true);
-      setIsLoading(false);
-    }
-  }, [facingMode, isSecureContext]);
-
-  const stopCamera = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-    }
-  }, [stream]);
-
-  const capturePhoto = useCallback(() => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const context = canvas.getContext("2d");
-
-      if (video.videoWidth === 0 || video.videoHeight === 0) {
-        alert("Aguarde a câmera carregar completamente.");
-        return;
-      }
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      if (context) {
-        // Se for câmera frontal, espelhar a imagem na captura
-        if (facingMode === "user") {
-          context.scale(-1, 1);
-          context.drawImage(video, -video.videoWidth, 0);
-        } else {
-          context.drawImage(video, 0, 0);
-        }
-
-        // Reduzir qualidade para diminuir o tamanho do arquivo
-        const imageData = canvas.toDataURL("image/jpeg", 0.9);
-
-        console.log(`Foto capturada: ${Math.round(imageData.length / 1024)}KB`);
-
-        if (imageData && imageData !== "data:," && imageData.length > 1000) {
-          setCapturedImage(imageData);
-          console.log("Foto capturada com sucesso!");
-        } else {
-          alert("Erro ao capturar foto. Tente novamente.");
-        }
-      }
-    }
-  }, [facingMode]);
-
-  const retakePhoto = useCallback(() => {
-    setCapturedImage(null);
+  const stopEvent = useCallback((e: React.SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
   }, []);
 
-  const confirmPhoto = useCallback(() => {
-    if (capturedImage) {
-      onCapture(capturedImage);
-      setCapturedImage(null);
-      stopCamera();
+    const handleKeyCapture = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
       onClose();
     }
-  }, [capturedImage, onCapture, stopCamera, onClose]);
+  }, [onClose]);
 
-  const switchCamera = useCallback(async () => {
-    const currentMode = facingMode;
-    const newMode = currentMode === "user" ? "environment" : "user";
-    console.log("Alternando câmera de", currentMode, "para", newMode);
-
-    setIsLoading(true);
+  const startCamera = useCallback(async () => {
     setError(null);
-
+    setIsCameraReady(false);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+    }
     try {
-      // Para completamente o stream atual
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          track.stop();
-        });
-        setStream(null);
-      }
-
-      // Limpa o vídeo
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: mode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          aspectRatio: { ideal: 16 / 9 },
+        },
+        audio: false,
+      });
+      streamRef.current = stream;
       if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-
-      // Aguarda para garantir que o stream foi completamente liberado
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      // Função inline para iniciar a nova câmera
-      const initNewCamera = async (mode: "user" | "environment") => {
-        const constraints = {
-          video: {
-            facingMode: { exact: mode },
-            width: { ideal: 800, max: 1920 },
-            height: { ideal: 600, max: 1080 },
-          },
-        };
-
-        let mediaStream;
-        try {
-          mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (exactError) {
-          console.log("Tentando sem exact facingMode");
-          const fallbackConstraints = {
-            video: {
-              facingMode: mode,
-              width: { ideal: 800, max: 1920 },
-              height: { ideal: 600, max: 1080 },
-            },
-          };
-          mediaStream =
-            await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-        }
-
-        return mediaStream;
-      };
-
-      const mediaStream = await initNewCamera(newMode);
-
-      // Atualiza o estado apenas se tudo deu certo
-      setFacingMode(newMode);
-      setStream(mediaStream);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.muted = true;
+        const markReady = () => setIsCameraReady(true);
         videoRef.current.onloadedmetadata = () => {
-          if (videoRef.current) {
-            videoRef.current
-              .play()
-              .then(() => {
-                setIsLoading(false);
-                console.log("Câmera alternada com sucesso para:", newMode);
-              })
-              .catch((playError) => {
-                console.error("Erro ao reproduzir vídeo:", playError);
-                setIsLoading(false);
-              });
-          }
+          videoRef.current?.play().catch(() => {});
+          markReady();
         };
+        videoRef.current.oncanplay = markReady;
       }
-    } catch (error) {
-      console.error("Erro ao alternar câmera:", error);
-      setError("Não foi possível alternar a câmera. Tente novamente.");
-      setIsLoading(false);
+    } catch (e) {
+      console.error("Failed to access camera:", e);
+      setError("Não foi possível acessar a câmera. Verifique as permissões.");
+      setIsCameraReady(false);
     }
-  }, [facingMode, stream]);
+  }, [mode]);
 
-  const handleClose = useCallback(() => {
-    setCapturedImage(null);
-    stopCamera();
-    setShowFileUpload(false);
+  useEffect(() => {
+    if (isOpen) {
+      startCamera();
+    } else {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+      setIsCameraReady(false);
+      setError(null);
+    }
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, [isOpen, startCamera]);
+
+  const handleCapture = useCallback(async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !isCameraReady) return;
+
+    setIsCapturing(true);
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+    canvas.width = vw;
+    canvas.height = vh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Always draw as-is to avoid mirrored result
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.9)
+    );
+    let finalBlob = blob;
+    if (!finalBlob) {
+      try {
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        finalBlob = await fetch(dataUrl).then(r => r.blob());
+      } catch {}
+    }
+    if (finalBlob) {
+      onCapture(finalBlob);
+      if ("vibrate" in navigator) {
+        navigator.vibrate(50);
+      }
+    }
+    setIsCapturing(false);
     onClose();
-  }, [stopCamera, onClose]);
+  }, [videoRef, canvasRef, isCameraReady, onCapture, onClose]);
 
-  // Função para lidar com upload de arquivo
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        if (result) {
-          setCapturedImage(result);
-          setShowFileUpload(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleSwitch = useCallback(() => {
+    setMode((prev) => (prev === "environment" ? "user" : "environment"));
   }, []);
 
-  // Função para abrir o seletor de arquivo
-  const openFileSelector = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  // Chamar quando o diálogo abre
-  if (isOpen && !stream && !capturedImage && !isLoading) {
-    startCamera();
-  }
+  if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md mx-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Camera className="h-5 w-5" />
-            Capturar Foto do Pallet
-          </DialogTitle>
-        </DialogHeader>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[2147483647] pointer-events-auto"
+          role="dialog"
+          aria-modal="true"
+          tabIndex={-1}
+          onKeyDownCapture={handleKeyCapture}
+        >
+          {/* Shield layer to block interactions behind the camera */}
+          <div
+            className="absolute inset-0 bg-black/90 pointer-events-auto"
+            onPointerDown={stopEvent}
+            onMouseDown={stopEvent}
+            onTouchStart={stopEvent}
+            onWheel={stopEvent}
+            onClick={stopEvent}
+          />
 
-        <div className="space-y-4">
-          {!capturedImage ? (
-            <>
-              {showFileUpload ? (
-                // Interface de upload de arquivo quando a câmera não está disponível
-                <div className="space-y-4">
-                  <div className="relative aspect-[4/3] bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 flex items-center justify-center">
-                    <div className="text-center p-6">
-                      <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-                      <p className="text-gray-600 mb-4">{error}</p>
-                      <Button onClick={openFileSelector} className="w-full">
-                        <Upload className="h-4 w-4 mr-2" />
-                        Selecionar Foto
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-center gap-4">
-                    <Button
-                      variant="outline"
-                      onClick={startCamera}
-                      disabled={!isSecureContext}
-                    >
-                      <Camera className="h-4 w-4 mr-2" />
-                      Tentar Câmera
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleClose}
-                    >
-                      <X className="h-4 w-4 mr-2" />
-                      Cancelar
-                    </Button>
-                  </div>
-                  
-                  {!isSecureContext && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-sm text-blue-800">
-                        <strong>Nota:</strong> A câmera requer HTTPS para funcionar. 
-                        Para usar a câmera, acesse o sistema via HTTPS ou use a opção de upload de arquivo.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                // Interface da câmera
-                <div className="relative aspect-[4/3] bg-black rounded-lg overflow-hidden">
-                  {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-                      <div className="text-white text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                        <p>Iniciando câmera...</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {error && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-red-900/50 z-10">
-                      <div className="text-white text-center p-4">
-                        <p className="mb-2">{error}</p>
-                        <Button onClick={startCamera} variant="outline" size="sm">
-                          Tentar novamente
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className={`w-full h-full object-cover ${
-                      facingMode === "user" ? "scale-x-[-1]" : ""
-                    }`}
-                  />
-                  <canvas ref={canvasRef} className="hidden" />
-                </div>
-              )}
-
-              {!showFileUpload && (
-                <div className="flex justify-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={switchCamera}
-                    className="h-12 w-12 rounded-full"
-                    disabled={isLoading || !!error}
-                  >
-                    <RotateCw className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    onClick={capturePhoto}
-                    className="h-12 w-12 rounded-full bg-white border-4 border-gray-300 hover:bg-gray-100"
-                    disabled={isLoading || !!error}
-                  >
-                    <Camera className="h-6 w-6 text-black" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleClose}
-                    className="h-12 w-12 rounded-full"
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="aspect-[4/3] bg-black rounded-lg overflow-hidden">
-                <img
-                  src={capturedImage}
-                  alt="Captured"
-                  className="w-full h-full object-cover"
-                />
+          {/* Camera UI layer */}
+          <div
+            className="relative z-10 w-full h-full flex flex-col items-center justify-center pointer-events-none"
+            onPointerDown={stopEvent}
+            onMouseDown={stopEvent}
+            onTouchStart={stopEvent}
+          >
+            {/* Video Feed */}
+            {!isCameraReady && !error && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white">
+                <Loader2 className="h-10 w-10 animate-spin text-blue-400 mb-4" />
+                <p className="text-lg">Iniciando câmera...</p>
               </div>
-
-              <div className="flex justify-center gap-4">
-                <Button variant="outline" onClick={retakePhoto}>
-                  Refazer
-                </Button>
-                <Button
-                  onClick={confirmPhoto}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <Check className="h-4 w-4 mr-2" />
-                  Confirmar
+            )}
+            {error && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/80 text-white p-4 text-center">
+                <AlertTriangle className="h-12 w-12 text-red-300 mb-4" />
+                <p className="text-xl font-semibold mb-2">Erro na Câmera</p>
+                <p className="text-sm">{error}</p>
+                <Button onClick={startCamera} className="mt-4 bg-red-600 hover:bg-red-700">
+                  <RefreshCcw className="h-4 w-4 mr-2" /> Tentar Novamente
                 </Button>
               </div>
-            </>
-          )}
-        </div>
-        
-        {/* Input de arquivo oculto */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
-      </DialogContent>
-    </Dialog>
+            )}
+            <video
+              ref={videoRef}
+              className={`w-full h-full object-contain bg-black border-2 border-gray-400 rounded-lg ${isCameraReady ? "" : "hidden"}`}
+              style={{ transform: 'none' }}
+              playsInline
+              autoPlay
+              onPointerDown={stopEvent}
+              onMouseDown={stopEvent}
+            />
+            <canvas ref={canvasRef} className="hidden" />
+
+            {/* Capture Animation Overlay */}
+            {isCapturing && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.1 }}
+                className="absolute inset-0 bg-white"
+              />
+            )}
+
+            {/* Controls */}
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/70 to-transparent flex justify-around items-center backdrop-blur-sm pointer-events-auto"
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="text-white hover:bg-white/20 active:scale-95 transition-transform"
+                aria-label="Fechar Câmera"
+              >
+                <X className="h-8 w-8" />
+              </Button>
+
+              <motion.button
+                type="button"
+                onClick={handleCapture}
+                disabled={!isCameraReady || isCapturing}
+                className="w-20 h-20 rounded-full border-4 border-white bg-white/30 hover:bg-white/50 transition-all duration-200 flex items-center justify-center"
+                whileTap={{ scale: 0.9 }}
+                aria-label="Capturar Foto"
+              >
+                <Camera className="h-10 w-10 text-white" />
+              </motion.button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSwitch}
+                disabled={!isCameraReady}
+                className="text-white hover:bg-white/20 active:scale-95 transition-transform"
+                aria-label="Alternar Câmera"
+              >
+                <RefreshCcw className="h-8 w-8" />
+              </Button>
+            </motion.div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

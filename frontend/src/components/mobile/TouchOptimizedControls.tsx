@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { 
@@ -13,9 +13,9 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-interface TouchOptimizedButtonProps {
+interface TouchOptimizedButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
-  onClick?: () => void;
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onLongPress?: () => void;
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost';
   size?: 'default' | 'sm' | 'lg' | 'xl';
@@ -25,23 +25,36 @@ interface TouchOptimizedButtonProps {
   rippleEffect?: boolean;
 }
 
-export function TouchOptimizedButton({
-  children,
-  onClick,
-  onLongPress,
-  variant = 'default',
-  size = 'default',
-  disabled = false,
-  className,
-  hapticFeedback = true,
-  rippleEffect = true,
-  ...props
-}: TouchOptimizedButtonProps) {
+export const TouchOptimizedButton = forwardRef<HTMLButtonElement, TouchOptimizedButtonProps>((
+  {
+    children,
+    onClick,
+    onLongPress,
+    variant = 'default',
+    size = 'default',
+    disabled = false,
+    className,
+    hapticFeedback = true,
+    rippleEffect = true,
+    ...props
+  },
+  ref
+) => {
   const [isPressed, setIsPressed] = useState(false);
   const [showRipple, setShowRipple] = useState(false);
   const [ripplePosition, setRipplePosition] = useState({ x: 0, y: 0 });
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Combine the passed ref with the internal ref
+  const combinedRef = useCallback((node: HTMLButtonElement | null) => {
+    buttonRef.current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      (ref as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+    }
+  }, [ref]);
 
   const sizeClasses = {
     default: 'min-h-[44px] px-4 py-3 text-base',
@@ -91,14 +104,14 @@ export function TouchOptimizedButton({
     }
   };
 
-  const handleClick = () => {
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (disabled) return;
-    onClick?.();
+    onClick?.(event);
   };
 
   return (
     <Button
-      ref={buttonRef}
+      ref={combinedRef}
       variant={variant}
       disabled={disabled}
       className={cn(
@@ -134,7 +147,7 @@ export function TouchOptimizedButton({
       )}
     </Button>
   );
-}
+});
 
 interface SwipeableCardProps {
   children: React.ReactNode;

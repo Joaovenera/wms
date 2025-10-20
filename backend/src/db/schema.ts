@@ -101,6 +101,7 @@ export const products = pgTable("products", {
   description: text("description"),
   category: varchar("category"),
   brand: varchar("brand"),
+  ncm: varchar("ncm"),
   unit: varchar("unit").notNull(), // un, kg, l, etc.
   unitsPerPackage: decimal("units_per_package", { precision: 10, scale: 3 }).default('1'), // quantidade por unidade de embalagem
   weight: decimal("weight", { precision: 10, scale: 3 }), // kg
@@ -597,6 +598,7 @@ export const vehicles = pgTable("vehicles", {
 export const transferRequests = pgTable("transfer_requests", {
   id: serial("id").primaryKey(),
   code: varchar("code").notNull().unique(), // TR-20250724-0001
+  type: varchar("type").notNull(), // container-arrival-plan, truck-arrival-plan, delivery-arrival-plan, transfer-plan, withdrawal-plan
   vehicleId: integer("vehicle_id").notNull().references(() => vehicles.id),
   fromLocation: varchar("from_location").notNull(), // Santa Catarina
   toLocation: varchar("to_location").notNull(), // São Paulo
@@ -604,6 +606,11 @@ export const transferRequests = pgTable("transfer_requests", {
   totalCubicVolume: decimal("total_cubic_volume", { precision: 10, scale: 3 }).default("0"), // m³ calculado
   effectiveCapacity: decimal("effective_capacity", { precision: 10, scale: 3 }), // Capacidade com margem de segurança
   capacityUsagePercent: decimal("capacity_usage_percent", { precision: 5, scale: 2 }).default("0"), // % utilização
+  // Operation-specific fields
+  supplierName: varchar("supplier_name"), // For arrival plans (container, truck, delivery)
+  transporterName: varchar("transporter_name"), // For delivery arrivals
+  estimatedArrival: timestamp("estimated_arrival"), // For arrival plans
+  clientInfo: jsonb("client_info"), // For withdrawal plans: {clientName, clientDocument?, contactInfo?}
   notes: text("notes"),
   createdBy: integer("created_by").notNull().references(() => users.id),
   approvedBy: integer("approved_by").references(() => users.id),
@@ -634,6 +641,20 @@ export const loadingExecutions = pgTable("loading_executions", {
   startedAt: timestamp("started_at").defaultNow(),
   finishedAt: timestamp("finished_at"),
   observations: text("observations"),
+  
+  // Operation-specific execution fields
+  executionType: varchar("execution_type"), // matches the operation type from transfer_requests
+  containerNumber: varchar("container_number"), // for container operations
+  sealNumber: varchar("seal_number"), // for container seal/lacre
+  transporterInfo: jsonb("transporter_info"), // transporter details
+  driverInfo: jsonb("driver_info"), // driver info for truck operations
+  vehiclePlate: varchar("vehicle_plate"), // actual vehicle plate
+  deliveryReceipt: varchar("delivery_receipt"), // delivery receipt number
+  clientSignatureUrl: varchar("client_signature_url"), // signature image path
+  executionPhotos: jsonb("execution_photos"), // array of photo URLs with descriptions
+  conditionAssessment: varchar("condition_assessment"), // good, damaged, mixed, unknown
+  specialInstructions: text("special_instructions"),
+  executionMetadata: jsonb("execution_metadata"), // additional operation-specific data
 });
 
 // Loading Items table - Itens Executados no Carregamento
@@ -961,6 +982,301 @@ export type InsertCompositionItem = typeof compositionItems.$inferInsert;
 export type CompositionReport = typeof compositionReports.$inferSelect;
 export type InsertCompositionReport = typeof compositionReports.$inferInsert;
 
+// Stock Alert Rules table - Configure alert thresholds and rules
+export const stockAlertRules = pgTable("stock_alert_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  productId: integer("product_id").references(() => products.id), // null for global rules
+  category: varchar("category"), // null for product-specific rules
+  
+  // Alert Thresholds
+  minStockThreshold: integer("min_stock_threshold"), // Overrides product.minStock if set
+  maxStockThreshold: integer("max_stock_threshold"), // Overrides product.maxStock if set
+  criticalStockThreshold: integer("critical_stock_threshold"), // Ultra-low threshold
+  
+  // Advanced Thresholds
+  velocityThreshold: decimal("velocity_threshold", { precision: 10, scale: 3 }), // Items per day
+  agingThreshold: integer("aging_threshold"), // Days without movement
+  seasonalMultiplier: decimal("seasonal_multiplier", { precision: 5, scale: 2 }), // Seasonal adjustment
+  
+  // Alert Configuration
+  alertTypes: jsonb("alert_types"), // ['low_stock', 'critical_stock', 'overstock', 'no_movement', 'velocity_drop']
+  severity: varchar("severity").notNull(), // low, medium, high, critical
+  isActive: boolean("is_active").default(true),
+  
+  // Notification Settings
+  notificationMethods: jsonb("notification_methods"), // ['email', 'sms', 'push', 'webhook']
+  escalationLevels: jsonb("escalation_levels"), // Escalation configuration
+  snoozeUntil: timestamp("snooze_until"), // Temporary snooze
+  
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Stock Alerts table - Generated alerts from monitoring
+export const stockAlerts = pgTable("stock_alerts", {
+  id: serial("id").primaryKey(),
+  ruleId: integer("rule_id").references(() => stockAlertRules.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  
+  // Alert Details
+  alertType: varchar("alert_type").notNull(), // low_stock, critical_stock, overstock, no_movement, velocity_drop
+  severity: varchar("severity").notNull(), // low, medium, high, critical
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  
+  // Stock Information
+  currentStock: decimal("current_stock", { precision: 10, scale: 3 }).notNull(),
+  targetStock: decimal("target_stock", { precision: 10, scale: 3 }), // Expected/target level
+  threshold: decimal("threshold", { precision: 10, scale: 3 }), // Threshold that triggered alert
+  
+  // Calculated Metrics
+  daysUntilStockout: integer("days_until_stockout"), // Estimated days to zero stock
+  suggestedOrderQuantity: decimal("suggested_order_quantity", { precision: 10, scale: 3 }),
+  costImpact: decimal("cost_impact", { precision: 12, scale: 2 }), // Estimated cost impact
+  
+  // Alert Status
+  status: varchar("status").notNull().default("active"), // active, acknowledged, resolved, snoozed
+  priority: integer("priority").default(1), // 1=highest, 5=lowest
+  acknowledgedBy: integer("acknowledged_by").references(() => users.id),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  resolvedBy: integer("resolved_by").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  resolutionNotes: text("resolution_notes"),
+  
+  // Auto-resolution
+  autoResolved: boolean("auto_resolved").default(false),
+  parentAlertId: integer("parent_alert_id").references(() => stockAlerts.id), // For escalated alerts
+  
+  // Metadata
+  location: varchar("location"), // Warehouse location
+  detectionData: jsonb("detection_data"), // Additional context data
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Alert Notifications table - Track all notifications sent
+export const alertNotifications = pgTable("alert_notifications", {
+  id: serial("id").primaryKey(),
+  alertId: integer("alert_id").notNull().references(() => stockAlerts.id),
+  
+  // Notification Details
+  method: varchar("method").notNull(), // email, sms, push, webhook, in_app
+  recipient: varchar("recipient").notNull(), // email address, phone, user_id, webhook_url
+  subject: varchar("subject"),
+  content: text("content").notNull(),
+  
+  // Delivery Status
+  status: varchar("status").notNull().default("pending"), // pending, sent, delivered, failed, bounced
+  attemptCount: integer("attempt_count").default(0),
+  lastAttemptAt: timestamp("last_attempt_at"),
+  deliveredAt: timestamp("delivered_at"),
+  errorMessage: text("error_message"),
+  
+  // Response Tracking
+  opened: boolean("opened").default(false),
+  openedAt: timestamp("opened_at"),
+  clicked: boolean("clicked").default(false),
+  clickedAt: timestamp("clicked_at"),
+  
+  // Metadata
+  notificationData: jsonb("notification_data"), // Provider-specific data
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Auto-reorder Suggestions table - ML-powered reorder recommendations
+export const autoReorderSuggestions = pgTable("auto_reorder_suggestions", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  alertId: integer("alert_id").references(() => stockAlerts.id), // Link to triggering alert
+  
+  // Recommendation Details
+  recommendationType: varchar("recommendation_type").notNull(), // reorder, increase_min_stock, seasonal_adjustment
+  suggestedQuantity: decimal("suggested_quantity", { precision: 10, scale: 3 }).notNull(),
+  suggestedMinStock: integer("suggested_min_stock"),
+  suggestedMaxStock: integer("suggested_max_stock"),
+  
+  // Analysis Data
+  currentVelocity: decimal("current_velocity", { precision: 10, scale: 3 }), // Units per day
+  historicalVelocity: decimal("historical_velocity", { precision: 10, scale: 3 }),
+  seasonalFactor: decimal("seasonal_factor", { precision: 5, scale: 2 }),
+  leadTime: integer("lead_time"), // Days
+  serviceLevel: decimal("service_level", { precision: 5, scale: 2 }), // Target service level %
+  
+  // Cost Analysis
+  estimatedCost: decimal("estimated_cost", { precision: 12, scale: 2 }),
+  potentialSavings: decimal("potential_savings", { precision: 12, scale: 2 }),
+  riskScore: decimal("risk_score", { precision: 5, scale: 2 }), // Risk assessment 0-100
+  
+  // Confidence and Validation
+  confidenceScore: decimal("confidence_score", { precision: 5, scale: 2 }), // AI confidence 0-100
+  dataQuality: varchar("data_quality"), // excellent, good, fair, poor
+  validationStatus: varchar("validation_status").default("pending"), // pending, approved, rejected, implemented
+  
+  // Implementation
+  status: varchar("status").notNull().default("pending"), // pending, approved, rejected, implemented, expired
+  implementedBy: integer("implemented_by").references(() => users.id),
+  implementedAt: timestamp("implemented_at"),
+  rejectionReason: text("rejection_reason"),
+  
+  // Metadata
+  algorithmVersion: varchar("algorithm_version"),
+  analysisData: jsonb("analysis_data"), // Detailed analysis results
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"), // Suggestion expiry
+});
+
+// Alert Escalation Rules table - Configure escalation workflows
+export const alertEscalationRules = pgTable("alert_escalation_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  
+  // Trigger Conditions
+  severity: varchar("severity"), // null = all severities
+  alertType: varchar("alert_type"), // null = all types
+  productCategory: varchar("product_category"), // null = all categories
+  timeUnacknowledged: integer("time_unacknowledged"), // Minutes before escalation
+  
+  // Escalation Actions
+  escalationLevels: jsonb("escalation_levels").notNull(), // Array of escalation steps
+  /*
+  Example escalation_levels:
+  [
+    {
+      "level": 1,
+      "delayMinutes": 15,
+      "actions": ["email_supervisor", "increase_priority"],
+      "recipients": ["supervisor@company.com"]
+    },
+    {
+      "level": 2,
+      "delayMinutes": 60,
+      "actions": ["email_manager", "sms_alert", "create_urgent_task"],
+      "recipients": ["manager@company.com", "+1234567890"]
+    }
+  ]
+  */
+  
+  // Rule Configuration
+  isActive: boolean("is_active").default(true),
+  maxEscalationLevel: integer("max_escalation_level").default(3),
+  cooldownPeriod: integer("cooldown_period").default(240), // Minutes between same-type escalations
+  
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Alert Actions Log table - Track all actions taken on alerts
+export const alertActionsLog = pgTable("alert_actions_log", {
+  id: serial("id").primaryKey(),
+  alertId: integer("alert_id").notNull().references(() => stockAlerts.id),
+  
+  // Action Details
+  actionType: varchar("action_type").notNull(), // acknowledged, resolved, escalated, snoozed, commented
+  actionBy: integer("action_by").references(() => users.id), // null for system actions
+  actionData: jsonb("action_data"), // Action-specific data
+  
+  // System vs Manual
+  isSystemAction: boolean("is_system_action").default(false),
+  automationRuleId: integer("automation_rule_id"), // ID of automation rule if system action
+  
+  // Result
+  success: boolean("success").default(true),
+  errorMessage: text("error_message"),
+  
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+// Relations for Stock Alert System
+export const stockAlertRulesRelations = relations(stockAlertRules, ({ one, many }) => ({
+  product: one(products, {
+    fields: [stockAlertRules.productId],
+    references: [products.id],
+  }),
+  createdBy: one(users, {
+    fields: [stockAlertRules.createdBy],
+    references: [users.id],
+  }),
+  alerts: many(stockAlerts),
+}));
+
+export const stockAlertsRelations = relations(stockAlerts, ({ one, many }) => ({
+  rule: one(stockAlertRules, {
+    fields: [stockAlerts.ruleId],
+    references: [stockAlertRules.id],
+  }),
+  product: one(products, {
+    fields: [stockAlerts.productId],
+    references: [products.id],
+  }),
+  acknowledgedByUser: one(users, {
+    fields: [stockAlerts.acknowledgedBy],
+    references: [users.id],
+  }),
+  resolvedByUser: one(users, {
+    fields: [stockAlerts.resolvedBy],
+    references: [users.id],
+  }),
+  parentAlert: one(stockAlerts, {
+    fields: [stockAlerts.parentAlertId],
+    references: [stockAlerts.id],
+    relationName: "parentChild",
+  }),
+  childAlerts: many(stockAlerts, {
+    relationName: "parentChild",
+  }),
+  notifications: many(alertNotifications),
+  reorderSuggestions: many(autoReorderSuggestions),
+  actionsLog: many(alertActionsLog),
+}));
+
+export const alertNotificationsRelations = relations(alertNotifications, ({ one }) => ({
+  alert: one(stockAlerts, {
+    fields: [alertNotifications.alertId],
+    references: [stockAlerts.id],
+  }),
+}));
+
+export const autoReorderSuggestionsRelations = relations(autoReorderSuggestions, ({ one }) => ({
+  product: one(products, {
+    fields: [autoReorderSuggestions.productId],
+    references: [products.id],
+  }),
+  alert: one(stockAlerts, {
+    fields: [autoReorderSuggestions.alertId],
+    references: [stockAlerts.id],
+  }),
+  implementedByUser: one(users, {
+    fields: [autoReorderSuggestions.implementedBy],
+    references: [users.id],
+  }),
+}));
+
+export const alertEscalationRulesRelations = relations(alertEscalationRules, ({ one }) => ({
+  createdBy: one(users, {
+    fields: [alertEscalationRules.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const alertActionsLogRelations = relations(alertActionsLog, ({ one }) => ({
+  alert: one(stockAlerts, {
+    fields: [alertActionsLog.alertId],
+    references: [stockAlerts.id],
+  }),
+  actionByUser: one(users, {
+    fields: [alertActionsLog.actionBy],
+    references: [users.id],
+  }),
+}));
+
 // Zod schemas for new composition tables
 export const insertPackagingCompositionSchema = createInsertSchema(packagingCompositions).omit({
   id: true,
@@ -977,3 +1293,645 @@ export const insertCompositionReportSchema = createInsertSchema(compositionRepor
   id: true,
   generatedAt: true,
 });
+
+// Zod schemas for Stock Alert System
+export const insertStockAlertRuleSchema = createInsertSchema(stockAlertRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertStockAlertSchema = createInsertSchema(stockAlerts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAlertNotificationSchema = createInsertSchema(alertNotifications).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAutoReorderSuggestionSchema = createInsertSchema(autoReorderSuggestions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAlertEscalationRuleSchema = createInsertSchema(alertEscalationRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAlertActionLogSchema = createInsertSchema(alertActionsLog).omit({
+  id: true,
+  timestamp: true,
+});
+
+// Wave Planning Tables
+
+// Orders table - Customer orders for wave planning
+export const orders = pgTable("orders", {
+  id: serial("id").primaryKey(),
+  orderNumber: varchar("order_number").notNull().unique(),
+  customerId: varchar("customer_id"),
+  customerName: varchar("customer_name").notNull(),
+  priority: varchar("priority").notNull().default("normal"), // urgent, high, normal, low
+  orderType: varchar("order_type").notNull(), // standard, express, bulk
+  status: varchar("status").notNull().default("pending"), // pending, allocated, picked, shipped, cancelled
+  requestedShipDate: date("requested_ship_date"),
+  promiseDate: date("promise_date"),
+  totalLines: integer("total_lines").notNull().default(0),
+  totalQuantity: decimal("total_quantity", { precision: 10, scale: 3 }).notNull().default("0"),
+  totalWeight: decimal("total_weight", { precision: 10, scale: 2 }), // kg
+  totalVolume: decimal("total_volume", { precision: 10, scale: 6 }), // m³
+  shippingAddress: jsonb("shipping_address"), // Complete address object
+  specialInstructions: text("special_instructions"),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Order Lines table - Individual line items within orders
+export const orderLines = pgTable("order_lines", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull().references(() => orders.id),
+  lineNumber: integer("line_number").notNull(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  requestedQuantity: decimal("requested_quantity", { precision: 10, scale: 3 }).notNull(),
+  allocatedQuantity: decimal("allocated_quantity", { precision: 10, scale: 3 }).default("0"),
+  pickedQuantity: decimal("picked_quantity", { precision: 10, scale: 3 }).default("0"),
+  unitWeight: decimal("unit_weight", { precision: 10, scale: 3 }), // kg per unit
+  unitVolume: decimal("unit_volume", { precision: 10, scale: 6 }), // m³ per unit
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }), // currency units
+  totalLineWeight: decimal("total_line_weight", { precision: 10, scale: 2 }),
+  totalLineVolume: decimal("total_line_volume", { precision: 10, scale: 6 }),
+  status: varchar("status").notNull().default("pending"), // pending, allocated, picked, shorted
+  lotRequirement: varchar("lot_requirement"), // specific lot number if required
+  expiryRequirement: date("expiry_requirement"), // minimum expiry date
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Waves table - Wave planning master table
+export const waves = pgTable("waves", {
+  id: serial("id").primaryKey(),
+  waveNumber: varchar("wave_number").notNull().unique(), // WAVE-20250825-001
+  name: varchar("name").notNull(),
+  description: text("description"),
+  status: varchar("status").notNull().default("planned"), // planned, released, picking, completed, cancelled
+  waveType: varchar("wave_type").notNull().default("standard"), // standard, express, bulk, replenishment
+  priority: varchar("priority").notNull().default("normal"), // urgent, high, normal, low
+  templateId: integer("template_id").references(() => waveTemplates.id),
+  
+  // Planning metrics
+  totalOrders: integer("total_orders").notNull().default(0),
+  totalLines: integer("total_lines").notNull().default(0),
+  totalQuantity: decimal("total_quantity", { precision: 10, scale: 3 }).notNull().default("0"),
+  totalWeight: decimal("total_weight", { precision: 10, scale: 2 }), // kg
+  totalVolume: decimal("total_volume", { precision: 10, scale: 6 }), // m³
+  
+  // Optimization metrics
+  pickingEfficiency: decimal("picking_efficiency", { precision: 5, scale: 2 }), // % efficiency score
+  travelDistance: decimal("travel_distance", { precision: 10, scale: 2 }), // meters
+  estimatedPickTime: integer("estimated_pick_time"), // minutes
+  utilization: decimal("utilization", { precision: 5, scale: 2 }), // % resource utilization
+  
+  // Capacity allocation
+  allocatedPickers: integer("allocated_pickers"),
+  allocatedEquipment: jsonb("allocated_equipment"), // {forklifts: 2, carts: 5, etc}
+  estimatedStartTime: timestamp("estimated_start_time"),
+  estimatedEndTime: timestamp("estimated_end_time"),
+  
+  // Actual execution metrics
+  actualStartTime: timestamp("actual_start_time"),
+  actualEndTime: timestamp("actual_end_time"),
+  actualPickTime: integer("actual_pick_time"), // minutes
+  actualTravelDistance: decimal("actual_travel_distance", { precision: 10, scale: 2 }),
+  
+  // Configuration
+  waveRules: jsonb("wave_rules"), // Wave configuration rules
+  sortingStrategy: varchar("sorting_strategy").default("zone_product"), // zone_product, product_zone, shortest_path
+  batchingStrategy: varchar("batching_strategy").default("order_based"), // order_based, zone_based, product_based
+  
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  releasedBy: integer("released_by").references(() => users.id),
+  releasedAt: timestamp("released_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Wave Orders table - Orders assigned to waves
+export const waveOrders = pgTable("wave_orders", {
+  id: serial("id").primaryKey(),
+  waveId: integer("wave_id").notNull().references(() => waves.id),
+  orderId: integer("order_id").notNull().references(() => orders.id),
+  sequence: integer("sequence"), // Pick sequence within wave
+  priority: integer("priority").default(0), // Priority within wave
+  estimatedPickTime: integer("estimated_pick_time"), // minutes
+  status: varchar("status").notNull().default("assigned"), // assigned, picking, picked, completed
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
+
+// Pick Lists table - Optimized picking lists
+export const pickLists = pgTable("pick_lists", {
+  id: serial("id").primaryKey(),
+  waveId: integer("wave_id").notNull().references(() => waves.id),
+  listNumber: varchar("list_number").notNull().unique(), // PL-20250825-001
+  batchId: varchar("batch_id"), // For batch picking
+  pickerId: integer("picker_id").references(() => users.id),
+  
+  // List characteristics
+  listType: varchar("list_type").notNull().default("standard"), // standard, batch, cluster, zone
+  zone: varchar("zone"), // Warehouse zone if applicable
+  priority: varchar("priority").notNull().default("normal"), // urgent, high, normal, low
+  
+  // Metrics
+  totalStops: integer("total_stops").notNull().default(0),
+  totalLines: integer("total_lines").notNull().default(0),
+  totalQuantity: decimal("total_quantity", { precision: 10, scale: 3 }).notNull().default("0"),
+  estimatedDistance: decimal("estimated_distance", { precision: 10, scale: 2 }), // meters
+  estimatedTime: integer("estimated_time"), // minutes
+  
+  // Route optimization
+  optimizedRoute: jsonb("optimized_route"), // Ordered list of positions
+  routeAlgorithm: varchar("route_algorithm").default("nearest_neighbor"), // nearest_neighbor, genetic, simulated_annealing
+  
+  // Execution tracking
+  status: varchar("status").notNull().default("created"), // created, assigned, picking, paused, completed, cancelled
+  actualStartTime: timestamp("actual_start_time"),
+  actualEndTime: timestamp("actual_end_time"),
+  actualDistance: decimal("actual_distance", { precision: 10, scale: 2 }),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Pick List Items table - Individual pick tasks
+export const pickListItems = pgTable("pick_list_items", {
+  id: serial("id").primaryKey(),
+  pickListId: integer("pick_list_id").notNull().references(() => pickLists.id),
+  orderLineId: integer("order_line_id").notNull().references(() => orderLines.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  positionId: integer("position_id").references(() => positions.id),
+  ucpId: integer("ucp_id").references(() => ucps.id),
+  
+  // Pick details
+  sequence: integer("sequence").notNull(), // Pick sequence within list
+  requestedQuantity: decimal("requested_quantity", { precision: 10, scale: 3 }).notNull(),
+  pickedQuantity: decimal("picked_quantity", { precision: 10, scale: 3 }).default("0"),
+  shortQuantity: decimal("short_quantity", { precision: 10, scale: 3 }).default("0"),
+  
+  // Location details
+  zone: varchar("zone"),
+  aisle: varchar("aisle"),
+  bay: varchar("bay"),
+  level: varchar("level"),
+  
+  // Status and tracking
+  status: varchar("status").notNull().default("pending"), // pending, picking, picked, shorted, skipped
+  reasonCode: varchar("reason_code"), // For shorts/skips
+  notes: text("notes"),
+  
+  // Time tracking
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Wave Templates table - Reusable wave configurations
+export const waveTemplates = pgTable("wave_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull().unique(),
+  description: text("description"),
+  templateType: varchar("template_type").notNull().default("standard"), // standard, express, bulk, replenishment
+  
+  // Selection criteria
+  selectionRules: jsonb("selection_rules"), // Complex rules for order selection
+  maxOrders: integer("max_orders"),
+  maxLines: integer("max_lines"),
+  maxWeight: decimal("max_weight", { precision: 10, scale: 2 }),
+  maxVolume: decimal("max_volume", { precision: 10, scale: 6 }),
+  
+  // Optimization settings
+  sortingStrategy: varchar("sorting_strategy").default("zone_product"),
+  batchingStrategy: varchar("batching_strategy").default("order_based"),
+  routeOptimization: boolean("route_optimization").default(true),
+  
+  // Resource constraints
+  maxPickers: integer("max_pickers"),
+  requiredEquipment: jsonb("required_equipment"),
+  
+  // Timing
+  cutoffTime: varchar("cutoff_time"), // Daily cutoff time
+  processingWindow: jsonb("processing_window"), // Processing time windows
+  
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Wave Analytics table - Performance tracking and KPIs
+export const waveAnalytics = pgTable("wave_analytics", {
+  id: serial("id").primaryKey(),
+  waveId: integer("wave_id").notNull().references(() => waves.id),
+  
+  // Performance metrics
+  plannedVsActualTime: decimal("planned_vs_actual_time", { precision: 5, scale: 2 }), // % variance
+  plannedVsActualDistance: decimal("planned_vs_actual_distance", { precision: 5, scale: 2 }), // % variance
+  pickAccuracy: decimal("pick_accuracy", { precision: 5, scale: 2 }), // % accuracy
+  pickProductivity: decimal("pick_productivity", { precision: 10, scale: 2 }), // picks per hour
+  utilizationRate: decimal("utilization_rate", { precision: 5, scale: 2 }), // % resource utilization
+  
+  // Quality metrics
+  errorCount: integer("error_count").default(0),
+  shortCount: integer("short_count").default(0),
+  damageCount: integer("damage_count").default(0),
+  
+  // Efficiency metrics
+  totalPicks: integer("total_picks").default(0),
+  totalTravelTime: integer("total_travel_time"), // minutes
+  totalPickTime: integer("total_pick_time"), // minutes
+  averagePickTime: decimal("average_pick_time", { precision: 5, scale: 2 }), // seconds per pick
+  
+  // Cost analysis
+  laborCost: decimal("labor_cost", { precision: 10, scale: 2 }),
+  equipmentCost: decimal("equipment_cost", { precision: 10, scale: 2 }),
+  totalCost: decimal("total_cost", { precision: 10, scale: 2 }),
+  costPerPick: decimal("cost_per_pick", { precision: 10, scale: 4 }),
+  
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+});
+
+// Labor Schedule table - Workforce planning
+export const laborSchedule = pgTable("labor_schedule", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  shiftDate: date("shift_date").notNull(),
+  shiftType: varchar("shift_type").notNull(), // morning, afternoon, night
+  startTime: varchar("start_time").notNull(), // HH:mm format
+  endTime: varchar("end_time").notNull(), // HH:mm format
+  
+  // Capacity and skills
+  skill: varchar("skill").notNull().default("picker"), // picker, supervisor, equipment_operator
+  efficiency: decimal("efficiency", { precision: 3, scale: 2 }).default("1.00"), // Individual efficiency multiplier
+  maxWaves: integer("max_waves").default(1), // Max concurrent waves
+  
+  // Assignment tracking
+  assignedWaves: jsonb("assigned_waves"), // Array of wave IDs
+  actualHours: decimal("actual_hours", { precision: 4, scale: 2 }),
+  
+  status: varchar("status").notNull().default("scheduled"), // scheduled, active, break, completed, absent
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Equipment Schedule table - Equipment resource planning
+export const equipmentSchedule = pgTable("equipment_schedule", {
+  id: serial("id").primaryKey(),
+  equipmentType: varchar("equipment_type").notNull(), // forklift, cart, scanner, etc.
+  equipmentId: varchar("equipment_id").notNull(), // Unique equipment identifier
+  shiftDate: date("shift_date").notNull(),
+  shiftType: varchar("shift_type").notNull(),
+  
+  // Capacity
+  maxConcurrentWaves: integer("max_concurrent_waves").default(1),
+  
+  // Assignment tracking
+  assignedWaves: jsonb("assigned_waves"),
+  assignedTo: integer("assigned_to").references(() => users.id),
+  
+  status: varchar("status").notNull().default("available"), // available, assigned, maintenance, broken
+  maintenanceWindow: jsonb("maintenance_window"), // Scheduled maintenance times
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Wave Optimization Log table - Track optimization decisions
+export const waveOptimizationLog = pgTable("wave_optimization_log", {
+  id: serial("id").primaryKey(),
+  waveId: integer("wave_id").notNull().references(() => waves.id),
+  
+  algorithmUsed: varchar("algorithm_used").notNull(), // genetic, simulated_annealing, nearest_neighbor, etc.
+  optimizationType: varchar("optimization_type").notNull(), // route, batch, resource, hybrid
+  
+  // Input parameters
+  inputParameters: jsonb("input_parameters"),
+  constraints: jsonb("constraints"),
+  
+  // Results
+  beforeMetrics: jsonb("before_metrics"), // Metrics before optimization
+  afterMetrics: jsonb("after_metrics"), // Metrics after optimization
+  improvement: decimal("improvement", { precision: 5, scale: 2 }), // % improvement
+  
+  // Processing details
+  processingTime: integer("processing_time"), // milliseconds
+  iterations: integer("iterations"),
+  converged: boolean("converged").default(false),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ================================
+// QUALITY CONTROL SYSTEM TABLES
+// ================================
+
+// Suppliers table - Supplier master data
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  code: varchar("code").notNull().unique(), // SUP-001
+  name: varchar("name").notNull(),
+  businessName: varchar("business_name"), // Legal business name
+  taxId: varchar("tax_id"), // CNPJ/CPF
+  email: varchar("email"),
+  phone: varchar("phone"),
+  address: jsonb("address"), // {street, city, state, zipCode, country}
+  contactPerson: varchar("contact_person"),
+  supplierType: varchar("supplier_type").notNull(), // manufacturer, distributor, service_provider
+  certifications: jsonb("certifications"), // ISO certifications, etc.
+  qualityRating: decimal("quality_rating", { precision: 3, scale: 2 }).default("0"), // 0-5 scale
+  status: varchar("status").notNull().default("active"), // active, inactive, suspended, blacklisted
+  notes: text("notes"),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Inspection Templates table - Configurable inspection checklists
+export const inspectionTemplates = pgTable("inspection_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  category: varchar("category").notNull(), // receiving, shipping, periodic, damage_assessment, supplier_audit
+  applicableProducts: jsonb("applicable_products"), // Array of product IDs or categories
+  applicableSuppliers: jsonb("applicable_suppliers"), // Array of supplier IDs
+  checklistItems: jsonb("checklist_items").notNull(), // Array of inspection items
+  requiredPhotos: integer("required_photos").default(0),
+  isActive: boolean("is_active").default(true),
+  version: varchar("version").default("1.0"),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Quality Inspections table - Individual inspection records
+export const qualityInspections = pgTable("quality_inspections", {
+  id: serial("id").primaryKey(),
+  code: varchar("code").notNull().unique(), // QI-20250825-0001
+  templateId: integer("template_id").notNull().references(() => inspectionTemplates.id),
+  inspectionType: varchar("inspection_type").notNull(), // receiving, shipping, periodic, damage_assessment, supplier_audit
+  relatedEntityType: varchar("related_entity_type"), // ucp, product, supplier, vehicle, position
+  relatedEntityId: integer("related_entity_id"), // Reference to the entity being inspected
+  supplierId: integer("supplier_id").references(() => suppliers.id),
+  productId: integer("product_id").references(() => products.id),
+  ucpId: integer("ucp_id").references(() => ucps.id),
+  vehicleId: integer("vehicle_id").references(() => vehicles.id),
+  positionId: integer("position_id").references(() => positions.id),
+  inspectorId: integer("inspector_id").notNull().references(() => users.id),
+  status: varchar("status").notNull().default("in_progress"), // in_progress, completed, failed, cancelled
+  overallResult: varchar("overall_result"), // pass, fail, conditional_pass, needs_review
+  score: decimal("score", { precision: 5, scale: 2 }), // Overall score (0-100)
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  scheduledDate: date("scheduled_date"),
+  location: varchar("location"), // Where inspection was performed
+  environmentalConditions: jsonb("environmental_conditions"), // Temperature, humidity, etc.
+  inspectionData: jsonb("inspection_data").notNull(), // Detailed inspection results
+  findings: jsonb("findings"), // Issues found during inspection
+  recommendations: jsonb("recommendations"), // Inspector recommendations
+  photosRequired: integer("photos_required").default(0),
+  photosUploaded: integer("photos_uploaded").default(0),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Inspection Photos table - Photos associated with inspections
+export const inspectionPhotos = pgTable("inspection_photos", {
+  id: serial("id").primaryKey(),
+  inspectionId: integer("inspection_id").notNull().references(() => qualityInspections.id),
+  filename: varchar("filename").notNull(),
+  originalName: varchar("original_name").notNull(),
+  path: varchar("path").notNull(),
+  url: varchar("url").notNull(),
+  thumbnailUrl: varchar("thumbnail_url"),
+  size: integer("size").notNull(),
+  mimeType: varchar("mime_type").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+  photoType: varchar("photo_type").notNull(), // general, damage, before, after, compliance
+  description: text("description"),
+  metadata: jsonb("metadata"), // EXIF data, geolocation, etc.
+  uploadedBy: integer("uploaded_by").notNull().references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  isActive: boolean("is_active").default(true),
+});
+
+// Damage Reports table - Damage and non-conformance reports
+export const damageReports = pgTable("damage_reports", {
+  id: serial("id").primaryKey(),
+  code: varchar("code").notNull().unique(), // DR-20250825-0001
+  inspectionId: integer("inspection_id").references(() => qualityInspections.id),
+  reportType: varchar("report_type").notNull(), // damage, non_conformance, quality_issue, contamination
+  severity: varchar("severity").notNull(), // low, medium, high, critical
+  category: varchar("category").notNull(), // physical_damage, contamination, labeling, packaging, documentation
+  relatedEntityType: varchar("related_entity_type").notNull(), // ucp, product, supplier, vehicle, position
+  relatedEntityId: integer("related_entity_id").notNull(),
+  supplierId: integer("supplier_id").references(() => suppliers.id),
+  productId: integer("product_id").references(() => products.id),
+  ucpId: integer("ucp_id").references(() => ucps.id),
+  quantity: decimal("quantity", { precision: 10, scale: 3 }), // Quantity affected
+  estimatedValue: decimal("estimated_value", { precision: 12, scale: 2 }), // Financial impact
+  currency: varchar("currency").default("USD"),
+  description: text("description").notNull(),
+  rootCause: text("root_cause"),
+  immediateActions: text("immediate_actions"),
+  preventiveActions: text("preventive_actions"),
+  isInsuranceClaim: boolean("is_insurance_claim").default(false),
+  insuranceClaimNumber: varchar("insurance_claim_number"),
+  responsibleParty: varchar("responsible_party"), // supplier, carrier, warehouse, customer, unknown
+  status: varchar("status").notNull().default("reported"), // reported, investigating, resolved, closed, disputed
+  reportedBy: integer("reported_by").notNull().references(() => users.id),
+  assignedTo: integer("assigned_to").references(() => users.id),
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  reportedAt: timestamp("reported_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  followUpRequired: boolean("follow_up_required").default(false),
+  followUpDate: date("follow_up_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Corrective Actions table - Actions to address quality issues
+export const correctiveActions = pgTable("corrective_actions", {
+  id: serial("id").primaryKey(),
+  code: varchar("code").notNull().unique(), // CA-20250825-0001
+  damageReportId: integer("damage_report_id").references(() => damageReports.id),
+  inspectionId: integer("inspection_id").references(() => qualityInspections.id),
+  actionType: varchar("action_type").notNull(), // corrective, preventive, containment
+  priority: varchar("priority").notNull().default("medium"), // low, medium, high, urgent
+  title: varchar("title").notNull(),
+  description: text("description").notNull(),
+  rootCauseAnalysis: text("root_cause_analysis"),
+  plannedActions: jsonb("planned_actions").notNull(), // Array of action items
+  responsible: integer("responsible").notNull().references(() => users.id),
+  assignedTeam: jsonb("assigned_team"), // Array of user IDs
+  dueDate: date("due_date").notNull(),
+  estimatedCost: decimal("estimated_cost", { precision: 12, scale: 2 }),
+  actualCost: decimal("actual_cost", { precision: 12, scale: 2 }),
+  status: varchar("status").notNull().default("open"), // open, in_progress, completed, verified, closed, cancelled
+  effectiveness: varchar("effectiveness"), // effective, partially_effective, ineffective, pending_verification
+  progress: decimal("progress", { precision: 5, scale: 2 }).default("0"), // 0-100%
+  implementationNotes: text("implementation_notes"),
+  verificationCriteria: text("verification_criteria"),
+  verifiedBy: integer("verified_by").references(() => users.id),
+  verifiedAt: timestamp("verified_at"),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Supplier Scorecards table - Supplier performance tracking
+export const supplierScorecards = pgTable("supplier_scorecards", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
+  evaluationPeriod: varchar("evaluation_period").notNull(), // monthly, quarterly, yearly
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  qualityScore: decimal("quality_score", { precision: 5, scale: 2 }), // 0-100
+  deliveryScore: decimal("delivery_score", { precision: 5, scale: 2 }), // 0-100
+  serviceScore: decimal("service_score", { precision: 5, scale: 2 }), // 0-100
+  complianceScore: decimal("compliance_score", { precision: 5, scale: 2 }), // 0-100
+  overallScore: decimal("overall_score", { precision: 5, scale: 2 }), // 0-100
+  overallRating: varchar("overall_rating"), // excellent, good, satisfactory, needs_improvement, poor
+  metrics: jsonb("metrics").notNull(), // Detailed performance metrics
+  kpis: jsonb("kpis"), // Key performance indicators
+  strengths: jsonb("strengths"), // Areas of good performance
+  weaknesses: jsonb("weaknesses"), // Areas needing improvement
+  recommendations: jsonb("recommendations"), // Improvement suggestions
+  actionItems: jsonb("action_items"), // Required actions
+  totalInspections: integer("total_inspections").default(0),
+  passedInspections: integer("passed_inspections").default(0),
+  failedInspections: integer("failed_inspections").default(0),
+  passRate: decimal("pass_rate", { precision: 5, scale: 2 }), // 0-100%
+  totalDamageReports: integer("total_damage_reports").default(0),
+  totalDamageValue: decimal("total_damage_value", { precision: 12, scale: 2 }).default("0"),
+  isActive: boolean("is_active").default(true),
+  evaluatedBy: integer("evaluated_by").notNull().references(() => users.id),
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  evaluatedAt: timestamp("evaluated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniquePeriodPerSupplier: uniqueIndex("unique_period_per_supplier")
+    .on(table.supplierId, table.evaluationPeriod, table.periodStart, table.periodEnd),
+}));
+
+// Quality Metrics table - System-wide quality KPIs
+export const qualityMetrics = pgTable("quality_metrics", {
+  id: serial("id").primaryKey(),
+  metricDate: date("metric_date").notNull(),
+  metricType: varchar("metric_type").notNull(), // daily, weekly, monthly, quarterly, yearly
+  totalInspections: integer("total_inspections").default(0),
+  passedInspections: integer("passed_inspections").default(0),
+  failedInspections: integer("failed_inspections").default(0),
+  passRate: decimal("pass_rate", { precision: 5, scale: 2 }), // 0-100%
+  totalDamageReports: integer("total_damage_reports").default(0),
+  totalDamageValue: decimal("total_damage_value", { precision: 12, scale: 2 }).default("0"),
+  averageInspectionScore: decimal("average_inspection_score", { precision: 5, scale: 2 }),
+  totalCorrectiveActions: integer("total_corrective_actions").default(0),
+  openCorrectiveActions: integer("open_corrective_actions").default(0),
+  overdueCorrectiveActions: integer("overdue_corrective_actions").default(0),
+  correctiveActionEffectiveness: decimal("corrective_action_effectiveness", { precision: 5, scale: 2 }),
+  supplierPerformance: jsonb("supplier_performance"), // Top/bottom performing suppliers
+  productQualityTrends: jsonb("product_quality_trends"), // Product-specific quality trends
+  nonConformanceRate: decimal("nonconformance_rate", { precision: 5, scale: 2 }),
+  firstTimeRightRate: decimal("first_time_right_rate", { precision: 5, scale: 2 }),
+  customerComplaints: integer("customer_complaints").default(0),
+  customerSatisfactionScore: decimal("customer_satisfaction_score", { precision: 5, scale: 2 }),
+  qualityTrends: jsonb("quality_trends"), // Historical trend analysis
+  benchmarkData: jsonb("benchmark_data"), // Industry benchmark comparisons
+  calculatedBy: integer("calculated_by").references(() => users.id),
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+  isActive: boolean("is_active").default(true),
+}, (table) => ({
+  uniqueDateAndType: uniqueIndex("unique_date_and_type")
+    .on(table.metricDate, table.metricType),
+}));
+
+// Quality Gates table - Quality checkpoints in processes
+export const qualityGates = pgTable("quality_gates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  processType: varchar("process_type").notNull(), // receiving, shipping, storage, transfer, production
+  gateType: varchar("gate_type").notNull(), // mandatory, optional, conditional
+  triggerConditions: jsonb("trigger_conditions").notNull(), // Conditions that trigger the gate
+  passingCriteria: jsonb("passing_criteria").notNull(), // Criteria for passing the gate
+  requiredInspections: jsonb("required_inspections"), // Required inspection templates
+  blocksProcess: boolean("blocks_process").default(true), // Whether failure blocks the process
+  allowOverride: boolean("allow_override").default(false),
+  overrideRequiredRole: varchar("override_required_role"), // Role required for override
+  escalationRules: jsonb("escalation_rules"), // Escalation procedures for failures
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Quality Gate Executions table - Individual gate execution records
+export const qualityGateExecutions = pgTable("quality_gate_executions", {
+  id: serial("id").primaryKey(),
+  qualityGateId: integer("quality_gate_id").notNull().references(() => qualityGates.id),
+  relatedEntityType: varchar("related_entity_type").notNull(), // ucp, transfer_request, loading_execution
+  relatedEntityId: integer("related_entity_id").notNull(),
+  executorId: integer("executor_id").notNull().references(() => users.id),
+  result: varchar("result").notNull(), // pass, fail, override, skip
+  score: decimal("score", { precision: 5, scale: 2 }),
+  criteriaMet: jsonb("criteria_met"), // Which criteria were met/failed
+  inspectionResults: jsonb("inspection_results"), // Results from required inspections
+  overrideReason: text("override_reason"),
+  overriddenBy: integer("overridden_by").references(() => users.id),
+  overriddenAt: timestamp("overridden_at"),
+  executionTime: integer("execution_time"), // Time taken in seconds
+  notes: text("notes"),
+  executedAt: timestamp("executed_at").defaultNow(),
+});
+
+// Compliance Audit Trails table - Comprehensive audit logging
+export const complianceAuditTrails = pgTable("compliance_audit_trails", {
+  id: serial("id").primaryKey(),
+  entityType: varchar("entity_type").notNull(), // inspection, damage_report, corrective_action, etc.
+  entityId: integer("entity_id").notNull(),
+  action: varchar("action").notNull(), // created, updated, deleted, approved, rejected, escalated
+  oldValues: jsonb("old_values"), // Previous values for updates
+  newValues: jsonb("new_values"), // New values for updates
+  changedFields: jsonb("changed_fields"), // Specific fields changed
+  reason: text("reason"), // Reason for change
+  ipAddress: varchar("ip_address"),
+  userAgent: varchar("user_agent"),
+  sessionId: varchar("session_id"),
+  correlationId: varchar("correlation_id"), // For tracking related actions
+  regulatoryCompliance: jsonb("regulatory_compliance"), // Compliance tags/notes
+  performedBy: integer("performed_by").notNull().references(() => users.id),
+  timestamp: timestamp("timestamp").defaultNow(),
+  metadata: jsonb("metadata"), // Additional audit metadata
+}, (table) => ({
+  entityIndex: index("audit_entity_index").on(table.entityType, table.entityId),
+  timestampIndex: index("audit_timestamp_index").on(table.timestamp),
+  performedByIndex: index("audit_performed_by_index").on(table.performedBy),
+}));

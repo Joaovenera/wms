@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { QrCode, Camera, Search, Package, MapPin, Layers as PalletIcon } from "lucide-react";
+import { QrCode, Camera, Search, Package, MapPin, Layers as PalletIcon, Loader2 } from "lucide-react";
 import QrScanner from "@/components/qr-scanner";
+import { useLocation } from "wouter"; // Import useLocation from wouter
 
-interface ScanResult {
+interface ScanResultItem {
   type: 'pallet' | 'position' | 'ucp' | 'product';
   code: string;
   data: any;
@@ -17,100 +18,87 @@ interface ScanResult {
 export default function MobileScanner() {
   const [isScanning, setIsScanning] = useState(false);
   const [manualCode, setManualCode] = useState("");
-  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [searchResults, setSearchResults] = useState<ScanResultItem[] | null>(null);
+  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
   const { toast } = useToast();
+  const [, navigate] = useLocation(); // Get the navigate function from wouter
 
   const handleScan = async (code: string) => {
+    setIsScanning(false); // Close scanner after a scan
+    await handleSearch(code);
+  };
+
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) return;
+
+    setIsLoadingSearch(true);
+    setSearchResults(null); // Clear previous results
+
     try {
-      // Try to determine what type of code this is and fetch data
-      let result: ScanResult | null = null;
+      const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`, {
+        credentials: 'include'
+      });
 
-      // Try pallet first
-      try {
-        const response = await fetch(`/api/pallets/code/${code}`, {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          result = { type: 'pallet', code, data };
-        }
-      } catch (e) {
-        // Continue to next type
-      }
-
-      // Try position if not pallet
-      if (!result) {
-        try {
-          const response = await fetch(`/api/positions/code/${code}`, {
-            credentials: 'include'
+      if (response.ok) {
+        const data: ScanResultItem[] = await response.json();
+        if (data.length > 0) {
+          setSearchResults(data);
+          toast({
+            title: "Resultados encontrados!",
+            description: `${data.length} item(s) localizado(s) para "${query}"`, 
           });
-          if (response.ok) {
-            const data = await response.json();
-            result = { type: 'position', code, data };
-          }
-        } catch (e) {
-          // Continue to next type
-        }
-      }
-
-      // Try UCP if not position
-      if (!result) {
-        try {
-          const response = await fetch(`/api/ucps/code/${code}`, {
-            credentials: 'include'
+        } else {
+          toast({
+            title: "Nenhum resultado encontrado",
+            description: `Nenhum item encontrado para "${query}"`, 
+            variant: "destructive",
           });
-          if (response.ok) {
-            const data = await response.json();
-            result = { type: 'ucp', code, data };
-          }
-        } catch (e) {
-          // Continue to next type
         }
-      }
-
-      // Try product SKU if nothing else
-      if (!result) {
-        try {
-          const response = await fetch(`/api/products/sku/${code}`, {
-            credentials: 'include'
-          });
-          if (response.ok) {
-            const data = await response.json();
-            result = { type: 'product', code, data };
-          }
-        } catch (e) {
-          // No matches found
-        }
-      }
-
-      if (result) {
-        setScanResult(result);
-        setIsScanning(false);
-        toast({
-          title: "Código encontrado!",
-          description: `${result.type.toUpperCase()} ${result.code} localizado`,
-        });
       } else {
+        const errorData = await response.json();
         toast({
-          title: "Código não encontrado",
-          description: `Nenhum item encontrado com o código ${code}`,
+          title: "Erro na busca",
+          description: errorData.message || "Ocorreu um erro ao buscar os dados.",
           variant: "destructive",
         });
       }
     } catch (error) {
+      console.error("Search error:", error);
       toast({
-        title: "Erro ao buscar código",
-        description: "Verifique sua conexão e tente novamente",
+        title: "Erro de conexão",
+        description: "Verifique sua conexão e tente novamente.",
         variant: "destructive",
       });
+    } finally {
+      setIsLoadingSearch(false);
     }
   };
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (manualCode.trim()) {
-      handleScan(manualCode.trim());
+    handleSearch(manualCode.trim());
+  };
+
+  const handleItemClick = (item: ScanResultItem) => {
+    let url = '';
+    switch (item.type) {
+      case 'pallet':
+        url = `/pallets/${item.data.id}`;
+        break;
+      case 'position':
+        url = `/positions/${item.data.id}`;
+        break;
+      case 'ucp':
+        url = `/ucps/${item.data.id}`;
+        break;
+      case 'product':
+        url = `/products/${item.data.id}`;
+        break;
+      default:
+        console.warn('Unknown item type for navigation:', item.type);
+        return;
     }
+    navigate(url);
   };
 
   const getTypeIcon = (type: string) => {
@@ -172,7 +160,10 @@ export default function MobileScanner() {
       {/* Scanner Options */}
       <div className="grid grid-cols-2 gap-4">
         <Button 
-          onClick={() => setIsScanning(true)}
+          onClick={() => {
+            setSearchResults(null); // Clear previous results when opening scanner
+            setIsScanning(true);
+          }}
           className="h-16 flex flex-col items-center space-y-1"
           disabled={isScanning}
         >
@@ -182,7 +173,10 @@ export default function MobileScanner() {
         
         <Button 
           variant="outline"
-          onClick={() => setScanResult(null)}
+          onClick={() => {
+            setSearchResults(null);
+            setManualCode("");
+          }}
           className="h-16 flex flex-col items-center space-y-1"
         >
           <Search className="h-6 w-6" />
@@ -204,8 +198,12 @@ export default function MobileScanner() {
                 className="mt-1"
               />
             </div>
-            <Button type="submit" className="w-full touch-button">
-              <Search className="h-4 w-4 mr-2" />
+            <Button type="submit" className="w-full touch-button" disabled={isLoadingSearch}>
+              {isLoadingSearch ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4 mr-2" />
+              )}
               Buscar Código
             </Button>
           </form>
@@ -220,135 +218,145 @@ export default function MobileScanner() {
         />
       )}
 
-      {/* Scan Result */}
-      {scanResult && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  {getTypeIcon(scanResult.type)}
-                  <h3 className="text-lg font-bold">
-                    {getTypeLabel(scanResult.type)} Encontrado
-                  </h3>
-                </div>
-                <Badge className={getStatusColor(scanResult.data.status)}>
-                  {getStatusLabel(scanResult.data.status)}
-                </Badge>
-              </div>
+      {/* Scan Results */}
+      {searchResults && searchResults.length > 0 && (
+        <div className="space-y-4">
+          {searchResults.map((item, index) => (
+            <Card 
+              key={index} 
+              onClick={() => handleItemClick(item)} 
+              className="cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              <CardContent className="p-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      {getTypeIcon(item.type)}
+                      <h3 className="text-lg font-bold">
+                        {getTypeLabel(item.type)} Encontrado
+                      </h3>
+                    </div>
+                    {item.data.status && (
+                      <Badge className={getStatusColor(item.data.status)}>
+                        {getStatusLabel(item.data.status)}
+                      </Badge>
+                    )}
+                  </div>
 
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-sm text-gray-600">Código:</p>
-                <p className="text-lg font-mono font-bold text-primary">{scanResult.code}</p>
-              </div>
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <p className="text-sm text-gray-600">Código:</p>
+                    <p className="text-lg font-mono font-bold text-primary">{item.code}</p>
+                  </div>
 
-              {/* Type-specific information */}
-              {scanResult.type === 'pallet' && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Tipo:</span>
-                    <span className="font-medium">{scanResult.data.type}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Material:</span>
-                    <span className="font-medium">{scanResult.data.material}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Dimensões:</span>
-                    <span className="font-medium">
-                      {scanResult.data.width}×{scanResult.data.length}×{scanResult.data.height}cm
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Carga máx:</span>
-                    <span className="font-medium">{scanResult.data.maxWeight}kg</span>
-                  </div>
-                </div>
-              )}
-
-              {scanResult.type === 'position' && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Rua:</span>
-                    <span className="font-medium">{scanResult.data.street}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Lado:</span>
-                    <span className="font-medium">{scanResult.data.side}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Corredor:</span>
-                    <span className="font-medium">{scanResult.data.corridor}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Nível:</span>
-                    <span className="font-medium">{scanResult.data.level}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Capacidade:</span>
-                    <span className="font-medium">{scanResult.data.maxPallets} pallet(s)</span>
-                  </div>
-                </div>
-              )}
-
-              {scanResult.type === 'ucp' && (
-                <div className="space-y-2">
-                  {scanResult.data.pallet && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Layers:</span>
-                      <span className="font-medium">{scanResult.data.pallet.code}</span>
+                  {/* Type-specific information */}
+                  {item.type === 'pallet' && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Tipo:</span>
+                        <span className="font-medium">{item.data.type}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Material:</span>
+                        <span className="font-medium">{item.data.material}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Dimensões:</span>
+                        <span className="font-medium">
+                          {item.data.width}×{item.data.length}×{item.data.height}cm
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Carga máx:</span>
+                        <span className="font-medium">{item.data.maxWeight}kg</span>
+                      </div>
                     </div>
                   )}
-                  {scanResult.data.position && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Posição:</span>
-                      <span className="font-medium">{scanResult.data.position.code}</span>
-                    </div>
-                  )}
-                  {scanResult.data.items && (
-                    <div className="text-sm">
-                      <span className="text-gray-600">Itens na UCP:</span>
-                      <span className="font-medium ml-2">{scanResult.data.items.length}</span>
-                    </div>
-                  )}
-                </div>
-              )}
 
-              {scanResult.type === 'product' && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Nome:</span>
-                    <span className="font-medium">{scanResult.data.name}</span>
-                  </div>
-                  {scanResult.data.category && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Categoria:</span>
-                      <span className="font-medium">{scanResult.data.category}</span>
+                  {item.type === 'position' && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Rua:</span>
+                        <span className="font-medium">{item.data.street}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Lado:</span>
+                        <span className="font-medium">{item.data.side}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Corredor:</span>
+                        <span className="font-medium">{item.data.corridor}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Nível:</span>
+                        <span className="font-medium">{item.data.level}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Capacidade:</span>
+                        <span className="font-medium">{item.data.maxPallets} pallet(s)</span>
+                      </div>
                     </div>
                   )}
-                  {scanResult.data.brand && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Marca:</span>
-                      <span className="font-medium">{scanResult.data.brand}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Unidade:</span>
-                    <span className="font-medium">{scanResult.data.unit}</span>
-                  </div>
-                </div>
-              )}
 
-              {scanResult.data.observations && (
-                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <strong>Observações:</strong> {scanResult.data.observations}
-                  </p>
+                  {item.type === 'ucp' && (
+                    <div className="space-y-2">
+                      {item.data.pallet && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Layers:</span>
+                          <span className="font-medium">{item.data.pallet.code}</span>
+                        </div>
+                      )}
+                      {item.data.position && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Posição:</span>
+                          <span className="font-medium">{item.data.position.code}</span>
+                        </div>
+                      )}
+                      {item.data.items && (
+                        <div className="text-sm">
+                          <span className="text-gray-600">Itens na UCP:</span>
+                          <span className="font-medium ml-2">{item.data.items.length}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {item.type === 'product' && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Nome:</span>
+                        <span className="font-medium">{item.data.name}</span>
+                      </div>
+                      {item.data.category && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Categoria:</span>
+                          <span className="font-medium">{item.data.category}</span>
+                        </div>
+                      )}
+                      {item.data.brand && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Marca:</span>
+                          <span className="font-medium">{item.data.brand}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Unidade:</span>
+                        <span className="font-medium">{item.data.unit}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {item.data.observations && (
+                    <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        <strong>Observações:</strong> {item.data.observations}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Instructions */}

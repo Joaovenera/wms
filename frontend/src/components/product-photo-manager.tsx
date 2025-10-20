@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import {
   ImageIcon, Plus, Trash2, Star, 
   Upload, History, Clock, User, ChevronLeft, 
   ChevronRight, X, ZoomIn, Download, CheckSquare, 
-  Square, Check
+  Square, Camera
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -61,11 +61,11 @@ interface PhotoHistory {
   };
 }
 
-export default function ProductPhotoManager({ 
-  isOpen, 
-  onClose, 
-  productId, 
-  productName 
+export default function ProductPhotoManager({
+  isOpen,
+  onClose,
+  productId,
+  productName
 }: ProductPhotoManagerProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadPreviews, setUploadPreviews] = useState<{ file: File; preview: string; isPrimary: boolean }[]>([]);
@@ -78,6 +78,8 @@ export default function ProductPhotoManager({
   const [loadFullResolution, setLoadFullResolution] = useState(false);
   const { toast } = useToast();
   const queryClientHook = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
+  const cameraInputRef = useRef<HTMLInputElement>(null); // Ref for camera input
 
   // State for pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -103,7 +105,7 @@ export default function ProductPhotoManager({
   });
 
   // Reset pagination when modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setCurrentPage(1);
       setAllPhotos([]);
@@ -117,7 +119,7 @@ export default function ProductPhotoManager({
   }, [isOpen, productId, queryClientHook]);
 
   // Process photos data when it changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (photosData && Array.isArray(photosData.photos)) {
       if (currentPage === 1) {
         setAllPhotos(photosData.photos);
@@ -381,7 +383,6 @@ export default function ProductPhotoManager({
 
   const removePreview = (index: number) => {
     const newPreviews = uploadPreviews.filter((_, i) => i !== index);
-    const newFiles = selectedFiles.filter((_, i) => i !== index);
     
     // If we removed the primary photo, set the first remaining as primary
     if (newPreviews.length > 0 && !newPreviews.some(p => p.isPrimary)) {
@@ -463,7 +464,7 @@ export default function ProductPhotoManager({
       link.download = photo.filename;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       
       toast({
@@ -673,7 +674,7 @@ export default function ProductPhotoManager({
                               {!isUploading && (
                                 <Button
                                   size="sm"
-                                  variant={preview.isPrimary ? "default" : "outline"}
+                                  variant="default"
                                   className="w-full h-6 text-xs"
                                   onClick={() => togglePrimaryPhoto(index)}
                                   disabled={preview.isPrimary}

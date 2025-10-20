@@ -72,17 +72,18 @@ interface TransferItem {
   totalCubicVolume: number;
   availableStock: number;
   notes?: string;
+  itemType?: "mandatory" | "optional";
 }
 
 interface TransferPlanningWizardProps {
-  onTransferCreated?: (transferId: number) => void;
+  onPlanCreated?: (planId: number) => void;
 }
 
-export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWizardProps) {
+export function TransferPlanningWizard({ onPlanCreated }: TransferPlanningWizardProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [transferItems, setTransferItems] = useState<TransferItem[]>([]);
   const [showAddItemDialog, setShowAddItemDialog] = useState(false);
-  const [transferType, setTransferType] = useState<"entrada" | "saida">("saida");
+  const [transferType] = useState<"saida">("saida"); // Always saida for transfers
   const [fromLocation, setFromLocation] = useState("Santa Catarina");
   const [toLocation, setToLocation] = useState("São Paulo");
   const [notes, setNotes] = useState("");
@@ -91,6 +92,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
   const [selectedProduct, setSelectedProduct] = useState<ProductWithStock | null>(null);
   const [itemQuantity, setItemQuantity] = useState("");
   const [itemNotes, setItemNotes] = useState("");
+  const [itemType, setItemType] = useState<"mandatory" | "optional">("mandatory");
   const [quantityError, setQuantityError] = useState("");
 
   const queryClient = useQueryClient();
@@ -101,33 +103,38 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
     (selectedVehicle.cargoAreaLength * selectedVehicle.cargoAreaWidth * selectedVehicle.cargoAreaHeight) * 0.9 : 0;
   const capacityUsagePercent = effectiveCapacity > 0 ? (totalCubicVolume / effectiveCapacity) * 100 : 0;
 
-  // Create transfer request
-  const createTransferMutation = useMutation({
+  // Create transfer plan
+  const createPlanMutation = useMutation({
     mutationFn: async (data: any) => {
-      const res = await apiRequest('POST', '/api/transfer-requests', data);
+      const planData = {
+        ...data,
+        type: 'transfer-plan',
+        status: 'planejamento'
+      };
+      const res = await apiRequest('POST', '/api/transfer-requests', planData);
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || 'Erro ao criar transferência');
+        throw new Error(error.message || 'Erro ao criar plano de transferência');
       }
       return await res.json();
     },
     onError: (error) => {
-      console.error('Error creating transfer:', error);
+      console.error('Error creating transfer plan:', error);
     }
   });
 
-  // Add item to transfer request
+  // Add item to transfer plan
   const addItemMutation = useMutation({
-    mutationFn: async ({ transferId, itemData }: { transferId: number, itemData: any }) => {
-      const res = await apiRequest('POST', `/api/transfer-requests/${transferId}/items`, itemData);
+    mutationFn: async ({ planId, itemData }: { planId: number, itemData: any }) => {
+      const res = await apiRequest('POST', `/api/transfer-requests/${planId}/items`, itemData);
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || 'Erro ao adicionar item');
+        throw new Error(error.message || 'Erro ao adicionar item ao plano');
       }
       return await res.json();
     },
     onError: (error) => {
-      console.error('Error adding item:', error);
+      console.error('Error adding item to plan:', error);
     }
   });
 
@@ -205,7 +212,8 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
         ...existingItem,
         quantity: newQuantity.toString(),
         totalCubicVolume: newTotalCubicVolume,
-        notes: itemNotes ? `${existingItem.notes || ''}${existingItem.notes ? '; ' : ''}${itemNotes}` : existingItem.notes
+        notes: itemNotes ? `${existingItem.notes || ''}${existingItem.notes ? '; ' : ''}${itemNotes}` : existingItem.notes,
+        itemType: itemType
       };
       
       const updatedItems = [...transferItems];
@@ -221,7 +229,8 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
         unitCubicVolume,
         totalCubicVolume,
         availableStock: selectedProduct.totalStock || 0,
-        notes: itemNotes
+        notes: itemNotes,
+        itemType: itemType
       };
       
       setTransferItems([...transferItems, newItem]);
@@ -231,6 +240,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
     setSelectedProduct(null);
     setItemQuantity("");
     setItemNotes("");
+    setItemType("mandatory");
     setQuantityError("");
     setShowAddItemDialog(false);
   };
@@ -239,21 +249,21 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
     setTransferItems(transferItems.filter((_, i) => i !== index));
   };
 
-  const handleCreateTransfer = async () => {
+  const handleCreatePlan = async () => {
     if (!selectedVehicle || transferItems.length === 0) return;
 
     try {
-      // 1. Criar o pedido de transferência
-      const transferData = {
+      // 1. Criar o plano de transferência
+      const planData = {
         vehicleId: selectedVehicle.id,
         fromLocation,
         toLocation,
         notes
       };
 
-      const createdTransfer = await createTransferMutation.mutateAsync(transferData);
+      const createdPlan = await createPlanMutation.mutateAsync(planData);
 
-      // 2. Adicionar todos os itens
+      // 2. Adicionar todos os itens ao plano
       for (const item of transferItems) {
         const itemData = {
           productId: item.productId,
@@ -262,7 +272,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
         };
         
         await addItemMutation.mutateAsync({
-          transferId: createdTransfer.id,
+          planId: createdPlan.id,
           itemData
         });
       }
@@ -273,16 +283,15 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
       // Reset form
       setSelectedVehicle(null);
       setTransferItems([]);
-      setTransferType("saida");
       setFromLocation("Santa Catarina");
       setToLocation("São Paulo");
       setNotes("");
       
       // Chamar callback apenas no final
-      onTransferCreated?.(createdTransfer.id);
+      onPlanCreated?.(createdPlan.id);
       
     } catch (error) {
-      console.error('Error creating transfer:', error);
+      console.error('Error creating transfer plan:', error);
     }
   };
 
@@ -298,10 +307,9 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
   // Calculate progress for wizard
   const wizardProgress = () => {
     let progress = 0;
-    if (transferType) progress += 20;
-    if (selectedVehicle) progress += 25;
-    if (fromLocation && toLocation) progress += 25;
-    if (transferItems.length > 0) progress += 30;
+    if (selectedVehicle) progress += 30;
+    if (fromLocation && toLocation) progress += 30;
+    if (transferItems.length > 0) progress += 40;
     return progress;
   };
 
@@ -315,7 +323,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
           <div className="flex items-center justify-between mb-2">
             <CardTitle className="flex items-center gap-2 text-blue-900">
               <Truck className="h-5 w-5" />
-              Nova Transferência
+              Plano de Transferência
             </CardTitle>
             <div className="text-sm text-blue-700 font-medium">
               {wizardProgress().toFixed(0)}% completo
@@ -323,36 +331,28 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
           </div>
           <Progress value={wizardProgress()} className="mb-3" />
           <CardDescription className="text-blue-700">
-            Configure os detalhes da transferência com validação de estoque em tempo real
+            Configure o plano de transferência com validação de estoque em tempo real
           </CardDescription>
         </CardHeader>
       </Card>
 
       {/* Transfer Type Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tipo de Transferência</CardTitle>
-          <CardDescription>
-            Selecione o tipo de transferência para configurar os locais adequadamente
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RadioGroup value={transferType} onValueChange={(value: "entrada" | "saida") => setTransferType(value)}>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="saida" id="saida" />
-              <Label htmlFor="saida" className="flex items-center gap-2 cursor-pointer">
-                <Truck className="h-4 w-4" />
-                Saída - Envio de mercadorias
-              </Label>
+      {/* Information Notice */}
+      <Card className="border-yellow-200 bg-yellow-50/30">
+        <CardContent className="pt-6">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-medium text-yellow-900 mb-1">
+                Plano de Transferência
+              </h3>
+              <p className="text-yellow-800 text-sm leading-relaxed">
+                Este wizard cria um <strong>plano de transferência</strong> com itens obrigatórios e opcionais. 
+                Durante a execução na página de <strong>Execução de Carregamento</strong>, os itens reais 
+                serão coletados e validados contra este plano.
+              </p>
             </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="entrada" id="entrada" />
-              <Label htmlFor="entrada" className="flex items-center gap-2 cursor-pointer">
-                <Package className="h-4 w-4" />
-                Entrada - Recebimento de mercadorias
-              </Label>
-            </div>
-          </RadioGroup>
+          </div>
         </CardContent>
       </Card>
 
@@ -366,13 +366,10 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
       <Card>
         <CardHeader>
           <CardTitle>
-            {transferType === "saida" ? "Origem e Destino" : "Fornecedor e Destino"}
+            Origem e Destino do Plano
           </CardTitle>
           <CardDescription>
-            {transferType === "saida" 
-              ? "Defina de onde as mercadorias serão retiradas e para onde serão enviadas"
-              : "Defina de onde as mercadorias estão vindo e onde serão recebidas"
-            }
+            Defina a rota planejada para a transferência de mercadorias
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -381,8 +378,8 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
               id="fromLocation"
               value={fromLocation}
               onChange={setFromLocation}
-              label={transferType === "saida" ? "Origem" : "Fornecedor"}
-              placeholder={transferType === "saida" ? "Local de origem" : "Fornecedor"}
+              label="Origem"
+              placeholder="Local de origem"
             />
             <LocationSelector
               id="toLocation"
@@ -400,7 +397,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Itens da Transferência</CardTitle>
+              <CardTitle>Itens do Plano de Transferência</CardTitle>
               <CardDescription>
                 Adicione produtos que estão em estoque
               </CardDescription>
@@ -443,6 +440,13 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                         <h4 className="font-semibold">{item.productName}</h4>
                         <Badge variant="outline" className="text-xs">
                           SKU: {item.productSku}
+                        </Badge>
+                        <Badge className={
+                          item.itemType === "mandatory" 
+                            ? "bg-red-100 text-red-800 border-red-300" 
+                            : "bg-blue-100 text-blue-800 border-blue-300"
+                        }>
+                          {item.itemType === "mandatory" ? "Obrigatório" : "Opcional"}
                         </Badge>
                       </div>
                       
@@ -490,6 +494,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                           });
                           setItemQuantity('');
                           setItemNotes(item.notes || '');
+                          setItemType(item.itemType || "mandatory");
                           setShowAddItemDialog(true);
                         }}
                         className="text-xs"
@@ -544,7 +549,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <div className="text-sm font-medium">
-                Resumo da Transferência: {transferType === "saida" ? "Saída" : "Entrada"}
+                Resumo do Plano de Transferência
               </div>
               <div className="text-sm text-gray-600">
                 {transferItems.length} produto(s) distintos • {' '}
@@ -553,21 +558,21 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
               </div>
             </div>
             <Button
-              onClick={handleCreateTransfer}
+              onClick={handleCreatePlan}
               disabled={
                 !selectedVehicle ||
                 transferItems.length === 0 ||
                 isOverCapacity ||
-                createTransferMutation.isPending
+                createPlanMutation.isPending
               }
               className="flex items-center gap-2"
             >
-              {createTransferMutation.isPending ? (
+              {createPlanMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              Criar Transferência
+              Criar Plano de Transferência
             </Button>
           </div>
         </CardContent>
@@ -579,10 +584,10 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
           <DialogHeader>
             <DialogTitle className="text-2xl flex items-center gap-2">
               <Plus className="h-6 w-6" />
-              Adicionar Item à Transferência
+              Adicionar Item ao Plano de Transferência
             </DialogTitle>
             <CardDescription className="text-lg">
-              Selecione um produto em estoque e defina a quantidade a ser transferida
+              Selecione um produto em estoque e defina a quantidade para o plano de transferência
             </CardDescription>
           </DialogHeader>
           
@@ -678,7 +683,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                           const newQty = Math.max(0, currentQty - 1);
                           handleQuantityChange(newQty.toString());
                         }}
-                        className="h-16 text-xl font-bold"
+                        className="h-12 text-lg font-bold"
                       >
                         -1
                       </Button>
@@ -690,7 +695,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                         placeholder="0.00"
                         min="0.01"
                         step="0.01"
-                        className="h-16 text-center text-xl font-semibold"
+                        className="h-12 text-center text-lg font-semibold"
                       />
                       <Button
                         variant="outline"
@@ -700,7 +705,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                           const newQty = Math.min(maxQty, currentQty + 1);
                           handleQuantityChange(newQty.toString());
                         }}
-                        className="h-16 text-xl font-bold"
+                        className="h-12 text-lg font-bold"
                       >
                         +1
                       </Button>
@@ -734,6 +739,23 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                     )}
                   </div>
 
+                  {/* Item Type */}
+                  <div className="space-y-3">
+                    <Label htmlFor="itemType" className="text-lg font-medium">Tipo do Item no Plano</Label>
+                    <select 
+                      id="itemType"
+                      className="w-full p-3 border rounded text-base"
+                      value={itemType}
+                      onChange={(e) => setItemType(e.target.value as "mandatory" | "optional")}
+                    >
+                      <option value="mandatory">Obrigatório - Deve ser carregado</option>
+                      <option value="optional">Opcional - Carregado se houver espaço</option>
+                    </select>
+                    <p className="text-sm text-gray-600">
+                      Itens obrigatórios devem ser carregados, opcionais podem ser incluídos se houver espaço disponível
+                    </p>
+                  </div>
+
                   {/* Notes */}
                   <div className="space-y-3">
                     <Label htmlFor="itemNotes" className="text-lg font-medium">Observações</Label>
@@ -742,7 +764,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                       value={itemNotes}
                       onChange={(e) => setItemNotes(e.target.value)}
                       placeholder="Observações sobre este item..."
-                      rows={4}
+                      rows={3}
                       className="resize-none text-base"
                     />
                   </div>
@@ -779,7 +801,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                             Selecione um Produto
                           </h3>
                           <p className="text-gray-600 text-base leading-relaxed">
-                            Use a pesquisa acima para encontrar e selecionar um produto em estoque que deseja adicionar à transferência.
+                            Use a pesquisa acima para encontrar e selecionar um produto em estoque que deseja adicionar ao plano de transferência.
                           </p>
                         </div>
                       </div>
@@ -846,6 +868,7 @@ export function TransferPlanningWizard({ onTransferCreated }: TransferPlanningWi
                 setSelectedProduct(null);
                 setItemQuantity("");
                 setItemNotes("");
+                setItemType("mandatory");
                 setQuantityError("");
               }}
               className="min-w-[140px] h-12 text-base"

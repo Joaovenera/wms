@@ -8,7 +8,7 @@ if (!DATABASE_URL) {
 }
 
 export default {
-  schema: "./src/infrastructure/database/schemas/index.ts", // Use the new organized schema
+  schema: "./src/db/schema.ts", // Use the complete schema with all tables
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {

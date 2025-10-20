@@ -15,12 +15,15 @@ import {
 } from "lucide-react";
 import { useMobile } from "@/hooks/use-mobile";
 
+import { QrCode } from "lucide-react";
+
 interface MobileVirtualizedProductGridProps {
   products: Product[];
   onEdit: (product: Product) => void;
   onDelete: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   onManagePhotos: (product: Product) => void;
+  onGenerateQrCode: (product: Product) => void; // New prop
   isDeletePending: boolean;
 }
 
@@ -60,9 +63,10 @@ const ProductRow = memo<{
     onDelete: (product: Product) => void;
     onViewDetails: (product: Product) => void;
     onManagePhotos: (product: Product) => void;
+    onGenerateQrCode: (product: Product) => void; // New prop
   };
 }>(({ index, style, data }) => {
-  const { products, onEdit, onDelete, onViewDetails, onManagePhotos } = data;
+  const { products, onEdit, onDelete, onViewDetails, onManagePhotos, onGenerateQrCode } = data;
   const product = products[index];
   
   if (!product) return null;
@@ -174,6 +178,14 @@ const ProductRow = memo<{
                 <TouchOptimizedButton
                   size="sm"
                   variant="outline"
+                  onClick={() => onGenerateQrCode(product)}
+                  hapticFeedback={true}
+                >
+                  <QrCode className="h-4 w-4" />
+                </TouchOptimizedButton>
+                <TouchOptimizedButton
+                  size="sm"
+                  variant="outline"
                   onClick={() => onEdit(product)}
                   hapticFeedback={true}
                 >
@@ -196,6 +208,7 @@ export const MobileVirtualizedProductGrid = memo<MobileVirtualizedProductGridPro
   onDelete, 
   onViewDetails, 
   onManagePhotos, 
+  onGenerateQrCode, // <-- Add this here
   isDeletePending
 }) => {
   const isMobile = useMobile();

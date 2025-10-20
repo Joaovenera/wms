@@ -21,6 +21,7 @@ import MobileFallbackProductGrid from "@/components/mobile/MobileFallbackProduct
 import MobileVirtualizedProductGrid from "@/components/mobile/MobileVirtualizedProductGrid";
 import { MobileProductSkeleton, InlineLoadingSkeleton } from "@/components/mobile/MobileProductSkeleton";
 import MobileProductSearch, { type MobileSearchFilters } from "@/components/mobile/MobileProductSearch";
+import QrCodeDisplayModal from "@/components/mobile/QrCodeDisplayModal"; // New import
 
 // Lazy load heavy components for better performance
 const ProductPhotoManager = lazy(() => import("@/components/product-photo-manager"));
@@ -34,6 +35,7 @@ export default function MobileProducts() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [photoProduct, setPhotoProduct] = useState<Product | null>(null);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [qrCodeProduct, setQrCodeProduct] = useState<Product | null>(null); // New state
   const { toast } = useToast();
 
   // Mobile search filters state
@@ -69,6 +71,7 @@ export default function MobileProducts() {
       description: "",
       category: "",
       brand: "",
+      ncm: "",
       unit: "un",
       unitsPerPackage: "1",
       weight: undefined,
@@ -181,6 +184,7 @@ export default function MobileProducts() {
       description: product.description || "",
       category: product.category || "",
       brand: product.brand || "",
+      ncm: (product as any).ncm || "",
       unit: product.unit,
       unitsPerPackage: product.unitsPerPackage || "1",
       weight: product.weight || undefined,
@@ -188,9 +192,9 @@ export default function MobileProducts() {
       barcode: product.barcode || "",
       requiresLot: product.requiresLot || false,
       requiresExpiry: product.requiresExpiry || false,
-      minStock: product.minStock || 0,
-      maxStock: product.maxStock || undefined,
-      isActive: product.isActive ?? true,
+      minStock: 0,
+      maxStock: undefined,
+      isActive: true,
     });
     setIsCreateOpen(true);
   }, [form]);
@@ -249,6 +253,11 @@ export default function MobileProducts() {
     // Implement barcode scanning logic here
     // This could open a camera/scanner modal
     console.log("Barcode scanning not implemented yet");
+  }, []);
+
+  const handleGenerateQrCode = useCallback((product: Product) => {
+    console.log("QR Code button clicked for product:", product);
+    setQrCodeProduct(product);
   }, []);
 
   return (
@@ -327,6 +336,7 @@ export default function MobileProducts() {
             onDelete={handleDelete}
             onViewDetails={(product) => setDetailProduct(product)}
             onManagePhotos={(product) => setPhotoProduct(product)}
+            onGenerateQrCode={handleGenerateQrCode} // Pass new prop
             isDeletePending={deleteMutation.isPending}
           />
         ) : (
@@ -336,6 +346,7 @@ export default function MobileProducts() {
             onDelete={handleDelete}
             onViewDetails={(product) => setDetailProduct(product)}
             onManagePhotos={(product) => setPhotoProduct(product)}
+            onGenerateQrCode={handleGenerateQrCode} // Pass new prop
             isDeletePending={deleteMutation.isPending}
           />
         )
@@ -384,6 +395,17 @@ export default function MobileProducts() {
             productName={detailProduct.name}
           />
         </Suspense>
+      )}
+
+      {/* QR Code Display Modal */}
+      {qrCodeProduct && (
+        <QrCodeDisplayModal
+          isOpen={!!qrCodeProduct}
+          onClose={() => setQrCodeProduct(null)}
+          value={qrCodeProduct.sku} // Assuming SKU is what we want in the QR code
+          title={`QR Code: ${qrCodeProduct.name}`}
+          description={`Escaneie para ver detalhes de ${qrCodeProduct.sku}`}
+        />
       )}
     </div>
   );

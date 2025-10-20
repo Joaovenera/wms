@@ -11,6 +11,9 @@ import logger from "./utils/logger.js";
 import { initWebSocket } from "./services/websocket.service.js";
 import { connectRedis, disconnectRedis } from "./config/redis.js";
 import { connectPostgres, disconnectPostgres } from "./config/postgres.js";
+import { autoMigrate } from "./scripts/auto-migrate.js";
+import { setupCompleteDatabase } from "./scripts/setup-complete-database.js";
+import { quickHealthCheck } from "./config/database-health.js";
 
 const app = express();
 const server = createServer(app);
@@ -200,8 +203,41 @@ httpsServer.headersTimeout = 66000;
 
 (async () => {
   try {
+    logger.info('🚀 Starting WMS Backend Server...');
+    
     // Conectar ao PostgreSQL
     await connectPostgres();
+    
+    // Auto-migrate database and setup initial data
+    logger.info('🔄 Running auto-migration and database setup...');
+    
+    const migrationResult = await autoMigrate();
+    if (!migrationResult.success) {
+      logger.error('💔 Auto-migration failed:', migrationResult.error);
+      throw new Error(`Database migration failed: ${migrationResult.error}`);
+    }
+    
+    logger.info(`✅ Migration completed - ${migrationResult.tablesCreated} tables created in ${migrationResult.timeElapsed}ms`);
+    
+    // Setup initial data for complete WMS functionality
+    logger.info('📦 Setting up initial database data...');
+    
+    const setupResult = await setupCompleteDatabase();
+    if (setupResult.success) {
+      const totalItems = Object.values(setupResult.itemsCreated).reduce((a, b) => a + b, 0);
+      logger.info(`✅ Database setup completed - ${totalItems} items created in ${setupResult.timeElapsed}ms`);
+    } else {
+      logger.warn(`⚠️ Database setup completed with ${setupResult.errors.length} errors`);
+      setupResult.errors.forEach(error => logger.warn(`   - ${error}`));
+    }
+    
+    // Final health check
+    const healthCheck = await quickHealthCheck();
+    if (!healthCheck.healthy) {
+      logger.warn('⚠️ Database health check found issues:', healthCheck.criticalIssues);
+    } else {
+      logger.info('🏥 Database health check passed - System ready!');
+    }
     
     // Conectar ao Redis
     await connectRedis();

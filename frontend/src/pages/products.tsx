@@ -15,12 +15,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { type Product, type InsertProduct } from "@/types/api";
 import { insertProductSchema } from "@/types/schemas";
-import { Plus, Search, Edit, Trash2, Package2 } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Package2, QrCode } from "lucide-react";
 import { VirtualizedProductGrid } from "@/components/VirtualizedProductGrid";
 import { FallbackProductGrid } from "@/components/FallbackProductGrid";
 import { ProductSkeleton, SearchLoadingSkeleton, InlineLoadingSkeleton } from "@/components/ProductSkeleton";
 import { useOptimizedProducts } from "@/hooks/useOptimizedProducts";
 import { OptimizedProductForm } from "@/components/OptimizedProductForm";
+import QrCodeDisplayModal from "@/components/mobile/QrCodeDisplayModal";
 import categoriesData from "@/data/categories.json";
 
 // Lazy load heavy components for better performance
@@ -36,6 +37,7 @@ export default function Products() {
   const [selectedSubCategory, setSelectedSubCategory] = useState("");
   const [photoProduct, setPhotoProduct] = useState<Product | null>(null);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [qrProduct, setQrProduct] = useState<Product | null>(null);
   const { toast } = useToast();
 
   // Use optimized products hook with server-side search and caching
@@ -63,6 +65,7 @@ export default function Products() {
       description: "",
       category: "",
       brand: "",
+      ncm: "",
       unit: "un",
       unitsPerPackage: "1",
       weight: undefined,
@@ -168,6 +171,7 @@ export default function Products() {
       description: product.description || "",
       category: product.category || "",
       brand: product.brand || "",
+      ncm: (product as any).ncm || "",
       unit: product.unit,
       unitsPerPackage: product.unitsPerPackage || "1",
       weight: product.weight || undefined,
@@ -303,6 +307,7 @@ export default function Products() {
             onDelete={handleDelete}
             onViewDetails={(product) => setDetailProduct(product)}
             onManagePhotos={(product) => setPhotoProduct(product)}
+            onShowQr={(product) => setQrProduct(product)}
             isDeletePending={deleteMutation.isPending}
           />
         ) : (
@@ -312,6 +317,7 @@ export default function Products() {
             onDelete={handleDelete}
             onViewDetails={(product) => setDetailProduct(product)}
             onManagePhotos={(product) => setPhotoProduct(product)}
+            onShowQr={(product) => setQrProduct(product)}
             isDeletePending={deleteMutation.isPending}
           />
         )
@@ -349,6 +355,16 @@ export default function Products() {
             productName={detailProduct.name}
           />
         </Suspense>
+      )}
+
+      {qrProduct && (
+        <QrCodeDisplayModal
+          isOpen={!!qrProduct}
+          onClose={() => setQrProduct(null)}
+          value={JSON.stringify({ type: "PRODUCT", code: qrProduct.sku })}
+          title={`QR Code - ${qrProduct.name}`}
+          description={`Escaneie para localizar o SKU ${qrProduct.sku}`}
+        />
       )}
     </div>
   );

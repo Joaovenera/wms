@@ -23,6 +23,10 @@ import containerArrivalsRoutes from "./container-arrivals.routes";
 import compositionsRoutes from "./compositions.routes";
 import testRoutes from "./test.routes";
 import healthRoutes from "./health.routes";
+import searchRoutes from "./search.routes";
+import { Router } from "express";
+import { isAuthenticated } from "../middleware/auth.middleware";
+import { storage } from "../storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -30,6 +34,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register all routes with their prefixes
   app.use('/api', authRoutes);
+  
+  // Dashboard stats
+  const dashboardRouter = Router();
+  dashboardRouter.get('/stats', isAuthenticated, async (req, res) => {
+    try {
+      const stats = await storage.getDashboardStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      res.status(500).json({ message: 'Failed to fetch dashboard stats' });
+    }
+  });
+  app.use('/api/dashboard', dashboardRouter);
   app.use('/api/pallets', palletsRoutes);
   app.use('/api/positions', positionsRoutes);
   app.use('/api/products', productsRoutes);
@@ -48,6 +65,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/compositions', compositionsRoutes);
   app.use('/api/test', testRoutes);
   app.use('/api', healthRoutes);
+  app.use('/api/search', searchRoutes);
 
   const httpServer = createServer(app);
   

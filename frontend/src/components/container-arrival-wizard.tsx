@@ -8,13 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ProductSearchWithStock } from "./product-search-with-stock";
-import { PhotoUploadGrid } from "./photo-upload-grid";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { 
-  Container,
-  Truck, 
   Package, 
   Plus, 
   Trash2, 
@@ -24,17 +21,11 @@ import {
   Info,
   ArrowRight,
   ArrowLeft,
-  Calendar,
-  User,
-  Phone,
-  FileText,
-  Camera,
   Ship,
-  Lock,
   Calculator
 } from "lucide-react";
-import { ContainerArrival, ContainerItem, ContainerPhoto } from "@/types/container";
 import { apiRequest } from "@/lib/queryClient";
+import { getPlaceholderVehicleId } from "@/lib/placeholderVehicles";
 
 interface ProductWithStock {
   id: number;
@@ -49,30 +40,44 @@ interface ProductWithStock {
   };
 }
 
+interface ContainerItem {
+  productId: number;
+  productName: string;
+  productSku: string;
+  quantity: string;
+  unitCubicVolume: number;
+  totalCubicVolume: number;
+  notes?: string;
+  expectedCondition?: "good" | "damaged" | "missing";
+}
+
+interface ContainerArrivalPlan {
+  supplierName: string;
+  estimatedArrival: string;
+  notes: string;
+  items: ContainerItem[];
+}
+
 interface ContainerArrivalWizardProps {
-  onContainerCreated?: (containerId: number) => void;
+  onPlanCreated?: (planId: number) => void;
 }
 
 const WIZARD_STEPS = [
-  { id: 'basic', title: 'Informações Básicas', icon: Info },
-  { id: 'container', title: 'Dados do Container', icon: Container },
-  { id: 'photos', title: 'Registro Fotográfico', icon: Camera },
-  { id: 'products', title: 'Produtos', icon: Package },
-  { id: 'review', title: 'Finalização', icon: CheckCircle }
+  { id: 'basic', title: 'Informações do Plano', icon: Info },
+  { id: 'products', title: 'Produtos Esperados', icon: Package },
+  { id: 'review', title: 'Revisão do Plano', icon: CheckCircle }
 ];
 
-export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalWizardProps) {
+export function ContainerArrivalWizard({ onPlanCreated }: ContainerArrivalWizardProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Estado do container
-  const [containerData, setContainerData] = useState<Partial<ContainerArrival>>({
-    status: 'awaiting',
-    photos: [],
-    items: [],
+  // Estado do plano de container
+  const [containerData, setContainerData] = useState<ContainerArrivalPlan>({
     supplierName: '',
     estimatedArrival: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
+    items: []
   });
 
   // Estados para adicionar produtos
@@ -80,17 +85,31 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
   const [selectedProduct, setSelectedProduct] = useState<ProductWithStock | null>(null);
   const [productQuantity, setProductQuantity] = useState("");
   const [productNotes, setProductNotes] = useState("");
-  const [productCondition, setProductCondition] = useState<"good" | "damaged" | "missing">("good");
+  const [expectedCondition, setExpectedCondition] = useState<"good" | "damaged" | "missing">("good");
 
   const queryClient = useQueryClient();
 
-  // Criar container
-  const createContainerMutation = useMutation({
-    mutationFn: async (data: Partial<ContainerArrival>) => {
-      const res = await apiRequest('POST', '/api/container-arrivals', data);
+  // Criar plano de container
+  const createPlanMutation = useMutation({
+    mutationFn: async (data: ContainerArrivalPlan) => {
+      // Buscar o ID do veículo placeholder para containers
+      const vehicleId = await getPlaceholderVehicleId('container');
+      
+      const planData = {
+        type: 'container-arrival-plan',
+        status: 'planejamento',
+        vehicleId, // Usar veículo placeholder para containers
+        supplierName: data.supplierName,
+        estimatedArrival: data.estimatedArrival,
+        notes: `PLANO DE CHEGADA DE CONTAINER - ${data.notes || ''}`.trim(),
+        fromLocation: 'Porto',
+        toLocation: 'Armazém',
+        expectedItems: data.items
+      };
+      const res = await apiRequest('POST', '/api/transfer-requests', planData);
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || 'Erro ao criar container');
+        throw new Error(error.message || 'Erro ao criar plano de container');
       }
       return await res.json();
     }
@@ -110,13 +129,9 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
     switch (currentStep) {
       case 0: // Básico
         return !!(containerData.supplierName && containerData.estimatedArrival);
-      case 1: // Container
-        return !!(containerData.containerNumber && containerData.sealNumber);
-      case 2: // Fotos
-        return containerData.photos?.length === 4;
-      case 3: // Produtos
-        return (containerData.items?.length || 0) > 0;
-      case 4: // Review
+      case 1: // Produtos
+        return containerData.items.length > 0;
+      case 2: // Review
         return true;
       default:
         return false;
@@ -158,19 +173,19 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
       unitCubicVolume,
       totalCubicVolume,
       notes: productNotes,
-      condition: productCondition
+      expectedCondition: expectedCondition
     };
 
     setContainerData(prev => ({
       ...prev,
-      items: [...(prev.items || []), newItem]
+      items: [...prev.items, newItem]
     }));
 
     // Reset form
     setSelectedProduct(null);
     setProductQuantity("");
     setProductNotes("");
-    setProductCondition("good");
+    setExpectedCondition("good");
     setShowAddProductDialog(false);
   };
 
@@ -178,26 +193,32 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
   const removeProduct = (index: number) => {
     setContainerData(prev => ({
       ...prev,
-      items: prev.items?.filter((_, i) => i !== index) || []
+      items: prev.items.filter((_, i) => i !== index)
     }));
   };
 
-  // Finalizar criação do container
-  const handleCreateContainer = async () => {
+  // Finalizar criação do plano de container
+  const handleCreatePlan = async () => {
     setIsSubmitting(true);
     
     try {
-      const result = await createContainerMutation.mutateAsync({
-        ...containerData,
-        actualArrival: new Date().toISOString(),
-        status: containerData.photos?.length === 4 ? 'completed' : 'documenting'
-      });
+      const result = await createPlanMutation.mutateAsync(containerData);
 
-      queryClient.invalidateQueries({ queryKey: ['/api/container-arrivals'] });
-      onContainerCreated?.(result.id);
+      queryClient.invalidateQueries({ queryKey: ['/api/transfer-requests'] });
+      
+      // Reset form
+      setContainerData({
+        supplierName: '',
+        estimatedArrival: new Date().toISOString().split('T')[0],
+        notes: '',
+        items: []
+      });
+      setCurrentStep(0);
+      
+      onPlanCreated?.(result.id);
       
     } catch (error) {
-      console.error('Erro ao criar container:', error);
+      console.error('Erro ao criar plano de container:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -210,8 +231,8 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
     return (completedSteps / (totalSteps - 1)) * 100;
   };
 
-  const totalCubicVolume = containerData.items?.reduce((sum, item) => 
-    sum + (item.totalCubicVolume || 0), 0) || 0;
+  const totalCubicVolume = containerData.items.reduce((sum, item) => 
+    sum + (item.totalCubicVolume || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -221,7 +242,7 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
           <div className="flex items-center justify-between mb-2">
             <CardTitle className="flex items-center gap-2 text-blue-900">
               <Ship className="h-6 w-6" />
-              Novo Container - {WIZARD_STEPS[currentStep].title}
+              Plano de Container - {WIZARD_STEPS[currentStep].title}
             </CardTitle>
             <Badge variant="secondary">
               Etapa {currentStep + 1} de {WIZARD_STEPS.length}
@@ -279,10 +300,10 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Info className="h-5 w-5 text-blue-600" />
-                Informações Básicas do Container
+                Informações do Plano de Container
               </CardTitle>
               <CardDescription>
-                Configure as informações iniciais antes da chegada do container
+                Configure o plano com as informações básicas da chegada esperada
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -331,136 +352,39 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
           </Card>
         )}
 
-        {/* Etapa 2: Dados do Container */}
-        {currentStep === 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Container className="h-5 w-5 text-blue-600" />
-                Dados do Container e Transportador
-              </CardTitle>
-              <CardDescription>
-                Informações preenchidas quando o container chegar
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="containerNumber">Número do Container *</Label>
-                  <Input
-                    id="containerNumber"
-                    value={containerData.containerNumber || ''}
-                    onChange={(e) => setContainerData(prev => ({
-                      ...prev,
-                      containerNumber: e.target.value.toUpperCase()
-                    }))}
-                    placeholder="Ex: MSKU1234567"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="sealNumber">Número do Lacre *</Label>
-                  <Input
-                    id="sealNumber"
-                    value={containerData.sealNumber || ''}
-                    onChange={(e) => setContainerData(prev => ({
-                      ...prev,
-                      sealNumber: e.target.value.toUpperCase()
-                    }))}
-                    placeholder="Ex: ABC123456"
-                  />
-                </div>
-              </div>
-
-              <Separator />
-              
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Truck className="h-5 w-5" />
-                Informações do Transportador
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="transporterName">Nome do Transportador</Label>
-                  <Input
-                    id="transporterName"
-                    value={containerData.transporterName || ''}
-                    onChange={(e) => setContainerData(prev => ({
-                      ...prev,
-                      transporterName: e.target.value
-                    }))}
-                    placeholder="Nome da empresa transportadora"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="transporterContact">Contato do Transportador</Label>
-                  <Input
-                    id="transporterContact"
-                    value={containerData.transporterContact || ''}
-                    onChange={(e) => setContainerData(prev => ({
-                      ...prev,
-                      transporterContact: e.target.value
-                    }))}
-                    placeholder="Telefone ou email"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="driverName">Nome do Motorista</Label>
-                  <Input
-                    id="driverName"
-                    value={containerData.driverName || ''}
-                    onChange={(e) => setContainerData(prev => ({
-                      ...prev,
-                      driverName: e.target.value
-                    }))}
-                    placeholder="Nome do motorista"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="vehicleInfo">Informações do Veículo</Label>
-                  <Input
-                    id="vehicleInfo"
-                    value={containerData.vehicleInfo || ''}
-                    onChange={(e) => setContainerData(prev => ({
-                      ...prev,
-                      vehicleInfo: e.target.value
-                    }))}
-                    placeholder="Placa, modelo, etc."
-                  />
+        {/* Informações sobre Execução */}
+        {currentStep === 0 && (
+          <Card className="border-yellow-200 bg-yellow-50/30">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-medium text-yellow-900 mb-1">
+                    Informações da Execução
+                  </h3>
+                  <p className="text-yellow-800 text-sm leading-relaxed">
+                    Os dados específicos do container (número, lacre), informações do transportador, fotos e quantidades reais 
+                    serão coletados durante a execução na página de <strong>Execução de Carregamento</strong> quando o container chegar.
+                    Este plano define apenas o que é esperado.
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Etapa 3: Fotos */}
-        {currentStep === 2 && (
-          <PhotoUploadGrid
-            photos={containerData.photos || []}
-            onPhotosChange={(photos) => setContainerData(prev => ({
-              ...prev,
-              photos
-            }))}
-          />
-        )}
-
-        {/* Etapa 4: Produtos */}
-        {currentStep === 3 && (
+        {/* Etapa 2: Produtos */}
+        {currentStep === 1 && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Package className="h-5 w-5 text-blue-600" />
-                    Produtos do Container
+                    Produtos do Plano de Container
                   </CardTitle>
                   <CardDescription>
-                    Adicione os produtos que chegaram no container
+                    Adicione os produtos planejados para o container
                   </CardDescription>
                 </div>
                 <Button
@@ -473,7 +397,7 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
               </div>
             </CardHeader>
             <CardContent>
-              {(containerData.items?.length || 0) === 0 ? (
+              {containerData.items.length === 0 ? (
                 <div className="text-center py-8">
                   <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500 mb-2">Nenhum produto adicionado</p>
@@ -483,7 +407,7 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {containerData.items?.map((item, index) => (
+                  {containerData.items.map((item, index) => (
                     <div key={index} className="border rounded-lg p-4 hover:bg-gray-50">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -494,13 +418,13 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
                             </Badge>
                             <Badge 
                               className={
-                                item.condition === 'good' ? 'bg-green-100 text-green-800' :
-                                item.condition === 'damaged' ? 'bg-yellow-100 text-yellow-800' :
+                                item.expectedCondition === 'good' ? 'bg-green-100 text-green-800' :
+                                item.expectedCondition === 'damaged' ? 'bg-yellow-100 text-yellow-800' :
                                 'bg-red-100 text-red-800'
                               }
                             >
-                              {item.condition === 'good' ? 'Bom Estado' :
-                               item.condition === 'damaged' ? 'Danificado' : 'Faltando'}
+                              {item.expectedCondition === 'good' ? 'Esperado OK' :
+                               item.expectedCondition === 'damaged' ? 'Pode vir Danificado' : 'Pode estar Faltando'}
                             </Badge>
                           </div>
                           
@@ -518,10 +442,10 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
                               <p className="font-medium">{(item.totalCubicVolume || 0).toFixed(3)} m³</p>
                             </div>
                             <div>
-                              <span className="text-gray-600">Estado:</span>
+                              <span className="text-gray-600">Estado Esperado:</span>
                               <p className="font-medium">{
-                                item.condition === 'good' ? 'Perfeito' :
-                                item.condition === 'damaged' ? 'Com Avarias' : 'Faltante'
+                                item.expectedCondition === 'good' ? 'Bom Estado' :
+                                item.expectedCondition === 'damaged' ? 'Possivelmente Danificado' : 'Pode estar Faltando'
                               }</p>
                             </div>
                           </div>
@@ -553,14 +477,14 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Calculator className="h-5 w-5 text-blue-600" />
-                          <span className="font-medium">Resumo do Container:</span>
+                          <span className="font-medium">Resumo do Plano:</span>
                         </div>
                         <div className="text-right">
                           <div className="text-lg font-bold text-blue-700">
-                            {containerData.items?.length} produto(s) • {totalCubicVolume.toFixed(3)} m³
+                            {containerData.items.length} produto(s) • {totalCubicVolume.toFixed(3)} m³ estimados
                           </div>
                           <div className="text-sm text-blue-600">
-                            {containerData.items?.reduce((sum, item) => sum + parseFloat(item.quantity), 0).toLocaleString('pt-BR')} unidades
+                            {containerData.items.reduce((sum, item) => sum + parseFloat(item.quantity), 0).toLocaleString('pt-BR')} unidades esperadas
                           </div>
                         </div>
                       </div>
@@ -572,68 +496,36 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
           </Card>
         )}
 
-        {/* Etapa 5: Review */}
-        {currentStep === 4 && (
+        {/* Etapa 3: Review */}
+        {currentStep === 2 && (
           <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
-                  Revisão e Finalização
+                  Revisão do Plano
                 </CardTitle>
                 <CardDescription>
-                  Confirme todas as informações antes de registrar o container
+                  Confirme todas as informações antes de criar o plano de container
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Resumo das informações */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Informações Básicas</h3>
-                    <div className="space-y-2 text-sm">
-                      <p><strong>Fornecedor:</strong> {containerData.supplierName}</p>
-                      <p><strong>Data Estimada:</strong> {new Date(containerData.estimatedArrival!).toLocaleDateString('pt-BR')}</p>
-                      {containerData.notes && <p><strong>Observações:</strong> {containerData.notes}</p>}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Container</h3>
-                    <div className="space-y-2 text-sm">
-                      <p><strong>Número:</strong> {containerData.containerNumber}</p>
-                      <p><strong>Lacre:</strong> {containerData.sealNumber}</p>
-                      <p><strong>Transportador:</strong> {containerData.transporterName || 'Não informado'}</p>
-                      <p><strong>Motorista:</strong> {containerData.driverName || 'Não informado'}</p>
-                    </div>
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg">Informações do Plano</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><strong>Fornecedor:</strong> {containerData.supplierName}</p>
+                    <p><strong>Data Estimada de Chegada:</strong> {new Date(containerData.estimatedArrival!).toLocaleDateString('pt-BR')}</p>
+                    {containerData.notes && <p><strong>Observações:</strong> {containerData.notes}</p>}
                   </div>
                 </div>
                 
                 <Separator />
                 
                 <div>
-                  <h3 className="font-semibold text-lg mb-4">Documentação Fotográfica</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {containerData.photos?.map((photo, index) => (
-                      <div key={photo.id} className="space-y-2">
-                        <img 
-                          src={photo.url} 
-                          alt={photo.type}
-                          className="w-full aspect-video object-cover rounded border"
-                        />
-                        <p className="text-xs text-center text-gray-600">
-                          {photo.type.replace('_', ' ').toUpperCase()}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div>
-                  <h3 className="font-semibold text-lg mb-4">Produtos ({containerData.items?.length})</h3>
+                  <h3 className="font-semibold text-lg mb-4">Produtos Esperados ({containerData.items.length})</h3>
                   <div className="space-y-2">
-                    {containerData.items?.map((item, index) => (
+                    {containerData.items.map((item, index) => (
                       <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded">
                         <div>
                           <span className="font-medium">{item.productName}</span>
@@ -647,17 +539,25 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
                     ))}
                   </div>
                   
-                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded">
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-green-700">
-                        {totalCubicVolume.toFixed(3)} m³ TOTAL
+                      <div className="text-2xl font-bold text-blue-700">
+                        {totalCubicVolume.toFixed(3)} m³ TOTAL ESTIMADO
                       </div>
-                      <div className="text-green-600">
-                        {containerData.items?.reduce((sum, item) => sum + parseFloat(item.quantity), 0).toLocaleString('pt-BR')} unidades em {containerData.items?.length} produtos
+                      <div className="text-blue-600">
+                        {containerData.items.reduce((sum, item) => sum + parseFloat(item.quantity), 0).toLocaleString('pt-BR')} unidades em {containerData.items.length} produtos
                       </div>
                     </div>
                   </div>
                 </div>
+                
+                <Alert className="border-green-200 bg-green-50">
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Plano Completo:</strong> Este plano define o que esperamos receber. Durante a execução, os dados reais 
+                    (quantidades, fotos, condições) serão coletados para comparação com este plano.
+                  </AlertDescription>
+                </Alert>
               </CardContent>
             </Card>
           </div>
@@ -697,7 +597,7 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
               </Button>
             ) : (
               <Button
-                onClick={handleCreateContainer}
+                onClick={handleCreatePlan}
                 disabled={!validateCurrentStep() || isSubmitting}
                 className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
               >
@@ -706,7 +606,7 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
                 ) : (
                   <CheckCircle className="h-4 w-4" />
                 )}
-                Registrar Container
+                Criar Plano de Container
               </Button>
             )}
           </div>
@@ -717,7 +617,7 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
       <Dialog open={showAddProductDialog} onOpenChange={setShowAddProductDialog}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Adicionar Produto ao Container</DialogTitle>
+            <DialogTitle>Adicionar Produto ao Plano de Container</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-6">
@@ -747,15 +647,15 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
                   </div>
                   
                   <div>
-                    <Label htmlFor="condition">Condição</Label>
+                    <Label htmlFor="expectedCondition">Condição Esperada</Label>
                     <select 
                       className="w-full p-2 border rounded"
-                      value={productCondition}
-                      onChange={(e) => setProductCondition(e.target.value as any)}
+                      value={expectedCondition}
+                      onChange={(e) => setExpectedCondition(e.target.value as any)}
                     >
-                      <option value="good">Bom Estado</option>
-                      <option value="damaged">Danificado</option>
-                      <option value="missing">Faltando</option>
+                      <option value="good">Esperado em Bom Estado</option>
+                      <option value="damaged">Pode vir Danificado</option>
+                      <option value="missing">Pode estar Faltando</option>
                     </select>
                   </div>
                 </div>
@@ -782,7 +682,7 @@ export function ContainerArrivalWizard({ onContainerCreated }: ContainerArrivalW
                 setSelectedProduct(null);
                 setProductQuantity("");
                 setProductNotes("");
-                setProductCondition("good");
+                setExpectedCondition("good");
               }}
             >
               Cancelar

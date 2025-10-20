@@ -222,7 +222,7 @@ export const OptimizedProductForm = memo<OptimizedProductFormProps>(({
       </div>
 
       {/* Unit and Quantity */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <FormField
           control={form.control}
           name="unit"
@@ -233,6 +233,23 @@ export const OptimizedProductForm = memo<OptimizedProductFormProps>(({
                 <UnitSelect
                   value={field.value || ""}
                   onValueChange={field.onChange}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="ncm"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>NCM</FormLabel>
+              <FormControl>
+                <Input 
+                  placeholder="Ex: 1905.90.90" 
+                  {...field} 
+                  value={(field.value as string) || ""} 
                 />
               </FormControl>
               <FormMessage />

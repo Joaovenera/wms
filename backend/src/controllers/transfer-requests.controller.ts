@@ -50,12 +50,18 @@ export const transferRequestsController = {
       const query = db.select({
         id: transferRequests.id,
         code: transferRequests.code,
+        type: transferRequests.type,
         status: transferRequests.status,
         fromLocation: transferRequests.fromLocation,
         toLocation: transferRequests.toLocation,
         totalCubicVolume: transferRequests.totalCubicVolume,
         effectiveCapacity: transferRequests.effectiveCapacity,
         capacityUsagePercent: transferRequests.capacityUsagePercent,
+        supplierName: transferRequests.supplierName,
+        transporterName: transferRequests.transporterName,
+        estimatedArrival: transferRequests.estimatedArrival,
+        clientInfo: transferRequests.clientInfo,
+        notes: transferRequests.notes,
         createdAt: transferRequests.createdAt,
         updatedAt: transferRequests.updatedAt,
         vehicleName: vehicles.name,
@@ -92,12 +98,17 @@ export const transferRequestsController = {
       const [request] = await db.select({
         id: transferRequests.id,
         code: transferRequests.code,
+        type: transferRequests.type,
         status: transferRequests.status,
         fromLocation: transferRequests.fromLocation,
         toLocation: transferRequests.toLocation,
         totalCubicVolume: transferRequests.totalCubicVolume,
         effectiveCapacity: transferRequests.effectiveCapacity,
         capacityUsagePercent: transferRequests.capacityUsagePercent,
+        supplierName: transferRequests.supplierName,
+        transporterName: transferRequests.transporterName,
+        estimatedArrival: transferRequests.estimatedArrival,
+        clientInfo: transferRequests.clientInfo,
         notes: transferRequests.notes,
         createdAt: transferRequests.createdAt,
         updatedAt: transferRequests.updatedAt,
@@ -154,7 +165,31 @@ export const transferRequestsController = {
   // POST /api/transfer-requests - Criar novo pedido de transferência
   async createTransferRequest(req: AuthenticatedRequest, res: Response) {
     try {
-      const { vehicleId, fromLocation, toLocation, notes } = req.body;
+      const { 
+        type, 
+        vehicleId, 
+        fromLocation, 
+        toLocation, 
+        notes,
+        supplierName,
+        transporterName,
+        estimatedArrival,
+        clientInfo,
+        expectedItems
+      } = req.body;
+      
+      // Validate operation type
+      const validTypes = [
+        'container-arrival-plan',
+        'truck-arrival-plan', 
+        'delivery-arrival-plan',
+        'transfer-plan',
+        'withdrawal-plan'
+      ];
+      
+      if (!type || !validTypes.includes(type)) {
+        return res.status(400).json({ error: 'Tipo de operação inválido' });
+      }
       
       // Buscar dados do veículo para calcular capacidade efetiva
       const vehicle = await db.select()
@@ -171,26 +206,106 @@ export const transferRequestsController = {
       
       const transferData = {
         code: generateTransferRequestCode(),
+        type,
         vehicleId,
         fromLocation,
         toLocation,
         effectiveCapacity: effectiveCapacity.toString(),
+        supplierName,
+        transporterName,
+        estimatedArrival: estimatedArrival ? new Date(estimatedArrival) : undefined,
+        clientInfo,
         notes,
         createdBy: req.user!.id
       };
       
       const validatedData = insertTransferRequestSchema.parse(transferData);
       
-      const [newRequest] = await db.insert(transferRequests)
-        .values(validatedData)
-        .returning();
-      
-      logger.info(`Transfer request created: ${newRequest.code}`, { 
-        userId: req.user!.id,
-        transferRequestId: newRequest.id 
+      // Use transaction for atomic operation
+      const result = await db.transaction(async (tx) => {
+        // Create transfer request
+        const [newRequest] = await tx.insert(transferRequests)
+          .values(validatedData)
+          .returning();
+        
+        let itemCount = 0;
+        
+        // Handle expectedItems if provided (e.g., from container arrival wizard)
+        if (expectedItems && Array.isArray(expectedItems) && expectedItems.length > 0) {
+          for (const item of expectedItems) {
+            // Validate that the product exists
+            const [product] = await tx.select()
+              .from(products)
+              .where(eq(products.id, item.productId))
+              .limit(1);
+            
+            if (product) {
+              // Calculate cubic volumes if not provided
+              const quantityNum = parseFloat(item.quantity || '0');
+              const unitCubicVolume = item.unitCubicVolume || calculateCubicVolume(product.dimensions, 1);
+              const totalCubicVolume = item.totalCubicVolume || calculateCubicVolume(product.dimensions, quantityNum);
+              
+              const itemData = {
+                transferRequestId: newRequest.id,
+                productId: item.productId,
+                quantity: item.quantity,
+                unitCubicVolume: unitCubicVolume.toString(),
+                totalCubicVolume: totalCubicVolume.toString(),
+                notes: item.notes || '',
+                addedBy: req.user!.id
+              };
+              
+              const validatedItemData = insertTransferRequestItemSchema.parse(itemData);
+              
+              await tx.insert(transferRequestItems)
+                .values(validatedItemData);
+              
+              itemCount++;
+            }
+          }
+          
+          // Recalculate totals after adding items (within transaction)
+          if (itemCount > 0) {
+            // Calculate total cubic volume from all items
+            const items = await tx.select()
+              .from(transferRequestItems)
+              .where(eq(transferRequestItems.transferRequestId, newRequest.id));
+            
+            const totalCubicVolume = items.reduce((sum, item) => {
+              return sum + parseFloat(item.totalCubicVolume || '0');
+            }, 0);
+            
+            const effectiveCapacity = parseFloat(newRequest.effectiveCapacity || '0');
+            const capacityUsagePercent = effectiveCapacity > 0 ? (totalCubicVolume / effectiveCapacity) * 100 : 0;
+            
+            await tx.update(transferRequests)
+              .set({
+                totalCubicVolume: totalCubicVolume.toString(),
+                capacityUsagePercent: capacityUsagePercent.toString(),
+                updatedAt: new Date()
+              })
+              .where(eq(transferRequests.id, newRequest.id));
+          }
+        }
+        
+        return { newRequest, itemCount };
       });
       
-      res.status(201).json(newRequest);
+      // Log after successful transaction
+      if (result.itemCount > 0) {
+        logger.info(`Transfer request created with ${result.itemCount} expected items: ${result.newRequest.code}`, { 
+          userId: req.user!.id,
+          transferRequestId: result.newRequest.id,
+          itemCount: result.itemCount 
+        });
+      } else {
+        logger.info(`Transfer request created: ${result.newRequest.code}`, { 
+          userId: req.user!.id,
+          transferRequestId: result.newRequest.id 
+        });
+      }
+      
+      res.status(201).json(result.newRequest);
     } catch (error) {
       logger.error('Error creating transfer request:', error);
       

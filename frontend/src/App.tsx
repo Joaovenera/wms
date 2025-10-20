@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 // import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { useMobile } from "@/hooks/use-mobile";
+import MobileProfile from "./pages/mobile/profile";
 import React, { useEffect, Suspense, startTransition } from "react";
 import { performanceMonitor } from "@/utils/performanceMonitor";
 
@@ -26,10 +27,16 @@ import {
   LazyTransferPlanning,
   LazyLoadingExecution,
   LazyTransferReports,
+  LazyPalletSimulatorDemo,
   LazyMobileHome,
   LazyMobileScanner,
   LazyMobilePallets,
   LazyMobileProducts,
+  LazyMobileProductDetails,
+  LazyMobileUcpList,
+  LazyMobileUcpDetails,
+  LazyMobileLoadingExecution,
+  LazyMobileLoadingExecutionList,
   LazyMobileLayout,
   LazyDesktopLayout
 } from "@/components/lazy/LazyPageComponents";
@@ -57,7 +64,14 @@ function Router() {
           <Route path="/" component={LazyMobileHome} />
           <Route path="/pallets" component={LazyMobilePallets} />
           <Route path="/scanner" component={LazyMobileScanner} />
+          <Route path="/ucps" component={LazyMobileUcpList} />
+          <Route path="/ucps/:id" component={LazyMobileUcpDetails} />
+          <Route path="/loading-execution" component={LazyMobileLoadingExecutionList} />
+          <Route path="/loading-execution/:id" component={LazyMobileLoadingExecution} />
           <Route path="/products" component={LazyMobileProducts} />
+          <Route path="/products/:id" component={LazyMobileProductDetails} />
+          <Route path="/estoque" component={LazyMobileProducts} />
+          <Route path="/profile" component={MobileProfile} />
           <Route component={NotFound} />
         </Switch>
       </LazyMobileLayout>
@@ -79,6 +93,7 @@ function Router() {
         <Route path="/transfer-planning" component={LazyTransferPlanning} />
         <Route path="/loading-execution" component={LazyLoadingExecution} />
         <Route path="/transfer-reports" component={LazyTransferReports} />
+        <Route path="/pallet-simulator" component={LazyPalletSimulatorDemo} />
         <Route component={NotFound} />
       </Switch>
     </LazyDesktopLayout>
@@ -86,17 +101,17 @@ function Router() {
 }
 
 // Error Boundary Component
-class ErrorBoundary extends React.Component {
-  constructor(props) {
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
     super(props);
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error) {
     return { hasError: true };
   }
 
-  componentDidCatch(error, errorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('React Error Boundary caught an error:', error, errorInfo);
   }
 

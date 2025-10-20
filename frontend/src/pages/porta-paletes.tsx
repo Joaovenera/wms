@@ -20,6 +20,7 @@ import { type PalletStructure, type Position } from "@/types/api";
 import PalletStructureViewer from "@/components/pallet-structure-viewer";
 import QRCodeDialog from "@/components/qr-code-dialog";
 import { useAuth } from "@/hooks/useAuth";
+import PalletLayoutConfigurator from "@/components/pallet-layout-configurator";
 
 // Schema específico para porta paletes
 const portaPalletFormSchema = z.object({
@@ -216,6 +217,25 @@ export default function PortaPaletes() {
   // Função para obter posições relacionadas a uma estrutura
   const getStructurePositions = (structureId: number) => {
     return positions.filter(pos => pos.structureId === structureId);
+  };
+
+  // Gera um layout uniforme (1x1) apenas para visualização do configurador
+  const buildUniformLayoutConfig = (structure: PalletStructure) => {
+    const rows = structure.maxLevels + 1; // inclui térreo
+    const cols = structure.maxPositions;
+    const slots = Array.from({ length: rows * cols }, (_, index) => {
+      const row = Math.floor(index / cols);
+      const col = index % cols;
+      return {
+        id: `slot-${row}-${col}`,
+        row,
+        col,
+        width: 1,
+        height: 1,
+        ocupada: false,
+      } as any;
+    });
+    return { rows, cols, slots, totalPallets: slots.length } as any;
   };
 
   return (
@@ -655,8 +675,17 @@ export default function PortaPaletes() {
                 <PalletStructureViewer 
                   structure={structure}
                   positions={getStructurePositions(structure.id)}
-                  compact={true}
                 />
+
+                {/* Preview da Estrutura no estilo "Configurador de Layout Flexível" */}
+                <div className="mt-2">
+                  <PalletLayoutConfigurator
+                    config={buildUniformLayoutConfig(structure)}
+                    // somente visualização; sem interação aqui
+                    onChange={() => {}}
+                    readonly
+                  />
+                </div>
 
                 <Separator />
                 

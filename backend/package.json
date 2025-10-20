@@ -44,9 +44,11 @@
     "test:ci": "vitest run --coverage"
   },
   "dependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/ioredis": "^4.28.10",
     "@types/multer": "^2.0.0",
     "@types/pg": "^8.15.4",
+    "bcrypt": "^6.0.0",
     "compression": "^1.8.0",
     "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",

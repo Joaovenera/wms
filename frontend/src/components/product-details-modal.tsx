@@ -20,11 +20,11 @@ interface ProductDetailsModalProps {
   productName: string;
 }
 
-export default function ProductDetailsModal({ 
-  isOpen, 
-  onClose, 
-  productId, 
-  productName 
+export default function ProductDetailsModal({
+  isOpen,
+  onClose,
+  productId,
+  productName
 }: ProductDetailsModalProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
@@ -84,10 +84,10 @@ export default function ProductDetailsModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-full sm:max-w-lg md:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto p-4">
           <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <Package2 className="h-5 w-5 mr-2" />
+            <DialogTitle className="flex items-center text-xl font-bold">
+              <Package2 className="h-6 w-6 mr-2" />
               Detalhes do Produto: {productName}
             </DialogTitle>
           </DialogHeader>
@@ -106,17 +106,17 @@ export default function ProductDetailsModal({
             </div>
           ) : productData ? (
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-7">
-                <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-                <TabsTrigger value="stock">Estoque</TabsTrigger>
-                <TabsTrigger value="packaging">Embalagens</TabsTrigger>
-                <TabsTrigger value="consolidation">Consolidado</TabsTrigger>
-                <TabsTrigger value="picking">Separação</TabsTrigger>
-                <TabsTrigger value="photos">Fotos</TabsTrigger>
-                <TabsTrigger value="specifications">Especificações</TabsTrigger>
+              <TabsList className="flex flex-wrap justify-center h-auto p-1 bg-muted text-muted-foreground rounded-md">
+                <TabsTrigger value="overview" className="flex-1 sm:flex-auto">Visão Geral</TabsTrigger>
+                <TabsTrigger value="stock" className="flex-1 sm:flex-auto">Estoque</TabsTrigger>
+                <TabsTrigger value="packaging" className="flex-1 sm:flex-auto">Embalagens</TabsTrigger>
+                <TabsTrigger value="consolidation" className="flex-1 sm:flex-auto">Consolidado</TabsTrigger>
+                <TabsTrigger value="picking" className="flex-1 sm:flex-auto">Separação</TabsTrigger>
+                <TabsTrigger value="photos" className="flex-1 sm:flex-auto">Fotos</TabsTrigger>
+                <TabsTrigger value="specifications" className="flex-1 sm:flex-auto">Especificações</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="overview" className="space-y-4">
+              <TabsContent value="overview" className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card>
                     <CardHeader>
@@ -188,7 +188,7 @@ export default function ProductDetailsModal({
                 )}
               </TabsContent>
 
-              <TabsContent value="stock" className="space-y-4">
+              <TabsContent value="stock" className="space-y-4 mt-4">
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center">
@@ -259,7 +259,7 @@ export default function ProductDetailsModal({
                 </Card>
               </TabsContent>
 
-              <TabsContent value="photos" className="space-y-4">
+              <TabsContent value="photos" className="space-y-4 mt-4">
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center">
@@ -325,7 +325,7 @@ export default function ProductDetailsModal({
                 </Card>
               </TabsContent>
 
-              <TabsContent value="specifications" className="space-y-4">
+              <TabsContent value="specifications" className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card>
                     <CardHeader>
@@ -390,15 +390,15 @@ export default function ProductDetailsModal({
                 </div>
               </TabsContent>
 
-              <TabsContent value="packaging" className="space-y-4">
+              <TabsContent value="packaging" className="space-y-4 mt-4">
                 <PackagingManager product={productData} />
               </TabsContent>
 
-              <TabsContent value="consolidation" className="space-y-4">
+              <TabsContent value="consolidation" className="space-y-4 mt-4">
                 <StockConsolidationView product={productData} />
               </TabsContent>
 
-              <TabsContent value="picking" className="space-y-4">
+              <TabsContent value="picking" className="space-y-4 mt-4">
                 <div className="grid gap-4">
                   <Card>
                     <CardHeader>

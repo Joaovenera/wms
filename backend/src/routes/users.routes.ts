@@ -4,7 +4,12 @@ import { usersController } from "../controllers/users.controller";
 
 const router = Router();
 
-// Users routes with proper authorization
+// User's own profile routes
+router.get('/me', isAuthenticated, usersController.getMe.bind(usersController));
+router.put('/me', isAuthenticated, usersController.updateMe.bind(usersController));
+router.put('/me/password', isAuthenticated, usersController.changePassword.bind(usersController));
+
+// Admin/Manager user management routes
 router.get('/', isAuthenticated, requireManagerOrAdmin, usersController.getUsers.bind(usersController));
 router.get('/:id', isAuthenticated, usersController.getUserById.bind(usersController));
 router.post('/', isAuthenticated, requireAdmin, usersController.createUser.bind(usersController));

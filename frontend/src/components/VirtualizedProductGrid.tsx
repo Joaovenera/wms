@@ -3,7 +3,7 @@ import { FixedSizeList as List } from "react-window";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Package2, Barcode, ImageIcon, Eye, Edit, Trash2 } from "lucide-react";
+import { Package2, Barcode, ImageIcon, Eye, Edit, Trash2, QrCode } from "lucide-react";
 import { Product } from "@/types/api";
 
 interface VirtualizedProductGridProps {
@@ -12,6 +12,7 @@ interface VirtualizedProductGridProps {
   onDelete: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   onManagePhotos: (product: Product) => void;
+  onShowQr: (product: Product) => void;
   isDeletePending?: boolean;
 }
 
@@ -21,6 +22,7 @@ interface ProductCardProps {
   onDelete: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   onManagePhotos: (product: Product) => void;
+  onShowQr: (product: Product) => void;
   isDeletePending?: boolean;
 }
 
@@ -30,6 +32,7 @@ const ProductCard = memo<ProductCardProps>(({
   onDelete, 
   onViewDetails, 
   onManagePhotos, 
+  onShowQr,
   isDeletePending 
 }) => (
   <Card className="card-hover h-full">
@@ -121,6 +124,14 @@ const ProductCard = memo<ProductCardProps>(({
         <Button
           size="sm"
           variant="outline"
+          onClick={() => onShowQr(product)}
+          title="Mostrar QR"
+        >
+          <QrCode className="h-4 w-4" />
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
           onClick={() => onViewDetails(product)}
           title="Ver detalhes"
         >
@@ -164,6 +175,7 @@ export const VirtualizedProductGrid = memo<VirtualizedProductGridProps>(({
   onDelete, 
   onViewDetails, 
   onManagePhotos, 
+  onShowQr,
   isDeletePending 
 }) => {
   // Fixed card dimensions and spacing
@@ -220,6 +232,7 @@ export const VirtualizedProductGrid = memo<VirtualizedProductGridProps>(({
               onDelete={onDelete}
               onViewDetails={onViewDetails}
               onManagePhotos={onManagePhotos}
+              onShowQr={onShowQr}
               isDeletePending={isDeletePending}
             />
           </div>

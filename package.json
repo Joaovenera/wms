@@ -13,5 +13,9 @@
     "docker:db": "docker compose exec postgres psql -U postgres -d warehouse",
     "docker:redis": "docker compose exec redis redis-cli"
   },
-  "private": true
-} 
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^1.0.90",
+    "@google/gemini-cli": "^0.1.22"
+  }
+}

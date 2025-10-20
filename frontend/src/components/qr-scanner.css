@@ -1,0 +1,49 @@
+
+/* Scoped rules for the QR reader container */
+#qr-reader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: black;
+    --qr-aspect: 16/9;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  /* video should follow the computed aspect */
+  #qr-reader video {
+    aspect-ratio: var(--qr-aspect, auto);
+    object-fit: contain;
+    width: 100% !important;
+    height: 100% !important;
+    transform-origin: center center;
+  }
+  
+  /* canvas (overlay) fill container */
+  #qr-reader canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  /* prevent global rules interfering */
+  #qr-reader video,
+  #qr-reader canvas {
+    max-width: none !important;
+    max-height: none !important;
+  }
+  
+  /* If we decide to rotate the view (data-rotate="90") */
+  #qr-reader[data-rotate="90"] video {
+    transform: rotate(90deg);
+    width: auto !important;
+    height: 100% !important;
+    object-fit: cover;
+  }
+  
+  /* If we want to cover the container (crop) */
+  #qr-reader[data-fit="cover"] video {
+    object-fit: cover;
+  }
+  

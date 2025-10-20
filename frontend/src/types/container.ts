@@ -1,11 +1,12 @@
 export interface ContainerPhoto {
   id: string;
-  type: 'seal' | 'container_number' | 'first_opening' | 'clean_empty';
+  type: 'seal' | 'container_number' | 'first_opening' | 'clean_empty' | 'truck_plate' | 'trailer_plate' | 'evidence';
   url: string;
   filename: string;
   uploadedAt: string;
   size: number;
   mimeType: string;
+  note?: string;
 }
 
 // Tipos de chegada (Arrival Types)
@@ -196,7 +197,7 @@ export interface WithdrawalItem extends BaseItem {
 }
 
 export interface ContainerPhotoType {
-  type: 'seal' | 'container_number' | 'first_opening' | 'clean_empty';
+  type: 'seal' | 'container_number' | 'first_opening' | 'clean_empty' | 'truck_plate' | 'trailer_plate';
   label: string;
   description: string;
   required: boolean;
@@ -224,6 +225,20 @@ export const CONTAINER_PHOTO_TYPES: ContainerPhotoType[] = [
     description: 'Foto da primeira abertura das portas do container',
     required: true,
     icon: 'DoorOpen'
+  },
+  {
+    type: 'truck_plate',
+    label: 'Placa do Caminhão',
+    description: 'Foto nítida da placa do cavalo mecânico/caminhão',
+    required: true,
+    icon: 'Hash'
+  },
+  {
+    type: 'trailer_plate',
+    label: 'Placa do Reboque',
+    description: 'Foto nítida da placa do reboque/carreta',
+    required: true,
+    icon: 'Hash'
   },
   {
     type: 'clean_empty',

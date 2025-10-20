@@ -74,8 +74,21 @@ export const loadingExecutionsController = {
         observations: loadingExecutions.observations,
         transferRequestId: loadingExecutions.transferRequestId,
         transferRequestCode: transferRequests.code,
+        transferRequestType: transferRequests.type,
         operatorId: loadingExecutions.operatorId,
-        operatorName: users.firstName
+        operatorName: users.firstName,
+        // Execution-specific fields
+        executionType: loadingExecutions.executionType,
+        containerNumber: loadingExecutions.containerNumber,
+        sealNumber: loadingExecutions.sealNumber,
+        transporterInfo: loadingExecutions.transporterInfo,
+        driverInfo: loadingExecutions.driverInfo,
+        vehiclePlate: loadingExecutions.vehiclePlate,
+        deliveryReceipt: loadingExecutions.deliveryReceipt,
+        conditionAssessment: loadingExecutions.conditionAssessment,
+        specialInstructions: loadingExecutions.specialInstructions,
+        executionPhotos: loadingExecutions.executionPhotos,
+        executionMetadata: loadingExecutions.executionMetadata
       })
       .from(loadingExecutions)
       .leftJoin(transferRequests, eq(loadingExecutions.transferRequestId, transferRequests.id))
@@ -126,7 +139,21 @@ export const loadingExecutionsController = {
   // POST /api/loading-executions - Iniciar nova execução de carregamento
   async startLoadingExecution(req: AuthenticatedRequest, res: Response) {
     try {
-      const { transferRequestId, observations } = req.body;
+      const { 
+        transferRequestId, 
+        observations,
+        // Operation-specific fields
+        containerNumber,
+        sealNumber,
+        transporterInfo,
+        driverInfo,
+        vehiclePlate,
+        deliveryReceipt,
+        conditionAssessment,
+        specialInstructions,
+        executionPhotos,
+        executionMetadata
+      } = req.body;
       
       // Verificar se o pedido existe e está aprovado
       const [transferRequest] = await db.select()
@@ -155,7 +182,20 @@ export const loadingExecutionsController = {
       const executionData = {
         transferRequestId,
         operatorId: req.user!.id,
-        observations
+        observations,
+        // Set execution type from transfer request type
+        executionType: transferRequest.type,
+        // Operation-specific fields
+        containerNumber,
+        sealNumber,
+        transporterInfo,
+        driverInfo,
+        vehiclePlate,
+        deliveryReceipt,
+        conditionAssessment,
+        specialInstructions,
+        executionPhotos,
+        executionMetadata
       };
       
       const validatedData = insertLoadingExecutionSchema.parse(executionData);

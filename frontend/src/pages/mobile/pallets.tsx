@@ -49,7 +49,7 @@ import { type InsertPallet, type Pallet } from "@/types/api";
 import { insertPalletSchema } from "@/types/schemas";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import CameraCapture from "@/components/camera-capture";
+import { CameraCapture } from "@/components/camera-capture";
 import QRCodeDialog from "@/components/qr-code-dialog";
 
 // Status info for mobile display
@@ -111,7 +111,7 @@ const palletTypeDefaults = {
   Europeu: {
     width: 80,
     length: 120,
-    height: 14.4,
+    height: 14,
     maxWeight: 1500,
   },
   Chep: {
@@ -121,8 +121,8 @@ const palletTypeDefaults = {
     maxWeight: 1250,
   },
   Americano: {
-    width: 101.6,
-    length: 121.9,
+    width: 102,
+    length: 122,
     height: 14,
     maxWeight: 1360,
   },
@@ -299,12 +299,17 @@ export default function MobilePallets() {
     });
   }, [pallets, searchTerm, statusFilter]);
 
-  const handleCameraCapture = (imageData: string) => {
-    if (imageData && imageData !== "data:,") {
-      setPhotoPreview(imageData);
-      form.setValue("photoUrl", imageData);
-    }
-    setIsCameraOpen(false);
+  const handleCameraCapture = (blob: Blob) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const imageData = reader.result as string;
+      if (imageData && imageData !== "data:,") {
+        setPhotoPreview(imageData);
+        form.setValue("photoUrl", imageData);
+      }
+      setIsCameraOpen(false);
+    };
+    reader.readAsDataURL(blob);
   };
 
   const onSubmit = (data: InsertPallet) => {
@@ -423,9 +428,9 @@ export default function MobilePallets() {
                                 value as keyof typeof palletTypeDefaults
                               ];
                             if (defaults) {
-                              form.setValue("width", defaults.width);
-                              form.setValue("length", defaults.length);
-                              form.setValue("height", defaults.height);
+                              form.setValue("width", Math.round(defaults.width));
+                              form.setValue("length", Math.round(defaults.length));
+                              form.setValue("height", Math.round(defaults.height));
                               form.setValue(
                                 "maxWeight",
                                 defaults.maxWeight.toString(),
@@ -489,7 +494,7 @@ export default function MobilePallets() {
                               type="number"
                               {...field}
                               onChange={(e) =>
-                                field.onChange(Number(e.target.value))
+                                field.onChange(parseInt(e.target.value))
                               }
                             />
                           </FormControl>
@@ -508,7 +513,7 @@ export default function MobilePallets() {
                               type="number"
                               {...field}
                               onChange={(e) =>
-                                field.onChange(Number(e.target.value))
+                                field.onChange(parseInt(e.target.value))
                               }
                             />
                           </FormControl>
@@ -528,10 +533,10 @@ export default function MobilePallets() {
                           <FormControl>
                             <Input
                               type="number"
-                              step="0.1"
+                              step="1"
                               {...field}
                               onChange={(e) =>
-                                field.onChange(Number(e.target.value))
+                                field.onChange(parseInt(e.target.value))
                               }
                             />
                           </FormControl>

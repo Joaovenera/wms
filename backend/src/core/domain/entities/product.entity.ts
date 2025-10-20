@@ -6,6 +6,7 @@ export interface ProductEntity extends BaseEntity {
   description?: string;
   category?: string;
   brand?: string;
+  ncm?: string;
   unit: string;
   weight?: number;
   dimensions?: Dimensions;
@@ -23,6 +24,7 @@ export interface CreateProductData {
   description?: string;
   category?: string;
   brand?: string;
+  ncm?: string;
   unit: string;
   weight?: number;
   dimensions?: Dimensions;
@@ -38,6 +40,7 @@ export interface UpdateProductData {
   description?: string;
   category?: string;
   brand?: string;
+  ncm?: string;
   unit?: string;
   weight?: number;
   dimensions?: Dimensions;
@@ -61,6 +64,7 @@ export class Product implements ProductEntity {
   public readonly description?: string;
   public readonly category?: string;
   public readonly brand?: string;
+  public readonly ncm?: string;
   public readonly unit: string;
   public readonly weight?: number;
   public readonly dimensions?: Dimensions;
@@ -81,6 +85,7 @@ export class Product implements ProductEntity {
     this.description = data.description;
     this.category = data.category;
     this.brand = data.brand;
+    this.ncm = data.ncm;
     this.unit = data.unit;
     this.weight = data.weight;
     this.dimensions = data.dimensions;

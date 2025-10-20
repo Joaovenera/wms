@@ -24,6 +24,7 @@ export const products = pgTable("products", {
   description: text("description"),
   category: varchar("category"),
   brand: varchar("brand"),
+  ncm: varchar("ncm"),
   unit: varchar("unit").notNull(), // un, kg, l, etc.
   weight: decimal("weight", { precision: 10, scale: 3 }), // kg
   dimensions: jsonb("dimensions"), // {width, length, height}

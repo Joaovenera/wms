@@ -333,7 +333,7 @@ export class DatabaseStorage implements IStorage {
       LEFT JOIN pallets pal ON u.pallet_id = pal.id
       LEFT JOIN positions pos ON u.position_id = pos.id
       WHERE p.is_active = true ${whereId}
-      GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.unit, p.weight, 
+      GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.ncm, p.unit, p.weight, 
                p.dimensions, p.barcode, p.requires_lot, p.requires_expiry, p.min_stock, 
                p.max_stock, p.is_active, p.created_by, p.created_at, p.updated_at
       ORDER BY p.name
@@ -1919,7 +1919,7 @@ export class DatabaseStorage implements IStorage {
     const [occupiedPositionsResult] = await db
       .select({ count: sql<number>`count(*)` })
       .from(positions)
-      .where(eq(positions.status, "occupied"));
+      .where(eq(positions.status, "ocupada"));
 
     const [dailyMovementsResult] = await db
       .select({ count: sql<number>`count(*)` })

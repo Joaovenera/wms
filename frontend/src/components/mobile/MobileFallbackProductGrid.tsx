@@ -13,12 +13,15 @@ import {
   CheckCircle
 } from "lucide-react";
 
+import { QrCode } from "lucide-react";
+
 interface MobileFallbackProductGridProps {
   products: Product[];
   onEdit: (product: Product) => void;
   onDelete: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   onManagePhotos: (product: Product) => void;
+  onGenerateQrCode: (product: Product) => void; // New prop
   isDeletePending: boolean;
 }
 
@@ -54,6 +57,7 @@ export const MobileFallbackProductGrid = memo<MobileFallbackProductGridProps>(({
   onDelete, 
   onViewDetails, 
   onManagePhotos, 
+  onGenerateQrCode, 
   isDeletePending
 }) => {
   return (
@@ -171,6 +175,14 @@ export const MobileFallbackProductGrid = memo<MobileFallbackProductGridProps>(({
                     hapticFeedback={true}
                   >
                     <Camera className="h-4 w-4" />
+                  </TouchOptimizedButton>
+                  <TouchOptimizedButton
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onGenerateQrCode(product)}
+                    hapticFeedback={true}
+                  >
+                    <QrCode className="h-4 w-4" />
                   </TouchOptimizedButton>
                   <TouchOptimizedButton
                     size="sm"

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
 import { 
   Camera, 
   Upload, 
@@ -15,15 +16,18 @@ import {
   Hash,
   DoorOpen,
   Sparkles,
-  Image
+  Image,
+  CirclePlus
 } from "lucide-react";
 import { ContainerPhoto, ContainerPhotoType, CONTAINER_PHOTO_TYPES } from "@/types/container";
+import { CameraCapture } from "./camera-capture";
 
 interface PhotoUploadGridProps {
   photos: ContainerPhoto[];
   onPhotosChange: (photos: ContainerPhoto[]) => void;
   disabled?: boolean;
   maxFileSize?: number; // in MB
+  requiredTypes?: Array<ContainerPhotoType['type']>;
 }
 
 const ICON_MAP = {
@@ -37,11 +41,15 @@ export function PhotoUploadGrid({
   photos, 
   onPhotosChange, 
   disabled = false,
-  maxFileSize = 10 
+  maxFileSize = 10,
+  requiredTypes
 }: PhotoUploadGridProps) {
   const [uploadingTypes, setUploadingTypes] = useState<Set<string>>(new Set());
   const [previewPhoto, setPreviewPhoto] = useState<ContainerPhoto | null>(null);
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+  const evidenceFileRef = useRef<HTMLInputElement | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraTargetType, setCameraTargetType] = useState<string | null>(null);
 
   const getPhotoByType = (type: string): ContainerPhoto | undefined => {
     return photos.find(photo => photo.type === type);
@@ -51,10 +59,25 @@ export function PhotoUploadGrid({
     return !!getPhotoByType(type);
   };
 
-  const getCompletionPercentage = (): number => {
-    const completedCount = CONTAINER_PHOTO_TYPES.filter(type => isTypeComplete(type.type)).length;
-    return (completedCount / CONTAINER_PHOTO_TYPES.length) * 100;
+  const getRequiredTypes = (): Array<ContainerPhotoType['type']> => {
+    return requiredTypes && requiredTypes.length > 0
+      ? requiredTypes
+      : CONTAINER_PHOTO_TYPES.filter(t => t.required).map(t => t.type);
   };
+
+  const getCompletionPercentage = (): number => {
+    const req = getRequiredTypes();
+    if (req.length === 0) return 100;
+    const completedCount = req.filter(type => isTypeComplete(type)).length;
+    return (completedCount / req.length) * 100;
+  };
+
+  const missingRequired = () => {
+    const req = getRequiredTypes();
+    return req.filter(type => !isTypeComplete(type));
+  };
+
+  const [showOnlyPending, setShowOnlyPending] = useState<boolean>(true);
 
   const handleFileSelect = async (type: string, files: FileList | null) => {
     if (!files || files.length === 0 || disabled) return;
@@ -88,9 +111,14 @@ export function PhotoUploadGrid({
           mimeType: file.type
         };
 
-        // Remover foto anterior do mesmo tipo
-        const updatedPhotos = photos.filter(photo => photo.type !== type);
-        updatedPhotos.push(newPhoto);
+        // Para evidências, acumular; para os demais tipos, substituir o mesmo tipo
+        let updatedPhotos: ContainerPhoto[];
+        if (type === 'evidence') {
+          updatedPhotos = [...photos, newPhoto];
+        } else {
+          updatedPhotos = photos.filter(photo => photo.type !== type);
+          updatedPhotos.push(newPhoto);
+        }
         
         onPhotosChange(updatedPhotos);
       };
@@ -122,12 +150,8 @@ export function PhotoUploadGrid({
 
   const openCamera = (type: string) => {
     if (disabled) return;
-    
-    // Para dispositivos móveis, abrir câmera diretamente
-    if (fileInputRefs.current[type]) {
-      fileInputRefs.current[type]!.setAttribute('capture', 'camera');
-      fileInputRefs.current[type]!.click();
-    }
+    setCameraTargetType(type);
+    setShowCamera(true);
   };
 
   const openFileDialog = (type: string) => {
@@ -149,21 +173,38 @@ export function PhotoUploadGrid({
               <Camera className="h-5 w-5 text-blue-600" />
               Registro Fotográfico do Container
             </span>
-            <Badge variant={getCompletionPercentage() === 100 ? "default" : "secondary"}>
-              {Math.round(getCompletionPercentage())}% Completo
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={getCompletionPercentage() === 100 ? "default" : "secondary"}>
+                {Math.round(getCompletionPercentage())}% Completo
+              </Badge>
+              {missingRequired().length > 0 && (
+                <Badge variant="destructive">{missingRequired().length} pendentes</Badge>
+              )}
+            </div>
           </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant={showOnlyPending ? 'default' : 'outline'} onClick={() => setShowOnlyPending(true)}>
+              Pendentes
+            </Button>
+            <Button size="sm" variant={!showOnlyPending ? 'default' : 'outline'} onClick={() => setShowOnlyPending(false)}>
+              Todos
+            </Button>
+          </div>
           <Progress value={getCompletionPercentage()} className="mt-2" />
         </CardHeader>
       </Card>
 
-      {/* Grid de Upload de Fotos */}
+      {/* Grid de Upload de Fotos */
+      }
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {CONTAINER_PHOTO_TYPES.map((photoType) => {
+        {CONTAINER_PHOTO_TYPES
+          .filter(t => !showOnlyPending || !isTypeComplete(t.type))
+          .map((photoType) => {
           const photo = getPhotoByType(photoType.type);
           const isUploading = uploadingTypes.has(photoType.type);
           const isComplete = isTypeComplete(photoType.type);
           const IconComponent = ICON_MAP[photoType.icon as keyof typeof ICON_MAP];
+          const isRequired = getRequiredTypes().includes(photoType.type);
 
           return (
             <Card 
@@ -178,7 +219,7 @@ export function PhotoUploadGrid({
                 <CardTitle className="text-lg flex items-center gap-2">
                   <IconComponent className={`h-5 w-5 ${isComplete ? 'text-green-600' : 'text-gray-600'}`} />
                   {photoType.label}
-                  {photoType.required && (
+                  {isRequired && (
                     <Badge variant="destructive" className="text-xs ml-2">
                       Obrigatório
                     </Badge>
@@ -234,6 +275,9 @@ export function PhotoUploadGrid({
                       <p><strong>Arquivo:</strong> {photo.filename}</p>
                       <p><strong>Tamanho:</strong> {(photo.size / (1024 * 1024)).toFixed(2)} MB</p>
                       <p><strong>Enviado:</strong> {new Date(photo.uploadedAt).toLocaleString('pt-BR')}</p>
+                      {photo.note && (
+                        <p><strong>Observação:</strong> {photo.note}</p>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -284,12 +328,114 @@ export function PhotoUploadGrid({
         })}
       </div>
 
+      <CameraCapture
+        isOpen={showCamera}
+        onClose={() => setShowCamera(false)}
+        onCapture={async (blob) => {
+          if (!cameraTargetType) return;
+          const file = new File([blob], `${cameraTargetType}-${Date.now()}.jpg`, { type: 'image/jpeg' });
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const newPhoto: ContainerPhoto = {
+              id: `temp_${Date.now()}_${cameraTargetType}`,
+              type: cameraTargetType as ContainerPhoto['type'],
+              url: e.target?.result as string,
+              filename: file.name,
+              uploadedAt: new Date().toISOString(),
+              size: file.size,
+              mimeType: file.type
+            };
+            let updated = photos;
+            if (cameraTargetType === 'evidence') {
+              updated = [...photos, newPhoto];
+            } else {
+              updated = photos.filter(p => p.type !== cameraTargetType);
+              updated.push(newPhoto);
+            }
+            onPhotosChange(updated);
+          };
+          reader.readAsDataURL(file);
+        }}
+        facingMode="environment"
+      />
+
+      {/* Evidências adicionais */}
+      <Card className="border-amber-200 bg-amber-50/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CirclePlus className="h-5 w-5 text-amber-600" />
+            Evidências adicionais (opcionais)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {/* Câmera agora usa o overlay CameraCapture; input oculto removido */}
+            <input
+              ref={el => (evidenceFileRef.current = el)}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => handleFileSelect('evidence', e.target.files)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => { setCameraTargetType('evidence'); setShowCamera(true); }}
+              disabled={disabled}
+              className="flex items-center gap-2"
+            >
+              <Camera className="h-4 w-4" />
+              Usar câmera
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => evidenceFileRef.current?.click()}
+              disabled={disabled}
+              className="flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Selecionar arquivo
+            </Button>
+          </div>
+          <div className="text-sm text-gray-600">Use evidências para registrar qualquer situação suspeita ou incorreta.</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {photos.filter(p => p.type === 'evidence').map((photo) => (
+              <div key={photo.id} className="border rounded p-2 space-y-2">
+                <img src={photo.url} alt="Evidência" className="w-full h-40 object-cover rounded" />
+                <div>
+                  <label className="text-xs text-gray-600">Observação</label>
+                  <Input
+                    value={photo.note || ''}
+                    onChange={(e) => {
+                      const updated = photos.map(ph => ph.id === photo.id ? { ...ph, note: e.target.value } : ph);
+                      onPhotosChange(updated);
+                    }}
+                    placeholder="Descreva o que foi observado (opcional)"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button size="sm" variant="destructive" onClick={() => {
+                    const updated = photos.filter(ph => ph.id !== photo.id);
+                    onPhotosChange(updated);
+                  }}>
+                    <X className="h-4 w-4 mr-1" /> Remover
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Alerta de Validação */}
       {getCompletionPercentage() < 100 && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Documentação Incompleta:</strong> É necessário anexar todas as 4 fotos obrigatórias 
+            <strong>Documentação Incompleta:</strong> É necessário anexar todas as fotos obrigatórias 
             para completar o registro do container.
           </AlertDescription>
         </Alert>

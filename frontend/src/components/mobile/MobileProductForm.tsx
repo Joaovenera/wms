@@ -7,8 +7,8 @@ import { Switch } from "@/components/ui/switch";
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { InsertProduct, Product } from "@/types/api";
 import { TouchOptimizedButton } from "@/components/mobile/TouchOptimizedControls";
-import { Camera, RefreshCw } from "lucide-react";
-import CameraCapture from "@/components/camera-capture";
+import { Camera, RefreshCw, Trash2 } from "lucide-react";
+import { CameraCapture } from "@/components/camera-capture";
 import categoriesData from "@/data/categories.json";
 
 interface MobileProductFormProps {
@@ -29,14 +29,22 @@ const MobileProductForm = memo<MobileProductFormProps>(({
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  // Initialize category selection from existing product
   React.useEffect(() => {
-    if (editingProduct?.category) {
-      const categoryParts = editingProduct.category.split(" > ");
+    if (editingProduct) {
+      form.reset(editingProduct);
+      if ((editingProduct as any).photoUrl) {
+        setPhotoPreview((editingProduct as any).photoUrl as string);
+      }
+      const categoryParts = (editingProduct.category || '').split(" > ");
       setSelectedCategory(categoryParts[0] || "");
       setSelectedSubCategory(categoryParts.slice(1).join(" > ") || "");
+    } else {
+      form.reset();
+      setPhotoPreview(null);
+      setSelectedCategory("");
+      setSelectedSubCategory("");
     }
-  }, [editingProduct]);
+  }, [editingProduct, form]);
 
   // Memoize subcategories computation
   const subcategories = useMemo(() => {
@@ -59,12 +67,22 @@ const MobileProductForm = memo<MobileProductFormProps>(({
   }, [selectedCategory, form]);
 
   // Camera capture handler
-  const handleCameraCapture = (imageData: string) => {
-    if (imageData && imageData !== "data:,") {
-      setPhotoPreview(imageData);
-      form.setValue("photoUrl", imageData);
-    }
-    setIsCameraOpen(false);
+  const handleCameraCapture = (blob: Blob) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const imageData = reader.result as string;
+      if (imageData && imageData !== "data:,") {
+        setPhotoPreview(imageData);
+        form.setValue("photoUrl", imageData);
+      }
+      setIsCameraOpen(false);
+    };
+    reader.readAsDataURL(blob);
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoPreview(null);
+    form.setValue("photoUrl", "");
   };
 
   // Generate next SKU
@@ -220,8 +238,8 @@ const MobileProductForm = memo<MobileProductFormProps>(({
           />
         </div>
 
-        {/* Unit and Quantity */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Unit, NCM and Quantity */}
+        <div className="grid grid-cols-3 gap-3">
           <FormField
             control={form.control}
             name="unit"
@@ -245,6 +263,23 @@ const MobileProductForm = memo<MobileProductFormProps>(({
                       <SelectItem value="pct">Pacote</SelectItem>
                     </SelectContent>
                   </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="ncm"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>NCM</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="1905.90.90" 
+                    {...field} 
+                    value={(field.value as string) || ""} 
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -416,24 +451,43 @@ const MobileProductForm = memo<MobileProductFormProps>(({
         {/* Photo Section */}
         <div className="space-y-3">
           <FormLabel>Foto do Produto</FormLabel>
-          <TouchOptimizedButton
-            type="button"
-            variant="outline"
-            onClick={() => setIsCameraOpen(true)}
-            className="w-full h-12"
-          >
-            <Camera className="h-4 w-4 mr-2" />
-            {photoPreview ? "Alterar Foto" : "Tirar Foto"}
-          </TouchOptimizedButton>
-
           {photoPreview && (
-            <div className="mt-3">
+            <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
               <img
                 src={photoPreview}
                 alt="Preview"
-                className="w-full h-32 object-cover rounded border"
+                className="w-full h-full object-cover"
               />
+              <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300">
+                <TouchOptimizedButton
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  onClick={handleRemovePhoto}
+                  className="mr-2"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </TouchOptimizedButton>
+                <TouchOptimizedButton
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  onClick={() => setIsCameraOpen(true)}
+                >
+                  <Camera className="h-5 w-5" />
+                </TouchOptimizedButton>
+              </div>
             </div>
+          )} {!photoPreview && (
+            <TouchOptimizedButton
+              type="button"
+              variant="outline"
+              onClick={() => setIsCameraOpen(true)}
+              className="w-full h-12"
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              Tirar Foto
+            </TouchOptimizedButton>
           )}
 
           <FormField

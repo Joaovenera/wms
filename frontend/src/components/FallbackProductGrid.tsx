@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Package2, Barcode, ImageIcon, Eye, Edit, Trash2 } from "lucide-react";
+import { Package2, Barcode, ImageIcon, Eye, Edit, Trash2, QrCode } from "lucide-react";
 import { Product } from "@/types/api";
 
 interface FallbackProductGridProps {
@@ -11,6 +11,7 @@ interface FallbackProductGridProps {
   onDelete: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   onManagePhotos: (product: Product) => void;
+  onShowQr: (product: Product) => void;
   isDeletePending?: boolean;
 }
 
@@ -24,6 +25,7 @@ export const FallbackProductGrid = memo<FallbackProductGridProps>(({
   onDelete, 
   onViewDetails, 
   onManagePhotos, 
+  onShowQr,
   isDeletePending 
 }) => {
   return (
@@ -115,6 +117,14 @@ export const FallbackProductGrid = memo<FallbackProductGridProps>(({
             </div>
             
             <div className="flex justify-end space-x-2 mt-4">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onShowQr(product)}
+                title="Mostrar QR"
+              >
+                <QrCode className="h-4 w-4" />
+              </Button>
               <Button
                 size="sm"
                 variant="outline"

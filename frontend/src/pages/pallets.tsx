@@ -17,7 +17,7 @@ import { type Pallet, type InsertPallet } from "@/types/api";
 import { insertPalletSchema } from "@/types/schemas";
 import { Plus, Search, Edit, Trash2, Layers as PalletIcon, Camera, Image, CheckCircle, AlertCircle, Wrench, XCircle, Clock, Scan, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import CameraCapture from "@/components/camera-capture";
+import { CameraCapture } from "@/components/camera-capture";
 import QRCodeDialog from "@/components/qr-code-dialog";
 
 // Função para obter informações do status
@@ -89,8 +89,8 @@ const palletTypeDefaults = {
     maxWeight: 1250
   },
   Americano: {
-    width: 101.6,
-    length: 121.9,
+    width: 102,
+    length: 122,
     height: 14,
     maxWeight: 1360
   }
@@ -268,11 +268,16 @@ export default function Pallets() {
     return matchesSearch && matchesStatus;
   }) || [];
 
-  const handleCameraCapture = (imageData: string) => {
-    if (imageData && imageData !== 'data:,') {
-      setPhotoPreview(imageData);
-      form.setValue('photoUrl', imageData);
-    }
+  const handleCameraCapture = (blob: Blob) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const imageData = reader.result as string;
+      if (imageData && imageData !== 'data:,') {
+        setPhotoPreview(imageData);
+        form.setValue('photoUrl', imageData);
+      }
+    };
+    reader.readAsDataURL(blob);
   };
 
   const handleRemovePhoto = () => {
@@ -298,7 +303,7 @@ export default function Pallets() {
       width: pallet.width,
       length: pallet.length,
       height: pallet.height,
-      maxWeight: pallet.maxWeight,
+      maxWeight: pallet.maxWeight.toString(),
       status: pallet.status,
       photoUrl: pallet.photoUrl || "",
       observations: pallet.observations || "",
@@ -555,48 +560,45 @@ export default function Pallets() {
                     <FormItem>
                       <FormLabel>Foto do Pallet</FormLabel>
                       <div className="space-y-3">
-                        {/* Preview da foto */}
                         {photoPreview && (
-                          <div className="relative">
+                          <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
                             <img
                               src={photoPreview}
                               alt="Preview do pallet"
-                              className="w-full h-48 object-cover rounded-lg border"
+                              className="w-full h-full object-cover"
                             />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowImageViewer(photoPreview)}
-                              className="absolute top-2 left-2"
-                            >
-                              <Image className="h-4 w-4 mr-1" />
-                              Ver
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={handleRemovePhoto}
-                              className="absolute top-2 right-2"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300">
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                onClick={handleRemovePhoto}
+                                className="mr-2"
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="icon"
+                                onClick={() => setIsCameraOpen(true)}
+                              >
+                                <Camera className="h-5 w-5" />
+                              </Button>
+                            </div>
                           </div>
                         )}
-                        
-                        {/* Botões de ação */}
-                        <div className="flex gap-2">
+                        {!photoPreview && (
                           <Button
                             type="button"
                             variant="outline"
                             onClick={() => setIsCameraOpen(true)}
-                            className="flex-1"
+                            className="w-full h-12"
                           >
                             <Camera className="h-4 w-4 mr-2" />
-                            {photoPreview ? 'Refazer Foto' : 'Capturar Foto'}
+                            Capturar Foto
                           </Button>
-                        </div>
+                        )}
                       </div>
                       <FormControl>
                         <Input type="hidden" {...field} value={field.value || ""} />

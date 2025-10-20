@@ -15,6 +15,7 @@ export class ProductRepositoryImpl implements ProductRepository {
       description: dbProduct.description || undefined, // Convert null to undefined
       category: dbProduct.category || undefined,
       brand: dbProduct.brand || undefined,
+      ncm: dbProduct.ncm || undefined,
       weight: dbProduct.weight ? parseFloat(dbProduct.weight) : undefined, // Convert string to number
       barcode: dbProduct.barcode || undefined,
       maxStock: dbProduct.maxStock || undefined,
@@ -30,6 +31,7 @@ export class ProductRepositoryImpl implements ProductRepository {
       description: entityData.description || null, // Convert undefined to null
       category: entityData.category || null,
       brand: entityData.brand || null,
+      ncm: entityData.ncm || null,
       weight: entityData.weight?.toString() || null, // Convert number to string
       barcode: entityData.barcode || null,
       maxStock: entityData.maxStock || null,
@@ -318,7 +320,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         LEFT JOIN pallets pal ON u.pallet_id = pal.id
         LEFT JOIN positions pos ON u.position_id = pos.id
         WHERE p.is_active = true ${whereId}
-        GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.unit, p.weight, 
+        GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.ncm, p.unit, p.weight, 
                  p.dimensions, p.barcode, p.requires_lot, p.requires_expiry, p.min_stock, 
                  p.max_stock, p.is_active, p.created_by, p.created_at, p.updated_at
         ORDER BY p.name
@@ -525,7 +527,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         FROM products p
         LEFT JOIN ucp_items ui ON p.id = ui.product_id AND ui.is_active = true
         WHERE p.is_active = true
-        GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.unit, p.weight, 
+        GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.ncm, p.unit, p.weight, 
                  p.dimensions, p.barcode, p.requires_lot, p.requires_expiry, p.min_stock, 
                  p.max_stock, p.is_active, p.created_by, p.created_at, p.updated_at
         HAVING COALESCE(SUM(CAST(ui.quantity AS NUMERIC)), 0) <= p.min_stock
@@ -553,7 +555,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         FROM products p
         LEFT JOIN ucp_items ui ON p.id = ui.product_id AND ui.is_active = true
         WHERE p.is_active = true AND p.max_stock IS NOT NULL
-        GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.unit, p.weight, 
+        GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.ncm, p.unit, p.weight, 
                  p.dimensions, p.barcode, p.requires_lot, p.requires_expiry, p.min_stock, 
                  p.max_stock, p.is_active, p.created_by, p.created_at, p.updated_at
         HAVING COALESCE(SUM(CAST(ui.quantity AS NUMERIC)), 0) >= p.max_stock
@@ -579,7 +581,7 @@ export class ProductRepositoryImpl implements ProductRepository {
         FROM products p
         LEFT JOIN ucp_items ui ON p.id = ui.product_id AND ui.is_active = true
         WHERE p.is_active = true
-        GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.unit, p.weight, 
+        GROUP BY p.id, p.sku, p.name, p.description, p.category, p.brand, p.ncm, p.unit, p.weight, 
                  p.dimensions, p.barcode, p.requires_lot, p.requires_expiry, p.min_stock, 
                  p.max_stock, p.is_active, p.created_by, p.created_at, p.updated_at
         HAVING COALESCE(SUM(CAST(ui.quantity AS NUMERIC)), 0) = 0
